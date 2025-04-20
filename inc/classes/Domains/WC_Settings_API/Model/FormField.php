@@ -13,35 +13,70 @@ use J7\WpUtils\Classes\DTO;
  * @see https://developer.woocommerce.com/docs/settings-api/
  *  */
 class FormField extends DTO {
-	/** @var string 欄位名稱 */
-	protected $field_name = '';
 
 	/** @var string 設定頁面上顯示的標題 */
-	public $title = '';
+	public string $title = '';
 
 	/** @var string 設定頁面上顯示的描述 */
-	public $description = '';
+	public string $description = '';
+
+	/** @var bool 是否顯示描述提示 */
+	public bool $desc_tip = false;
+
+	/** @var string placeholder */
+	public string $placeholder = '';
 
 	/** @var string 欄位類型 (text|password|textarea|checkbox|select|multiselect) */
-	public $type = '';
+	public string $type = '';
 
 	/** @var mixed 設定的預設值 */
-	public $default = '';
+	public mixed $default = '';
 
 	/** @var string 輸入元素的CSS類別 */
-	public $class = '';
+	public string $class = '';
 
 	/** @var string 在輸入元素上內嵌的CSS規則 */
-	public $css = '';
+	public string $css = '';
 
 	/** @var string 標籤 (僅用於checkbox輸入) */
-	public $label = '';
+	public string $label = '';
 
 	/** @var array<string,string> 選項 (僅用於select/multiselect輸入) */
-	public $options = [];
+	public array $options = [];
 
-	/** 取得欄位名稱 @return string  */
-	public function get_name(): string {
-		return $this->field_name;
+	/** @var array<string,string> 自訂屬性 */
+	public array $custom_attributes = [];
+
+	/**
+	 * 實例化
+	 *
+	 * @param array<string,mixed> $data 資料
+	 * @return self
+	 * */
+	public static function instance( array $data ): self {
+		return new self( $data );
+	}
+
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @return void
+	 * @throws \Exception 型別不符合
+	 * */
+	protected function validate(): void {
+		$allowed_types = [ 'text', 'password', 'textarea', 'checkbox', 'select', 'multiselect' ];
+		if ( ! in_array( $this->type, $allowed_types, true ) ) {
+			throw new \Exception( 'Invalid field type, expected one of: ' . implode( ', ', $allowed_types ) . ". `{$this->type}` given." );
+		}
+
+		// 如果有設置 label ，則 type 必須為 checkbox
+		if ( $this->label && 'checkbox' !== $this->type ) {
+			throw new \Exception( "Label is only allowed for checkbox fields. `{$this->type}` given." );
+		}
+
+		// 如果有設置 options ，則 type 必須為 select 或 multiselect
+		if ( $this->options && ( 'select' !== $this->type && 'multiselect' !== $this->type ) ) {
+			throw new \Exception( "Options are only allowed for select or multiselect fields. `{$this->type}` given." );
+		}
 	}
 }

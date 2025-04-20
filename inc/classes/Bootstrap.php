@@ -34,7 +34,7 @@ final class Bootstrap {
 	 * @return array<string>
 	 */
 	public static function add_method( array $methods ): array {
-		$methods[] = Payment\Ecpay\Core\Atm::class;
+		$methods[] = Domains\Payment\Ecpay\Core\Atm::class;
 		return $methods;
 	}
 
