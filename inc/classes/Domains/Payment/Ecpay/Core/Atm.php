@@ -4,10 +4,15 @@ declare (strict_types = 1);
 
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\Base;
+use J7\PowerPayment\Domains\Payment\Abstract_Payment_Gateway;
+use J7\PowerPayment\Utils\Base;
+use J7\PowerPayment\Plugin;
 
-/** Bootstrap */
-final class Atm extends Base {
+/** Atm */
+final class Atm extends Abstract_Payment_Gateway {
+
+	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
+	public $payment_type = 'ATM';
 
 	/** Constructor */
 	public function __construct() {
@@ -104,6 +109,30 @@ final class Atm extends Base {
 		}
 
 		return parent::process_admin_options();
+	}
+
+	/**
+	 * 提交表單
+	 * 需透過前端網頁導轉(Submit)到綠界付款API網址
+	 *
+	 * @see https://developers.ecpay.com.tw/?p=2872
+	 * @param \WC_Order $order 訂單
+	 */
+	protected function submit( \WC_Order $order ): void {
+		$service = Service::instance();
+		/** @var \WC_Order $order */
+		$params = $service->get_params( $order, $this );
+
+		Plugin::load_template(
+				'auto-form',
+				[
+					'params' => $params,
+					'url'    => $service->aio_checkout_endpoint,
+				]
+				);
+
+		// DELETE ? 送出前就清除購物車了?
+		\WC()->cart->empty_cart();
 	}
 
 	/**

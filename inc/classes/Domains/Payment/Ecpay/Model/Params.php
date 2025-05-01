@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Model;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerPayment\Utils\Base;
+use J7\PowerPayment\Utils\Base as Utils;
+use J7\PowerPayment\Domains\Payment\Ecpay\Core\Service;
+use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
+use J7\PowerPayment\Domains\Payment\Abstract_Payment_Gateway;
 
 /**
- * 綠界全方位金流 API 必填參數
+ * 綠界全方位金流 API 必填參數 DTO
  * @see https://developers.ecpay.com.tw/?p=2862
  */
 final class Params extends DTO
@@ -153,54 +156,186 @@ final class Params extends DTO
 	/** @var 'ENG' | 'KOR' | 'JPN' | 'CHI' 語系設定 */
 	public string $Language;
 
+
+
+	/** @var \WP_Error 錯誤蒐集 */
+	protected \WP_Error $dto_error;
+
+	/**
+	 * 組成變數的主要邏輯可以寫在裡面
+	 *  @param \WC_Order           $order 訂單
+	 *  @param Abstract_Payment_Gateway $gateway 付款方式
+	 */
+	public static function instance( \WC_Order $order, Abstract_Payment_Gateway $gateway ): self
+	{
+		//TODO
+		$notify_url = \WC()->api_request_url('ry_ecpay_callback', true);
+
+		$return_url = $gateway->get_return_url($order);
+		$service = Service::instance();
+
+		$args = [
+			'MerchantID'        => $service->merchant_id,
+			'MerchantTradeNo'   => $order->get_id(), // TODO RY 有特別作唯一，需要嗎?
+			'MerchantTradeDate' => (new \DateTime('now', new \DateTimeZone('Asia/Taipei')))->format('Y/m/d H:i:s'),
+			'TotalAmount'       => (int) ceil($order->get_total()), // 無條件進位
+			'TradeDesc'         => \get_bloginfo('name'),
+			'ItemName'          => EcpayUtils::get_item_name($order),
+			'ReturnURL'         => $notify_url,
+			'ChoosePayment'     => 'ATM',
+			'ClientBackURL'     => $return_url,
+			'OrderResultURL'    => $return_url,
+			'PaymentInfoURL'    => $notify_url,
+			'ClientRedirectURL' => $return_url,
+		];
+
+		// 加上語言
+		$language = EcpayUtils::get_language();
+		if ( $language ) {
+			$args['Language'] = $language;
+		}
+
+		$args = self::add_type_info( $args, $order, $gateway );
+		$args = self::add_check_value( $args, 'sha256' );
+
+		return new self($args);
+	}
+
 	/** 自訂驗證邏輯 */
 	protected function validate(): void
 	{
 
 		if ('aio' !== $this->PaymentType) {
-			throw new \Exception("PaymentType 必須為 aio, 但目前為 {$this->PaymentType}");
+			$this->dto_error->add(
+				'PaymentType',
+				"PaymentType 必須為 aio, 但目前為 {$this->PaymentType}"
+			);
 		}
 
-		if (Base::include_special_char($this->MerchantTradeNo)) {
-			throw new \Exception("MerchantTradeNo 不能包含特殊字元, 但目前為 {$this->MerchantTradeNo}");
+		if (Utils::include_special_char($this->MerchantTradeNo)) {
+			$this->dto_error->add(
+				'MerchantTradeNo',
+				"MerchantTradeNo 不能包含特殊字元, 但目前為 {$this->MerchantTradeNo}"
+			);
 		}
 
 		// 檢查字串長度
-		if (strlen($this->MerchantTradeNo) > 20) {
-			throw new \Exception("MerchantTradeNo 長度不能超過 20 個字, 但目前為 " . strlen($this->MerchantTradeNo) . " 字");
+		if (Utils::strlen($this->MerchantTradeNo) > 20) {
+			$this->dto_error->add(
+				'MerchantTradeNo',
+				"MerchantTradeNo 長度不能超過 20 個字, 但目前為 " . strlen($this->MerchantTradeNo) . " 字"
+			);
 		}
 
-		if (Base::include_special_char($this->TradeDesc)) {
-			throw new \Exception("TradeDesc 不能包含特殊字元, 但目前為 {$this->TradeDesc}");
+		if (Utils::include_special_char($this->TradeDesc)) {
+			$this->dto_error->add(
+				'TradeDesc',
+				"TradeDesc 不能包含特殊字元, 但目前為 {$this->TradeDesc}"
+			);
+		}
+
+		if (Utils::strlen($this->TradeDesc) > 200) {
+			$this->dto_error->add(
+				'TradeDesc',
+				"TradeDesc 長度不能超過 200 個字, 但目前為 " . strlen($this->TradeDesc) . " 字"
+			);
 		}
 
 		$payment_options = ['Credit', 'TWQR', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'BNPL'];
 		if (!in_array($this->ChoosePayment, [...$payment_options, 'ALL'])) {
-			throw new \Exception("ChoosePayment 必須為 " . implode(', ', [...$payment_options, 'ALL']) . " 其中一個, 但目前為 {$this->ChoosePayment}");
+			$this->dto_error->add(
+				'ChoosePayment',
+				"ChoosePayment 必須為 " . implode(', ', [...$payment_options, 'ALL']) . " 其中一個, 但目前為 {$this->ChoosePayment}"
+			);
 		}
 
 		if ($this->EncryptType !== 1) {
-			throw new \Exception("EncryptType 必須為 1, 但目前為 {$this->EncryptType}");
+			$this->dto_error->add(
+				'EncryptType',
+				"EncryptType 必須為 1, 但目前為 {$this->EncryptType}"
+			);
 		}
 
 
 		if (isset($this->NeedExtraPaidInfo)) {
 			if (!in_array($this->NeedExtraPaidInfo, ['N', 'Y'])) {
-				throw new \Exception("NeedExtraPaidInfo 必須為 'N' | 'Y' 其中一個, 但目前為 {$this->NeedExtraPaidInfo}");
+				$this->dto_error->add(
+					'NeedExtraPaidInfo',
+					"NeedExtraPaidInfo 必須為 'N' | 'Y' 其中一個, 但目前為 {$this->NeedExtraPaidInfo}"
+				);
 			}
 		}
 
 		if (isset($this->IgnorePayment)) {
 			if (!in_array($this->IgnorePayment, $payment_options)) {
-				throw new \Exception("IgnorePayment 必須為 " . implode(', ', $payment_options) . " 其中一個, 但目前為 {$this->IgnorePayment}");
+				$this->dto_error->add(
+					'IgnorePayment',
+					"IgnorePayment 必須為 " . implode(', ', $payment_options) . " 其中一個, 但目前為 {$this->IgnorePayment}"
+				);
 			}
 		}
 
 		if (isset($this->Language)) {
 			if (!in_array($this->Language, ['ENG', 'KOR', 'JPN', 'CHI'])) {
-				throw new \Exception("Language 必須為 'ENG' | 'KOR' | 'JPN' | 'CHI' 其中一個, 但目前為 {$this->Language}");
+				$this->dto_error->add(
+					'Language',
+					"Language 必須為 'ENG' | 'KOR' | 'JPN' | 'CHI' 其中一個, 但目前為 {$this->Language}"
+				);
 			}
 		}
+	}
+
+	/**
+	 * 依照不同付款方式特性，加上額外參數
+	 * TODO 不同付款方式應該用不同的 DTO?
+	 * @param array<string, string|int> $args
+	 * @param \WC_Order $order
+	 * @param Abstract_Payment_Gateway $gateway
+	 * @return array<string, string|int>
+	 */
+	protected static function add_type_info( array $args, \WC_Order $order, Abstract_Payment_Gateway $gateway ): array {
+		switch ( $gateway->payment_type ) {
+			case 'Credit':
+				// 如果是分期，就額外加上參數
+					$number_of_periods = (int) $order->get_meta( '_ecpay_payment_number_of_periods', true );
+					if ( in_array( $number_of_periods, [ 3, 6, 12, 18, 24 ], true ) ) {
+						$args['CreditInstallment'] = $number_of_periods;
+						// DELETE 帶參數時加上 order note? 不合適吧，不如在 _ecpay_payment_number_of_periods 寫入時，就順便寫入 order note
+						$order->add_order_note(
+							sprintf(
+							/* translators: %d number of periods */
+								__( 'Credit installment to %d', 'power_payment' ),
+								$number_of_periods
+							)
+						);
+						$order->save();
+						//--------------------------------
+					}
+				break;
+			case 'ATM':
+				$args['ExpireDate'] = $gateway->expire_date;
+				break;
+			case 'BARCODE':
+			case 'CVS':
+				$args['StoreExpireDate'] = $gateway->expire_date;
+				break;
+			default:
+				break;
+		}
+		return $args;
+	}
+
+
+	/**
+	 * 依照不同付款方式特性，加上額外參數
+	 * @param array<string, string|int> $args
+	 * @param string $hash_algo 'sha256' | 'md5' 雜湊演算法
+	 * @return array<string, string|int>
+	 */
+	protected static function add_check_value( array $args, string $hash_algo ): array {
+		$service = Service::instance();
+		$args['CheckMacValue'] = $service->get_check_value( $args, $hash_algo );
+		return $args;
 	}
 }
 // phpcs:enable

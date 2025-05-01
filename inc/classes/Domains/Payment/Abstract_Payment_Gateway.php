@@ -5,10 +5,14 @@ declare (strict_types = 1);
 namespace J7\PowerPayment\Domains\Payment;
 
 use J7\PowerPayment\Domains\WC_Settings_API\Model\FormField;
+use J7\PowerPayment\Utils\Base;
 
 /** Base */
-abstract class Base extends \WC_Payment_Gateway {
+abstract class Abstract_Payment_Gateway extends \WC_Payment_Gateway {
 	use \J7\WpUtils\Traits\SingletonTrait;
+
+	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
+	public $payment_type = '';
 
 	/** @var string 付款方式 ID */
 	public $id;
@@ -34,7 +38,7 @@ abstract class Base extends \WC_Payment_Gateway {
 	/** @var string 前台顯示付款方式描述 */
 	public $description;
 
-	/** @var int 付款截止日(天)，通常 ATM 才有 */
+	/** @var int 付款截止日(天)，通常 ATM / CVS / BARCODE 才有 */
 	public int $expire_date = 3;
 
 	/** @var int 付款方式最小金額 */
@@ -104,7 +108,7 @@ abstract class Base extends \WC_Payment_Gateway {
 			],
 		];
 
-		$strict = wp_get_environment_type() === 'local';
+		$strict = \wp_get_environment_type() === 'local';
 		FormField::parse_array( $this->form_fields, $strict );
 
 		$this->init_settings();
@@ -179,20 +183,19 @@ abstract class Base extends \WC_Payment_Gateway {
 	 * RY 在這邊做表單提交
 	 * */
 	public function render_at_receipt( int $order_id ): void {
-		$order = \wc_get_order( $order_id );
-		if ( ! $order instanceof \WC_Order ) {
+		try {
+
+			if (! $this->can_use( $order_id )) {
+				return;
+			}
+
+			$order = \wc_get_order( $order_id );
+			/** @var \WC_Order $order */
+			$this->submit( $order );
+		} catch (\Throwable $th) {
+			Base::log( $th->getMessage(), 'error' );
 			return;
 		}
-
-		if ( $order->get_payment_method() !== $this->id ) {
-			return;
-		}
-
-		// TODO
-		var_dump( 'adg0s54g0s4g' );
-		// RY 在這邊做跳轉前端表單提交
-		// RY_ECPay_Gateway_Api::checkout_form( $order, $this );
-		\WC()->cart->empty_cart();
 	}
 
 	/** [後台]顯示錯誤訊息，改用 WC_Admin_Settings */
@@ -202,5 +205,37 @@ abstract class Base extends \WC_Payment_Gateway {
 				\WC_Admin_Settings::add_error( $error );
 			}
 		}
+	}
+
+	/**
+	 * 提交表單
+	 *
+	 * @param \WC_Order $order 訂單
+	 */
+	protected function submit( \WC_Order $order ): void {
+	}
+
+	/**
+	 * 驗證訂單是不是使用此付款方式
+	 * 通常用在 hook callback 中
+	 *
+	 * @param \WC_Order|int|string $order_or_id 訂單或訂單 ID
+	 * @return bool
+	 * @throws \Exception 如果訂單不是實例或不是實例的訂單
+	 */
+	protected function can_use( \WC_Order|int|string $order_or_id ): bool {
+		if ( is_numeric($order_or_id)) {
+			$order_or_id = \wc_get_order( $order_or_id );
+		}
+
+		if ( ! $order_or_id instanceof \WC_Order ) {
+			throw new \Exception( "#{$order_or_id} is not instance of WC_Order" );
+		}
+
+		if ( $order_or_id->get_payment_method() !== $this->id ) {
+			return false;
+		}
+
+		return true;
 	}
 }

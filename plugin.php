@@ -40,7 +40,7 @@ final class Plugin {
 	 */
 	public function __construct() {
 
-		// self::$template_page_names = [ '404' ];
+		self::$template_page_names = [ 'auto-form' ];
 
 		$this->required_plugins = [
 			[
