@@ -18,24 +18,6 @@ abstract class Base {
 	const DEFAULT_IMAGE = 'http://1.gravatar.com/avatar/1c39955b5fe5ae1bf51a77642f052848?s=96&d=mm&r=g';
 
 	/**
-	 * 記錄 log
-	 *
-	 * @param mixed  $message 訊息
-	 * @param string $title 標題
-	 * @param string $level 等級 info | error | alert | critical | debug | emergency | warning | notice
-	 */
-	public static function log( mixed $message, string $title = '', string $level = 'info' ): void {
-		\J7\WpUtils\Classes\WC::log(
-			$message,
-			$title,
-			$level,
-			[
-				'source' => 'power_payment',
-			]
-			);
-	}
-
-	/**
 	 * 計算中文 & 英文 & 數字字數長度
 	 *
 	 * @param string $str 要檢查的字串

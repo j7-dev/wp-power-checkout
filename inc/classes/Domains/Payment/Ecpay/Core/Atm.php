@@ -4,12 +4,12 @@ declare (strict_types = 1);
 
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\Abstract_Payment_Gateway;
-use J7\PowerPayment\Utils\Base;
+use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
 use J7\PowerPayment\Plugin;
 
 /** Atm */
-final class Atm extends Abstract_Payment_Gateway {
+final class Atm extends AbstractPaymentGateway {
+	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
 	public $payment_type = 'ATM';

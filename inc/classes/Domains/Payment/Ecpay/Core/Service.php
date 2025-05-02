@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
+use J7\PowerPayment\Domains\Payment\AbstractPaymentService;
 use J7\PowerPayment\Domains\Payment\Ecpay\Model\Params;
-use J7\PowerPayment\Domains\Payment\Abstract_Payment_Gateway;
+use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
+use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
 
 /** Service */
-final class Service {
-
+final class Service extends AbstractPaymentService {
 	use \J7\WpUtils\Traits\SingletonTrait;
+
+	/** @var string 服務 ID */
+	public string $id = 'ecpay-aio';
 
 	/** @var 'prod' | 'test' 模式 */
 	public string $mode = 'test';
@@ -39,7 +43,7 @@ final class Service {
 
 	/** Constructor */
 	public function __construct() {
-		// TODO 從 db 取得設定
+		// TODO 從 db 取得設定 可以抽象到 parrent 執行?
 		$this->mode = 'test';
 		$this->set_properties();
 	}
@@ -48,12 +52,12 @@ final class Service {
 	/**
 	 * 取得參數
 	 *
-	 * @param \WC_Order                $order 訂單
-	 * @param Abstract_Payment_Gateway $gateway 付款方式
+	 * @param \WC_Order              $order 訂單
+	 * @param AbstractPaymentGateway $gateway 付款方式
 	 * @return array<string, mixed> 綠界參數
 	 * @throws \Exception 如果參數不符合規定
 	 *  */
-	public function get_params( \WC_Order $order, Abstract_Payment_Gateway $gateway ): array {
+	public function get_params( \WC_Order $order, AbstractPaymentGateway $gateway ): array {
 		$params_dto = Params::instance( $order, $gateway );
 		return $params_dto->to_array();
 	}
@@ -85,7 +89,7 @@ final class Service {
 		$args_string[] = "HashIV={$this->hash_iv}";// 結尾加上 HashIV
 
 		$args_string = implode( '&', $args_string ); // 用 & 連接
-		$args_string = self::urlencode( $args_string ); // 綠界要求 urlencode 的規則
+		$args_string = EcpayUtils::urlencode( $args_string ); // 綠界要求 urlencode 的規則
 		$args_string = strtolower( $args_string ); // 轉小寫
 		$check_value = hash( $hash_algo, $args_string ); // 生成 CheckMacValue
 		$check_value = strtoupper( $check_value ); // 轉大寫
@@ -93,9 +97,28 @@ final class Service {
 		return $check_value;
 	}
 
+	/**
+	 * 收到綠界的付款結果訊息，並判斷檢查碼是否相符
+	 *
+	 * @see https://developers.ecpay.com.tw/?p=2878
+	 * @param array<string, string|int> $args 綠界 ReturnURL 回傳夾帶的參數 (就是當時你發出給綠界請求參數)
+	 * @return bool 是否驗證成功
+	 */
+	public function is_check_value_valid( array $args ): bool {
+		$check_value = $args['CheckMacValue'] ?? '';
+
+		if (!$check_value) {
+			$this->error->add( 400, 'CheckMacValue 檢查碼 不存在' );
+			return false;
+		}
+
+		$ipn_info_check_value = $this->get_check_value( $args, 'sha256' );
+		return $check_value === $ipn_info_check_value;
+	}
 
 
-	/**TODO
+
+	/**TODO 看有沒要補充的
 	 * 設定屬性
 	 */
 	private function set_properties(): void {
@@ -117,21 +140,5 @@ final class Service {
 				$this->sptoken_endpoint          = 'https://payment-stage.ecpay.com.tw/SP/CreateTrade';
 				break;
 		}
-	}
-
-
-
-	/**
-	 * 綠界要求 urlencode 的規則
-	 *
-	 * @see https://developers.ecpay.com.tw/?p=2904
-	 */
-	protected static function urlencode( string $str ): string {
-		$str = str_replace(
-			[ '%2D', '%2d', '%5F', '%5f', '%2E', '%2e', '%2A', '%2a', '%21', '%28', '%29' ],
-			[ '-', '-', '_', '_', '.', '.', '*', '*', '!', '(', ')' ],
-			urlencode( $str )
-		);
-		return $str;
 	}
 }

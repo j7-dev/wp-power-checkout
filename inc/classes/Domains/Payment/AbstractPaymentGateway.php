@@ -5,11 +5,12 @@ declare (strict_types = 1);
 namespace J7\PowerPayment\Domains\Payment;
 
 use J7\PowerPayment\Domains\WC_Settings_API\Model\FormField;
-use J7\PowerPayment\Utils\Base;
 
-/** Base */
-abstract class Abstract_Payment_Gateway extends \WC_Payment_Gateway {
-	use \J7\WpUtils\Traits\SingletonTrait;
+
+/**
+ * 付款閘道抽象類別
+ */
+abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
 	public $payment_type = '';
@@ -125,8 +126,10 @@ abstract class Abstract_Payment_Gateway extends \WC_Payment_Gateway {
 		// 在結帳頁顯示欄位
 		\add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_after_billing_address' ] );
 
-		// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
-		\add_action( "woocommerce_receipt_{$this->id}", [ $this, 'render_at_receipt' ] );
+		if ( $this->enabled ) {
+			// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
+			\add_action( "woocommerce_receipt_{$this->id}", [ $this, 'render_at_receipt' ] );
+		}
 	}
 
 	/**
@@ -142,8 +145,7 @@ abstract class Abstract_Payment_Gateway extends \WC_Payment_Gateway {
 		}
 
 		$total = $this->get_order_total();
-		// phpstan-ignore-next-line
-		if ( ! \WC()->cart || $total <= 0 ) {
+		if ($total <= 0 ) {
 			return false;
 		}
 
@@ -193,7 +195,7 @@ abstract class Abstract_Payment_Gateway extends \WC_Payment_Gateway {
 			/** @var \WC_Order $order */
 			$this->submit( $order );
 		} catch (\Throwable $th) {
-			Base::log( $th->getMessage(), 'error' );
+			$this->log( $th->getMessage(), '', 'error' );
 			return;
 		}
 	}
@@ -205,6 +207,24 @@ abstract class Abstract_Payment_Gateway extends \WC_Payment_Gateway {
 				\WC_Admin_Settings::add_error( $error );
 			}
 		}
+	}
+
+	/**
+	 * 記錄 log
+	 *
+	 * @param mixed  $message 訊息
+	 * @param string $title 標題
+	 * @param string $level 等級 info | error | alert | critical | debug | emergency | warning | notice
+	 */
+	public function log( mixed $message, string $title = '', string $level = 'info' ): void {
+		\J7\WpUtils\Classes\WC::log(
+			$message,
+			$title,
+			$level,
+			[
+				'source' => "[{$level}]power-payment_{$this->id}",
+			]
+			);
 	}
 
 	/**

@@ -8,7 +8,7 @@ use J7\WpUtils\Classes\DTO;
 use J7\PowerPayment\Utils\Base as Utils;
 use J7\PowerPayment\Domains\Payment\Ecpay\Core\Service;
 use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
-use J7\PowerPayment\Domains\Payment\Abstract_Payment_Gateway;
+use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
@@ -20,7 +20,10 @@ final class Params extends DTO
 	/** @var string *特店編號 (10) */
 	public string $MerchantID;
 
-	/** @var string *特店訂單編號 (20) 英數字大小寫混合 */
+	/**
+	 * @var string *特店訂單編號 (20) 唯一英數字大小寫混合
+	 * @see https://www.ecpay.com.tw/CascadeFAQ/CascadeFAQ_Qa?nID=1454
+	 *  */
 	public string $MerchantTradeNo;
 
 	/** @var string *特店交易時間 (20) yyyy/MM/dd HH:mm:ss */
@@ -43,7 +46,7 @@ final class Params extends DTO
 	public string $ItemName;
 
 	/**
-	 * @var string *付款完成通知回傳網址 (200)
+	 * @var string *付款完成通知回傳網址 (200) [POST]
 	 * @see https://developers.ecpay.com.tw/?p=2878
 	 *  */
 	public string $ReturnURL;
@@ -102,7 +105,7 @@ final class Params extends DTO
 	public string $ChooseSubPayment;
 
 	/**
-	 * @var string Client端回傳付款結果網址 (200)
+	 * @var string Client端回傳付款結果網址 (200) [POST]
 	 * 有別於ReturnURL (server端的網址)，OrderResultURL為商家前端的 URL，用於在消費者完成付款後，接收綠界系統回傳的付款結果參數。消費者付款完成後，綠界會將付款結果參數以POST方式回傳到到該網址。詳細說明請參考付款結果通知。
 	 * @see https://developers.ecpay.com.tw/?p=2878
 	 *
@@ -164,19 +167,18 @@ final class Params extends DTO
 	/**
 	 * 組成變數的主要邏輯可以寫在裡面
 	 *  @param \WC_Order           $order 訂單
-	 *  @param Abstract_Payment_Gateway $gateway 付款方式
+	 *  @param AbstractPaymentGateway $gateway 付款方式
 	 */
-	public static function instance( \WC_Order $order, Abstract_Payment_Gateway $gateway ): self
+	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway ): self
 	{
-		//TODO
-		$notify_url = \WC()->api_request_url('ry_ecpay_callback', true);
+		$notify_url = \WC()->api_request_url('pp_ecpay_callback', true);
 
 		$return_url = $gateway->get_return_url($order);
 		$service = Service::instance();
 
 		$args = [
 			'MerchantID'        => $service->merchant_id,
-			'MerchantTradeNo'   => $order->get_id(), // TODO RY 有特別作唯一，需要嗎?
+			'MerchantTradeNo'   => EcpayUtils::encode_trade_no( $order->get_id() ),
 			'MerchantTradeDate' => (new \DateTime('now', new \DateTimeZone('Asia/Taipei')))->format('Y/m/d H:i:s'),
 			'TotalAmount'       => (int) ceil($order->get_total()), // 無條件進位
 			'TradeDesc'         => \get_bloginfo('name'),
@@ -290,10 +292,10 @@ final class Params extends DTO
 	 * TODO 不同付款方式應該用不同的 DTO?
 	 * @param array<string, string|int> $args
 	 * @param \WC_Order $order
-	 * @param Abstract_Payment_Gateway $gateway
+	 * @param AbstractPaymentGateway $gateway
 	 * @return array<string, string|int>
 	 */
-	protected static function add_type_info( array $args, \WC_Order $order, Abstract_Payment_Gateway $gateway ): array {
+	protected static function add_type_info( array $args, \WC_Order $order, AbstractPaymentGateway $gateway ): array {
 		switch ( $gateway->payment_type ) {
 			case 'Credit':
 				// 如果是分期，就額外加上參數
