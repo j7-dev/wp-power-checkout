@@ -31,13 +31,21 @@ abstract class AbstractPaymentService {
 			return;
 		}
 
+		// TODO 有沒有辦法自動判斷 錯誤裡面有沒有 order_id 有就同時寫入 order_note
+		$trace     = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5); // 只看5層
+		$functions = [];
+		foreach ( $trace as $t ) {
+			$line        = $t['line'] ?? 'N/A';
+			$functions[] = "{$t['function']} #L:{$line}";
+		}
 		$error_messages = $this->error->get_error_messages();
 		\J7\WpUtils\Classes\WC::log(
 			$error_messages,
 			'',
 			'error',
 			[
-				'source' => "[error]power-payment_{$this->id} 請求結束 errors",
+				'source' => "{$this->id}__errors",
+				'trace'  => $functions,
 			]
 			);
 	}

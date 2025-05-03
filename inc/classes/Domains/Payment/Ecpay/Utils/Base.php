@@ -33,7 +33,7 @@ abstract class Base {
 		return implode('#', $item_names);
 	}
 
-	/** 取得語系 @return string|null */
+	/** 取得語系 @return 'ENG' | 'KOR' | 'JPN' | 'CHI' | null  */
 	public static function get_language(): string|null {
 		$locale = \get_locale();
 		switch ( $locale ) {

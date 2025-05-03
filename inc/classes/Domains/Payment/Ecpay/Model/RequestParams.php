@@ -14,17 +14,9 @@ use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
  * 綠界全方位金流 API 必填參數 DTO
  * @see https://developers.ecpay.com.tw/?p=2862
  */
-final class Params extends DTO
+final class RequestParams extends DTO
 {
-
-	/** @var string *特店編號 (10) */
-	public string $MerchantID;
-
-	/**
-	 * @var string *特店訂單編號 (20) 唯一英數字大小寫混合
-	 * @see https://www.ecpay.com.tw/CascadeFAQ/CascadeFAQ_Qa?nID=1454
-	 *  */
-	public string $MerchantTradeNo;
+	use ParamsTrait; // 共用屬性
 
 	/** @var string *特店交易時間 (20) yyyy/MM/dd HH:mm:ss */
 	public string $MerchantTradeDate;
@@ -75,8 +67,7 @@ final class Params extends DTO
 	/** @var int *CheckMacValue加密類型 請固定填入1，使用SHA256加密。 */
 	public int $EncryptType = 1;
 
-	/** @var string 特店旗下店舖代號 (10) 提供特店填入分店代號使用，僅可用英數字大小寫混合。 */
-	public string $StoreID;
+
 
 	/**
 	 * @var string Client端返回特店的按鈕連結 (200)
@@ -141,28 +132,37 @@ final class Params extends DTO
 	 */
 	public string $IgnorePayment;
 
-	/** @var string 特約合作平台商代號 (10) 為專案合作的平台商使用。 */
-	public string $PlatformID;
+	/** @var 'ENG' | 'KOR' | 'JPN' | 'CHI' | null 語系設定 */
+	public string|null $Language = null;
 
-	/** @var string 自訂名稱欄位1 (50) 提供合作廠商使用記錄客製化欄位。 */
-	public string $CustomField1;
+	// ----- ▼ ATM 才有的屬性 ----- //
 
-	/** @var string 自訂名稱欄位2 (50) 提供合作廠商使用記錄客製化欄位。 */
-	public string $CustomField2;
+	/** @var int 允許繳費有效天數 min:1 max:60 default:3 以天為單位，例如7/1號訂單成立，有效天數設為3天，則到期日為7/4 23:59截止 */
+	public int $ExpireDate;
 
-	/** @var string 自訂名稱欄位3 (50) 提供合作廠商使用記錄客製化欄位。 */
-	public string $CustomField3;
+	/**
+	 * @var string Server端回傳付款相關資訊 (200)
+	 * 若有設定此參數，訂單建立完成後(非付款完成)
+	 * 綠界會Server端背景回傳消費者付款方式相關資訊(例：銀行代碼、繳費虛擬帳號繳費期限…等)
+	 * 請參考ATM、CVS或BARCODE的取號結果通知
+	 * 參數內容若有包含%26(&)及%3C(<) 這二個值時，請先進行urldecode() 避免呼叫API失敗。
+	 *  */
+	public string $PaymentInfoURL;
 
-	/** @var string 自訂名稱欄位4 (50) 提供合作廠商使用記錄客製化欄位。 */
-	public string $CustomField4;
+	/**
+	 * @var string Client端回傳付款相關資訊 (200)
+	 * 若有設定此參數，訂單建立完成後(非付款完成)
+	 * 綠界會Client端回傳消費者付款方式相關資訊(例：銀行代碼、繳費虛擬帳號繳費期限…等)且將頁面轉到特店指定的頁面
+	 * 請參考ATM、CVS或BARCODE的取號結果通知
+	 *
+	 * ⚠️ 若設定此參數，將會使設定的返回特店的按鈕連結[ClientBackURL]失效。
+	 * 若導回網址未使用https時，部份瀏覽器可能會出現警告訊息。
+	 * 參數內容若有包含%26(&)及%3C(<) 這二個值時，請先進行urldecode() 避免呼叫API失敗。
+	 *  */
+	public string $ClientRedirectURL;
 
-	/** @var 'ENG' | 'KOR' | 'JPN' | 'CHI' 語系設定 */
-	public string $Language;
-
-
-
-	/** @var \WP_Error 錯誤蒐集 */
-	protected \WP_Error $dto_error;
+	/** @var array<string, string|int> 原始資料 */
+	protected array $dto_data = [];
 
 	/**
 	 * 組成變數的主要邏輯可以寫在裡面
@@ -171,16 +171,16 @@ final class Params extends DTO
 	 */
 	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway ): self
 	{
-		$notify_url = \WC()->api_request_url('pp_ecpay_callback', true);
+		$notify_url = urldecode(\site_url('wp-json/power-payment/ecpay-aio', 'https'));
 
-		$return_url = $gateway->get_return_url($order);
+		$return_url = urldecode($gateway->get_return_url($order));
 		$service = Service::instance();
 
 		$args = [
 			'MerchantID'        => $service->merchant_id,
 			'MerchantTradeNo'   => EcpayUtils::encode_trade_no( $order->get_id() ),
 			'MerchantTradeDate' => (new \DateTime('now', new \DateTimeZone('Asia/Taipei')))->format('Y/m/d H:i:s'),
-			'TotalAmount'       => (int) ceil($order->get_total()), // 無條件進位
+			'TotalAmount'       => (int) ceil((float) $order->get_total()), // 無條件進位
 			'TradeDesc'         => \get_bloginfo('name'),
 			'ItemName'          => EcpayUtils::get_item_name($order),
 			'ReturnURL'         => $notify_url,
@@ -198,9 +198,13 @@ final class Params extends DTO
 		}
 
 		$args = self::add_type_info( $args, $order, $gateway );
-		$args = self::add_check_value( $args, 'sha256' );
 
 		return new self($args);
+	}
+
+	protected function after_init(): void
+	{
+		$this->add_check_value( 'sha256' );
 	}
 
 	/** 自訂驗證邏輯 */
@@ -328,16 +332,15 @@ final class Params extends DTO
 	}
 
 
-	/**
+/**
 	 * 依照不同付款方式特性，加上額外參數
-	 * @param array<string, string|int> $args
 	 * @param string $hash_algo 'sha256' | 'md5' 雜湊演算法
-	 * @return array<string, string|int>
 	 */
-	protected static function add_check_value( array $args, string $hash_algo ): array {
+	protected function add_check_value( string $hash_algo ): void {
 		$service = Service::instance();
-		$args['CheckMacValue'] = $service->get_check_value( $args, $hash_algo );
-		return $args;
+		/** @var array<string, string|int> $args */
+		$args = $this->to_array();
+		$this->CheckMacValue = $service->get_check_value( $args, $hash_algo );
 	}
 }
 // phpcs:enable

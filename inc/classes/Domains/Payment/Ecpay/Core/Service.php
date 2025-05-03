@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
 use J7\PowerPayment\Domains\Payment\AbstractPaymentService;
-use J7\PowerPayment\Domains\Payment\Ecpay\Model\Params;
+use J7\PowerPayment\Domains\Payment\Ecpay\Model\RequestParams;
 use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
 use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
 
@@ -58,7 +58,7 @@ final class Service extends AbstractPaymentService {
 	 * @throws \Exception 如果參數不符合規定
 	 *  */
 	public function get_params( \WC_Order $order, AbstractPaymentGateway $gateway ): array {
-		$params_dto = Params::instance( $order, $gateway );
+		$params_dto = RequestParams::instance( $order, $gateway );
 		return $params_dto->to_array();
 	}
 
@@ -97,24 +97,6 @@ final class Service extends AbstractPaymentService {
 		return $check_value;
 	}
 
-	/**
-	 * 收到綠界的付款結果訊息，並判斷檢查碼是否相符
-	 *
-	 * @see https://developers.ecpay.com.tw/?p=2878
-	 * @param array<string, string|int> $args 綠界 ReturnURL 回傳的 $_POST 參數 (也等於當時你發出給綠界請求參數)
-	 * @return bool 是否驗證成功
-	 */
-	public function is_check_value_valid( array $args ): bool {
-		$received_check_value = $args['CheckMacValue'] ?? '';
-
-		if (!$received_check_value) {
-			$this->error->add( 400, '綠界 ReturnURL 回傳的 $_POST 不包含 CheckMacValue 檢查碼' );
-			return false;
-		}
-
-		$check_value = $this->get_check_value( $args, 'sha256' );
-		return $received_check_value === $check_value;
-	}
 
 
 
@@ -124,17 +106,17 @@ final class Service extends AbstractPaymentService {
 	private function set_properties(): void {
 		switch ($this->mode) {
 			case 'prod':
-				$this->merchant_id               = '2000132';
-				$this->hash_key                  = '5294y06JbISpM5x9';
-				$this->hash_iv                   = 'v77hoKGq4kWxNNIS';
+				$this->merchant_id               = '3002599';
+				$this->hash_key                  = 'spPjZn66i0OhqJsQ';
+				$this->hash_iv                   = 'hT5OJckN45isQTTs';
 				$this->aio_checkout_endpoint     = 'https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5';
 				$this->query_trade_info_endpoint = 'https://payment.ecpay.com.tw/Cashier/QueryTradeInfo/V5';
 				$this->sptoken_endpoint          = 'https://payment.ecpay.com.tw/SP/CreateTrade';
 				break;
 			default: // test
-				$this->merchant_id               = '2000132';
-				$this->hash_key                  = '5294y06JbISpM5x9';
-				$this->hash_iv                   = 'v77hoKGq4kWxNNIS';
+				$this->merchant_id               = '3002599';
+				$this->hash_key                  = 'spPjZn66i0OhqJsQ';
+				$this->hash_iv                   = 'hT5OJckN45isQTTs';
 				$this->aio_checkout_endpoint     = 'https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5';
 				$this->query_trade_info_endpoint = 'https://payment-stage.ecpay.com.tw/Cashier/QueryTradeInfo/V5';
 				$this->sptoken_endpoint          = 'https://payment-stage.ecpay.com.tw/SP/CreateTrade';

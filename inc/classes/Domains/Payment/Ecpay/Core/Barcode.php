@@ -7,25 +7,41 @@ namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
 use J7\PowerPayment\Plugin;
 
-/** Atm */
-final class Atm extends AbstractPaymentGateway {
+/** Barcode */
+final class Barcode extends AbstractPaymentGateway {
+	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
-	public $payment_type = 'ATM';
+	public $payment_type = 'BARCODE';
 
 	/** Constructor */
 	public function __construct() {
-		$this->id                 = 'pp_ecpay_atm';
+		$this->id                 = 'pp_ecpay_barcode';
 		$this->has_fields         = false;
-		$this->order_button_text  = __( 'Pay via ATM', 'power_payment' );
-		$this->method_title       = __( 'ECPay ATM - Power Payment', 'power_payment' );
+		$this->order_button_text  = __( 'Pay via Barcode', 'power_payment' );
+		$this->method_title       = __( 'ECPay Barcode', 'power_payment' );
 		$this->method_description = '';
-		// TODO
-		$this->icon        = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMTjo4Y8SMNcXz0ZSm5Bg92fqHYYTICRTwPw&s';
-		$this->form_fields = [];
+		$this->icon               = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMTjo4Y8SMNcXz0ZSm5Bg92fqHYYTICRTwPw&s';
+		$this->form_fields        = [];
 		parent::__construct();
 	}
 
+	/**TODO
+	 * 應該是要作取號後，馬上跳轉感謝頁，不過應該不用這麼繞才對
+	 * Get the return url (thank you page).
+	 *
+	 * @param WC_Order|null $order Order object.
+	 * @return string
+	 */
+	public function get_return_url( $order = null ) {
+		$return_url = WC()->api_request_url('ry_ecpay_gateway_return');
+		if ($order) {
+			$return_url = add_query_arg('id', $order->get_id(), $return_url);
+			$return_url = add_query_arg('key', $order->get_order_key(), $return_url);
+		}
+
+		return $return_url;
+	}
 
 	/**
 	 * 處理付款
@@ -132,7 +148,7 @@ final class Atm extends AbstractPaymentGateway {
 				]
 				);
 
-		// 自動送出表單到綠界後清除購物車
+		// DELETE ? 送出前就清除購物車了?
 		\WC()->cart->empty_cart();
 	}
 

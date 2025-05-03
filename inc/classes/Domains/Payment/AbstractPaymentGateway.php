@@ -123,8 +123,11 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		// 儲存欄位
 		\add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, [ $this, 'process_admin_options' ] );
 
-		// 在結帳頁顯示欄位
+		// [Admin] 在後台 order detail 頁地址下方顯示資訊
 		\add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_after_billing_address' ] );
+
+		// [Admin] 新增付款方式
+		\add_filter( 'woocommerce_payment_gateways', fn( $gateways ) => [ ...$gateways, $this::class ] );
 
 		if ( $this->enabled ) {
 			// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
@@ -176,7 +179,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		return parent::process_admin_options();
 	}
 
-	/** [後台]在結帳頁顯示欄位 */
+	/** [Admin] 在後台 order detail 頁地址下方顯示資訊 */
 	public function render_after_billing_address( \WC_Order $order ): void {
 	}
 
@@ -217,12 +220,21 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @param string $level 等級 info | error | alert | critical | debug | emergency | warning | notice
 	 */
 	public function log( mixed $message, string $title = '', string $level = 'info' ): void {
+
+		$trace     = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5); // 只看5層
+		$functions = [];
+		foreach ( $trace as $t ) {
+			$line        = $t['line'] ?? 'N/A';
+			$functions[] = "{$t['function']} #L:{$line}";
+		}
+
 		\J7\WpUtils\Classes\WC::log(
 			$message,
 			$title,
 			$level,
 			[
-				'source' => "[{$level}]power-payment_{$this->id}",
+				'source' => "{$this->id}__{$level}",
+				'trace'  => $functions,
 			]
 			);
 	}
