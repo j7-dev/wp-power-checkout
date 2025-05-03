@@ -26,7 +26,7 @@ class FormField extends DTO {
 	/** @var string placeholder */
 	public string $placeholder = '';
 
-	/** @var string 欄位類型 (text|password|textarea|checkbox|select|multiselect) */
+	/** @var string 欄位類型 (text|safe_text|decimal|password|color|textarea|checkbox|select|multiselect|title) */
 	public string $type = '';
 
 	/** @var mixed 設定的預設值 */
@@ -60,11 +60,12 @@ class FormField extends DTO {
 	/**
 	 * 自訂驗證邏輯
 	 *
+	 * @see WC_Settings_API::generate_settings_html 可以自己擴充 type 類型
 	 * @return void
 	 * @throws \Exception 型別不符合
 	 * */
 	protected function validate(): void {
-		$allowed_types = [ 'text', 'password', 'textarea', 'checkbox', 'select', 'multiselect' ];
+		$allowed_types = [ 'text', 'safe_text', 'decimal', 'password', 'color', 'textarea', 'checkbox', 'select', 'multiselect', 'title' ];
 		if ( ! in_array( $this->type, $allowed_types, true ) ) {
 			throw new \Exception( 'Invalid field type, expected one of: ' . implode( ', ', $allowed_types ) . ". `{$this->type}` given." );
 		}

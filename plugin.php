@@ -28,9 +28,7 @@ if ( \class_exists( 'J7\PowerPayment\Plugin' ) ) {
 }
 require_once __DIR__ . '/vendor/autoload.php';
 
-/**
-	* Class Plugin
-	*/
+/** Class Plugin */
 final class Plugin {
 	use \J7\WpUtils\Traits\PluginTrait;
 	use \J7\WpUtils\Traits\SingletonTrait;

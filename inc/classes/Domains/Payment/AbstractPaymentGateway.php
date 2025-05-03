@@ -75,7 +75,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			],
 			'min_amount'  => [
 				'title'             => __( 'Minimum order amount', 'power_payment' ),
-				'type'              => 'number',
+				'type'              => 'decimal',
 				'default'           => 0,
 				'placeholder'       => 0,
 				'description'       => __( '0 to disable minimum amount limit.', 'power_payment' ),
@@ -86,7 +86,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			],
 			'max_amount'  => [
 				'title'             => __( 'Maximum order amount', 'power_payment' ),
-				'type'              => 'number',
+				'type'              => 'decimal',
 				'default'           => 0,
 				'placeholder'       => 0,
 				'description'       => __( '0 to disable maximum amount limit.', 'power_payment' ),
@@ -97,7 +97,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			],
 			'expire_date' => [
 				'title'             => __( 'Payment deadline', 'ry-woocommerce-tools' ),
-				'type'              => 'number',
+				'type'              => 'decimal',
 				'default'           => 3,
 				'placeholder'       => 3,
 				'description'       => __( 'ATM allowable payment deadline from 1 day to 60 days.', 'ry-woocommerce-tools' ),
