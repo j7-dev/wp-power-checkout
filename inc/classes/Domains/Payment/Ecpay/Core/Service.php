@@ -101,19 +101,19 @@ final class Service extends AbstractPaymentService {
 	 * 收到綠界的付款結果訊息，並判斷檢查碼是否相符
 	 *
 	 * @see https://developers.ecpay.com.tw/?p=2878
-	 * @param array<string, string|int> $args 綠界 ReturnURL 回傳夾帶的參數 (就是當時你發出給綠界請求參數)
+	 * @param array<string, string|int> $args 綠界 ReturnURL 回傳的 $_POST 參數 (也等於當時你發出給綠界請求參數)
 	 * @return bool 是否驗證成功
 	 */
 	public function is_check_value_valid( array $args ): bool {
-		$check_value = $args['CheckMacValue'] ?? '';
+		$received_check_value = $args['CheckMacValue'] ?? '';
 
-		if (!$check_value) {
-			$this->error->add( 400, 'CheckMacValue 檢查碼 不存在' );
+		if (!$received_check_value) {
+			$this->error->add( 400, '綠界 ReturnURL 回傳的 $_POST 不包含 CheckMacValue 檢查碼' );
 			return false;
 		}
 
-		$ipn_info_check_value = $this->get_check_value( $args, 'sha256' );
-		return $check_value === $ipn_info_check_value;
+		$check_value = $this->get_check_value( $args, 'sha256' );
+		return $received_check_value === $check_value;
 	}
 
 
