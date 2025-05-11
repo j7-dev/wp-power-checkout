@@ -31,7 +31,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	public $method_description = '';
 
 	/** @var array<string, array<string, mixed>> 付款方式表單欄位 */
-	public $form_fields;
+	public $form_fields = [];
 
 	/** @var string 前台顯示付款方式標題 */
 	public $title;
@@ -51,10 +51,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/** Constructor */
 	public function __construct() {
 
-		$this->method_title      = sprintf( __( '%s - Power Payment', 'power_payment' ), $this->payment_label );
-		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_payment' ), $this->payment_label );
-
-		$this->form_fields = [
+		$default_form_fields = [
 			'enabled'     => [
 				'title'   => __( 'Enable/Disable', 'woocommerce' ),
 				/* translators: %s: Gateway method title */
@@ -99,11 +96,11 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				],
 			],
 			'expire_date' => [
-				'title'             => __( 'Payment deadline', 'ry-woocommerce-tools' ),
+				'title'             => __( 'Payment deadline', 'power_payment' ),
 				'type'              => 'decimal',
 				'default'           => 3,
 				'placeholder'       => 3,
-				'description'       => __( 'ATM allowable payment deadline from 1 day to 60 days.', 'ry-woocommerce-tools' ),
+				'description'       => __( 'ATM allowable payment deadline from 1 day to 60 days.', 'power_payment' ),
 				'custom_attributes' => [
 					'min'  => 1,
 					'max'  => 60,
@@ -112,9 +109,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			],
 		];
 
-		$strict = \wp_get_environment_type() === 'local';
-		FormField::parse_array( $this->form_fields, $strict );
+		$this->method_title      = sprintf( __( '%s - Power Payment', 'power_payment' ), $this->payment_label );
+		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_payment' ), $this->payment_label );
 
+		$this->form_fields = \wp_parse_args( $this->form_fields, $default_form_fields );
+		$strict            = \wp_get_environment_type() === 'local';
+		FormField::parse_array( $this->form_fields, $strict );
 		$this->init_settings();
 
 		$this->title       = $this->get_option( 'title' );

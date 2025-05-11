@@ -21,7 +21,9 @@ final class Atm extends PaymentGateway {
 	/**
 	 * [後台] 自訂欄位驗證邏輯
 	 * 可以用 \WC_Admin_Settings::add_error 來替欄位加入錯誤訊息
+	 * ATM手續費最低收取金額*+1元」(含)~49,999元(含)
 	 *
+	 * @see https://support.ecpay.com.tw/4804/
 	 * @see WC_Settings_API::process_admin_options
 	 * @return bool was anything saved?
 	 */
@@ -30,22 +32,29 @@ final class Atm extends PaymentGateway {
 		// 取得 $_POST 的指定欄位 name
 		$expire_date_name = $this->get_field_key( 'expire_date' );
 		$min_amount_name  = $this->get_field_key( 'min_amount' );
+		$max_amount_name  = $this->get_field_key( 'max_amount' );
 
 		// 解構，不存在就會是 null
 		@[
 			$expire_date_name => $expire_date,
 			$min_amount_name  => $min_amount,
+			$max_amount_name  => $max_amount,
 		] = $this->get_post_data();
 
 		$expire_date = (int) $expire_date;
 		$min_amount  = (float) $min_amount;
+		$max_amount  = (float) $max_amount;
 
 		if ( $expire_date < 1 || $expire_date > 60 ) {
 			$this->errors[] = __( 'Save failed. ATM payment deadline out of range.', 'power_payment' );
 		}
 
-		if ( $min_amount > 0 && $min_amount < 5 ) {
+		if ( $min_amount < 5 ) {
 			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_payment' ), $this->method_title );
+		}
+
+		if ( $max_amount > 50000 ) {
+			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_payment' ), $this->method_title );
 		}
 
 		if ( $this->errors ) {

@@ -21,7 +21,9 @@ final class Credit extends PaymentGateway {
 	/**
 	 * [後台] 自訂欄位驗證邏輯
 	 * 可以用 \WC_Admin_Settings::add_error 來替欄位加入錯誤訊息
+	 * 信用卡手續費最低收取金額(含)* ~ 199,999元(含)
 	 *
+	 * @see https://support.ecpay.com.tw/4804/
 	 * @see WC_Settings_API::process_admin_options
 	 * @return bool was anything saved?
 	 */
@@ -29,16 +31,23 @@ final class Credit extends PaymentGateway {
 
 		// 取得 $_POST 的指定欄位 name
 		$min_amount_name = $this->get_field_key( 'min_amount' );
+		$max_amount_name = $this->get_field_key( 'max_amount' );
 
 		// 解構，不存在就會是 null
 		@[
 			$min_amount_name  => $min_amount,
+			$max_amount_name  => $max_amount,
 		] = $this->get_post_data();
 
 		$min_amount = (float) $min_amount;
+		$max_amount = (float) $max_amount;
 
-		if ( $min_amount > 0 && $min_amount < 5 ) {
+		if ( $min_amount < 5 ) {
 			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_payment' ), $this->method_title );
+		}
+
+		if ( $max_amount > 199999 ) {
+			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_payment' ), $this->method_title );
 		}
 
 		if ( $this->errors ) {
