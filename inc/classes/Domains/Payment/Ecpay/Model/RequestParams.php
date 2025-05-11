@@ -184,7 +184,7 @@ final class RequestParams extends DTO
 			'TradeDesc'         => \get_bloginfo('name'),
 			'ItemName'          => EcpayUtils::get_item_name($order),
 			'ReturnURL'         => $notify_url,
-			'ChoosePayment'     => 'ATM',
+			'ChoosePayment'     => $gateway->payment_type,
 			'ClientBackURL'     => $return_url,
 			'OrderResultURL'    => $return_url,
 			'PaymentInfoURL'    => $notify_url,

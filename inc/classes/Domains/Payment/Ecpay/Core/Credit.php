@@ -5,28 +5,25 @@ declare (strict_types = 1);
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
 use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerPayment\Plugin;
 
-/** Atm */
-final class Atm extends AbstractPaymentGateway {
+/** Credit */
+final class Credit extends AbstractPaymentGateway {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
-	public $payment_type = 'ATM';
+	public $payment_type = 'Credit';
 
 	/** Constructor */
 	public function __construct() {
-		$this->id                 = 'pp_ecpay_atm';
+		$this->id                 = 'pp_ecpay_credit';
 		$this->has_fields         = false;
-		$this->order_button_text  = __( 'Pay via ATM', 'power_payment' );
-		$this->method_title       = __( 'ECPay ATM - Power Payment', 'power_payment' );
+		$this->order_button_text  = __( 'Pay via Credit', 'power_payment' );
+		$this->method_title       = __( 'ECPay Credit', 'power_payment' );
 		$this->method_description = '';
-		// TODO
-		$this->icon        = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMTjo4Y8SMNcXz0ZSm5Bg92fqHYYTICRTwPw&s';
-		$this->form_fields = [];
+		$this->icon               = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMTjo4Y8SMNcXz0ZSm5Bg92fqHYYTICRTwPw&s';
+		$this->form_fields        = [];
 		parent::__construct();
 	}
-
 
 
 	/**
@@ -39,21 +36,14 @@ final class Atm extends AbstractPaymentGateway {
 	public function process_admin_options(): bool {
 
 		// 取得 $_POST 的指定欄位 name
-		$expire_date_name = $this->get_field_key( 'expire_date' );
-		$min_amount_name  = $this->get_field_key( 'min_amount' );
+		$min_amount_name = $this->get_field_key( 'min_amount' );
 
 		// 解構，不存在就會是 null
 		@[
-			$expire_date_name => $expire_date,
 			$min_amount_name  => $min_amount,
 		] = $this->get_post_data();
 
-		$expire_date = (int) $expire_date;
-		$min_amount  = (float) $min_amount;
-
-		if ( $expire_date < 1 || $expire_date > 60 ) {
-			$this->errors[] = __( 'Save failed. ATM payment deadline out of range.', 'power_payment' );
-		}
+		$min_amount = (float) $min_amount;
 
 		if ( $min_amount > 0 && $min_amount < 5 ) {
 			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_payment' ), $this->method_title );
@@ -67,7 +57,8 @@ final class Atm extends AbstractPaymentGateway {
 		return parent::process_admin_options();
 	}
 
-	/** TODO
+
+	/**
 	 * [Admin] 在後台 order detail 頁地址下方顯示資訊
 	 */
 	public function render_after_billing_address( \WC_Order $order ): void {
@@ -77,25 +68,7 @@ final class Atm extends AbstractPaymentGateway {
 		?>
 <h3 style="clear:both"><?php echo __( 'Payment details', 'power_payment' ); ?>
 </h3>
-<table>
-	<tr>
-		<td><?php echo __( 'Bank', 'power_payment' ); ?>
-		</td>
-		<td><?php echo _x( $order->get_meta( '_ecpay_atm_BankCode' ), 'Bank code', 'power_payment' ); ?> (<?php echo $order->get_meta( '_ecpay_atm_BankCode' ); ?>)</td>
-	</tr>
-	<tr>
-		<td><?php echo __( 'ATM Bank account', 'power_payment' ); ?>
-		</td>
-		<td><?php echo $order->get_meta( '_ecpay_atm_vAccount' ); ?>
-		</td>
-	</tr>
-	<tr>
-		<td><?php echo __( 'Payment deadline', 'power_payment' ); ?>
-		</td>
-		<td><?php echo $order->get_meta( '_ecpay_atm_ExpireDate' ); ?>
-		</td>
-	</tr>
-</table>
+TODO
 		<?php
 	}
 }

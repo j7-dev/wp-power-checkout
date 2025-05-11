@@ -46,6 +46,8 @@ final class Service extends AbstractPaymentService {
 		// TODO 從 db 取得設定 可以抽象到 parrent 執行?
 		$this->mode = 'test';
 		$this->set_properties();
+		Credit::instance();
+		Atm::instance();
 	}
 
 

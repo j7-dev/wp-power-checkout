@@ -4,12 +4,11 @@ declare (strict_types = 1);
 
 namespace J7\PowerPayment\Domains\Payment;
 
+use J7\PowerPayment\Plugin;
 use J7\PowerPayment\Domains\WC_Settings_API\Model\FormField;
+use J7\PowerPayment\Domains\Payment\Ecpay\Core\Service;
 
-
-/**
- * 付款閘道抽象類別
- */
+/** 付款閘道抽象類別 */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
@@ -164,6 +163,53 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/**
+	 * 處理付款
+	 *
+	 * @see WC_Payment_Gateway::process_payment
+	 * @param int $order_id 訂單 ID
+	 * @return array{result: 'success' | 'failure', redirect?: string}
+	 *
+	 * @example
+	 * [success]
+	 * return [
+	 *     'result'   => 'success',
+	 *     'redirect' => $order->get_checkout_payment_url( true ),
+	 * ];
+	 *
+	 * $order->get_checkout_order_received_url() // 正常的感謝頁
+	 *
+	 * \wc_get_endpoint_url( 'order-received', '', wc_get_checkout_url() )
+	 * /checkout/order-received/ 謝謝，我們已經收到您的訂單。
+	 *
+	 * $order->get_checkout_payment_url( true ) // 小小的結帳視窗
+	 * /checkout/order-pay/2801/?key=wc_order_GrFD9faIj520O
+	 *
+	 * [failure]
+	 * 搭配 wc_add_notice 來顯示錯誤訊息
+	 * \wc_add_notice( 'error message', 'error' );
+	 * return [
+	 *     'result'   => 'failure',
+	 * ];
+	 */
+	public function process_payment( $order_id ): array {
+		$order = \wc_get_order( $order_id );
+		if ( ! $order instanceof \WC_Order ) {
+			\wc_add_notice( __( 'Order not found.', 'power_payment' ), 'error' );
+			return [
+				'result' => 'failure',
+			];
+		}
+		$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_payment' ), $this->method_title ) );
+		\wc_maybe_reduce_stock_levels( $order_id );
+		\wc_release_stock_for_order( $order );
+
+		return [
+			'result'   => 'success',
+			'redirect' => $order->get_checkout_payment_url( true ), // 前往 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
+		];
+	}
+
+	/**
 	 * [後台] 欄位儲存 field schema 的值存入 option，可以自訂驗證邏輯
 	 * 可以用
 	 * \WC_Admin_Settings::add_error
@@ -203,6 +249,31 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		}
 	}
 
+
+	/**
+	 * 提交表單
+	 * 需透過前端網頁導轉(Submit)到綠界付款API網址
+	 *
+	 * @see https://developers.ecpay.com.tw/?p=2872
+	 * @param \WC_Order $order 訂單
+	 */
+	protected function submit( \WC_Order $order ): void {
+		$service = Service::instance();
+		/** @var \WC_Order $order */
+		$params = $service->get_params( $order, $this );
+
+		Plugin::load_template(
+				'auto-form',
+				[
+					'params' => $params,
+					'url'    => $service->aio_checkout_endpoint,
+				]
+				);
+
+		// 自動送出表單到綠界後清除購物車
+		\WC()->cart->empty_cart();
+	}
+
 	/** [後台]顯示錯誤訊息，改用 WC_Admin_Settings */
 	public function display_errors(): void {
 		if ( $this->errors ) {
@@ -237,14 +308,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				'trace'  => $functions,
 			]
 			);
-	}
-
-	/**
-	 * 提交表單
-	 *
-	 * @param \WC_Order $order 訂單
-	 */
-	protected function submit( \WC_Order $order ): void {
 	}
 
 	/**
