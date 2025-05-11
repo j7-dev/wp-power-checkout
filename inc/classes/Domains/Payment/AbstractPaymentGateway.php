@@ -51,7 +51,9 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/** Constructor */
 	public function __construct() {
 
-		$this->payment_label = $this->set_label();
+		$this->payment_label     = $this->set_label();
+		$this->method_title      = sprintf( __( '%s - Power Payment', 'power_payment' ), $this->payment_label );
+		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_payment' ), $this->payment_label );
 
 		$default_form_fields = [
 			'enabled'     => [
@@ -64,7 +66,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			'title'       => [
 				'title'       => __( 'Title', 'woocommerce' ),
 				'type'        => 'text',
-				'default'     => $this->method_title,
+				'default'     => $this->title,
 				'description' => __( 'This controls the title which the user sees during checkout.', 'woocommerce' ),
 				'desc_tip'    => true,
 			],
@@ -78,9 +80,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			'min_amount'  => [
 				'title'             => __( 'Minimum order amount', 'power_payment' ),
 				'type'              => 'decimal',
-				'default'           => 0,
-				'placeholder'       => 0,
-				'description'       => __( '0 to disable minimum amount limit.', 'power_payment' ),
+				'default'           => 5,
 				'custom_attributes' => [
 					'min'  => 5,
 					'step' => 1,
@@ -90,8 +90,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				'title'             => __( 'Maximum order amount', 'power_payment' ),
 				'type'              => 'decimal',
 				'default'           => 0,
-				'placeholder'       => 0,
-				'description'       => __( '0 to disable maximum amount limit.', 'power_payment' ),
 				'custom_attributes' => [
 					'min'  => 0,
 					'step' => 1,
@@ -111,15 +109,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			],
 		];
 
-		$this->method_title      = sprintf( __( '%s - Power Payment', 'power_payment' ), $this->payment_label );
-		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_payment' ), $this->payment_label );
-
+		// phpstan-ignore-next-line
 		$this->form_fields = $this->filter_fields( $default_form_fields );
 		$strict            = \wp_get_environment_type() === 'local';
 		FormField::parse_array( $this->form_fields, $strict );
 		$this->init_settings();
-
-		$this->title       = $this->get_option( 'title' );
+		$this->title       = $this->get_option( 'title' ) ?: $this->payment_label;
 		$this->description = $this->get_option( 'description' );
 		$this->expire_date = (int) $this->get_option( 'expire_date', 3 ); // 預設為3天
 		$this->min_amount  = (int) $this->get_option( 'min_amount', 0 );

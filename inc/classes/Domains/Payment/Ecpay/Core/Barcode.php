@@ -15,9 +15,14 @@ final class Barcode extends PaymentGateway {
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
 	public string $payment_type = 'BARCODE';
 
-	/** Constructor */
-	public function __construct() {
-		$this->form_fields['expire_date'] = [
+	/**
+	 * 過濾表單欄位
+	 *
+	 * @param array<string, mixed> $fields 表單欄位
+	 * @return array<string, mixed> 過濾後的表單欄位
+	 * */
+	public function filter_fields( array $fields ): array {
+		$fields['expire_date'] = [
 			'title'             => __( 'Payment deadline', 'power_payment' ),
 			'type'              => 'decimal',
 			'default'           => 7,
@@ -29,7 +34,7 @@ final class Barcode extends PaymentGateway {
 				'step' => 1,
 			],
 		];
-		parent::__construct();
+		return $fields;
 	}
 
 	/** 取得付款方式標題 @return string */

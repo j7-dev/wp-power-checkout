@@ -58,9 +58,11 @@ final class Service extends PaymentService {
 	 */
 	public function add_method( array $methods ): array {
 		$methods[] = Atm::class;
+		$methods[] = WebAtm::class;
 		$methods[] = Credit::class;
 		$methods[] = CreditInstallment::class;
 		$methods[] = Barcode::class;
+		$methods[] = CVS::class;
 		return $methods;
 	}
 

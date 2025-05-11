@@ -312,28 +312,6 @@ final class RequestParams extends DTO
 
 	/**
 	 * 依照不同付款方式特性，加上額外參數
-	 * TODO 不同付款方式應該用不同的 DTO?
-	 * @deprecated
-	 * @param array<string, string|int> $args
-	 * @param \WC_Order $order
-	 * @param AbstractPaymentGateway $gateway
-	 * @return array<string, string|int>
-	 */
-	protected static function add_type_info( array $args, \WC_Order $order, AbstractPaymentGateway $gateway ): array {
-		switch ( $gateway->payment_type ) {
-
-			case 'CVS':
-				$args['StoreExpireDate'] = $gateway->expire_date;
-				break;
-			default:
-				break;
-		}
-		return $args;
-	}
-
-
-/**
-	 * 依照不同付款方式特性，加上額外參數
 	 * @param string $hash_algo 'sha256' | 'md5' 雜湊演算法
 	 */
 	protected function add_check_value( string $hash_algo ): void {
