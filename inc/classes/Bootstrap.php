@@ -22,19 +22,6 @@ final class Bootstrap {
 
 		\add_action( 'admin_enqueue_scripts', [ __CLASS__, 'admin_enqueue_script' ] );
 		\add_action( 'wp_enqueue_scripts', [ __CLASS__, 'frontend_enqueue_script' ]);
-		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__, 'add_method' ] );
-	}
-
-	/**
-	 * 添加付款方式
-	 *
-	 * @param array<string> $methods 付款方式
-	 *
-	 * @return array<string>
-	 */
-	public static function add_method( array $methods ): array {
-		$methods[] = Domains\Payment\Ecpay\Core\Atm::class;
-		return $methods;
 	}
 
 	/**

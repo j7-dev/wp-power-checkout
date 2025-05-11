@@ -4,15 +4,16 @@ declare (strict_types = 1);
 
 namespace J7\PowerPayment\Domains\Payment;
 
-use J7\PowerPayment\Plugin;
 use J7\PowerPayment\Domains\WC_Settings_API\Model\FormField;
-use J7\PowerPayment\Domains\Payment\Ecpay\Core\Service;
 
 /** 付款閘道抽象類別 */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
-	public $payment_type = '';
+	public string $payment_type;
+
+	/** @var string 付款方式標題  (自訂，用來顯示) */
+	public string $payment_label;
 
 	/** @var string 付款方式 ID */
 	public $id;
@@ -21,13 +22,13 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	public $icon;
 
 	/** @var bool 是否再結帳頁顯示自訂欄位 */
-	public $has_fields;
+	public $has_fields = false;
 
 	/** @var string 後台顯示付款方式標題 */
 	public $method_title;
 
 	/** @var string 後台顯示付款方式描述 */
-	public $method_description;
+	public $method_description = '';
 
 	/** @var array<string, array<string, mixed>> 付款方式表單欄位 */
 	public $form_fields;
@@ -49,6 +50,9 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** Constructor */
 	public function __construct() {
+
+		$this->method_title      = sprintf( __( '%s - Power Payment', 'power_payment' ), $this->payment_label );
+		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_payment' ), $this->payment_label );
 
 		$this->form_fields = [
 			'enabled'     => [
@@ -124,9 +128,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 		// [Admin] 在後台 order detail 頁地址下方顯示資訊
 		\add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_after_billing_address' ] );
-
-		// [Admin] 新增付款方式
-		\add_filter( 'woocommerce_payment_gateways', fn( $gateways ) => [ ...$gateways, $this::class ] );
 
 		if ( $this->enabled ) {
 			// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
@@ -252,26 +253,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/**
 	 * 提交表單
-	 * 需透過前端網頁導轉(Submit)到綠界付款API網址
+	 * 例如綠界需透過前端網頁導轉(Submit)到綠界付款API網址
 	 *
 	 * @see https://developers.ecpay.com.tw/?p=2872
 	 * @param \WC_Order $order 訂單
 	 */
 	protected function submit( \WC_Order $order ): void {
-		$service = Service::instance();
-		/** @var \WC_Order $order */
-		$params = $service->get_params( $order, $this );
-
-		Plugin::load_template(
-				'auto-form',
-				[
-					'params' => $params,
-					'url'    => $service->aio_checkout_endpoint,
-				]
-				);
-
-		// 自動送出表單到綠界後清除購物車
-		\WC()->cart->empty_cart();
 	}
 
 	/** [後台]顯示錯誤訊息，改用 WC_Admin_Settings */

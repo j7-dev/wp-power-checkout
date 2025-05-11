@@ -4,27 +4,21 @@ declare (strict_types = 1);
 
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
+use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
 use J7\PowerPayment\Plugin;
 
 /** Barcode */
-final class Barcode extends AbstractPaymentGateway {
-	use \J7\WpUtils\Traits\SingletonTrait;
+final class Barcode extends PaymentGateway {
 
-	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
-	public $payment_type = 'BARCODE';
+	/** @var string 付款方式 ID */
+	public $id = 'pp_ecpay_barcode';
 
-	/** Constructor */
-	public function __construct() {
-		$this->id                 = 'pp_ecpay_barcode';
-		$this->has_fields         = false;
-		$this->order_button_text  = __( 'Pay via Barcode', 'power_payment' );
-		$this->method_title       = __( 'ECPay Barcode', 'power_payment' );
-		$this->method_description = '';
-		$this->icon               = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMTjo4Y8SMNcXz0ZSm5Bg92fqHYYTICRTwPw&s';
-		$this->form_fields        = [];
-		parent::__construct();
-	}
+	/** @var string 付款方式標題  (自訂，用來顯示) */
+	public string $payment_label = 'ECPay Barcode';
+
+	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
+	public string $payment_type = 'BARCODE';
+
 
 	/**TODO
 	 * 應該是要作取號後，馬上跳轉感謝頁，不過應該不用這麼繞才對

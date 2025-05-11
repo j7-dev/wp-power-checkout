@@ -4,30 +4,19 @@ declare (strict_types = 1);
 
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerPayment\Plugin;
+use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
 
 /** Atm */
-final class Atm extends AbstractPaymentGateway {
-	use \J7\WpUtils\Traits\SingletonTrait;
+final class Atm extends PaymentGateway {
+
+	/** @var string 付款方式 ID */
+	public $id = 'pp_ecpay_atm';
+
+	/** @var string 付款方式標題  (自訂，用來顯示) */
+	public string $payment_label = 'ECPay ATM';
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
-	public $payment_type = 'ATM';
-
-	/** Constructor */
-	public function __construct() {
-		$this->id                 = 'pp_ecpay_atm';
-		$this->has_fields         = false;
-		$this->order_button_text  = __( 'Pay via ATM', 'power_payment' );
-		$this->method_title       = __( 'ECPay ATM - Power Payment', 'power_payment' );
-		$this->method_description = '';
-		// TODO
-		$this->icon        = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMTjo4Y8SMNcXz0ZSm5Bg92fqHYYTICRTwPw&s';
-		$this->form_fields = [];
-		parent::__construct();
-	}
-
-
+	public string $payment_type = 'ATM';
 
 	/**
 	 * [後台] 自訂欄位驗證邏輯

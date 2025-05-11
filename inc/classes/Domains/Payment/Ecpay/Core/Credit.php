@@ -4,27 +4,19 @@ declare (strict_types = 1);
 
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
+use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
 
 /** Credit */
-final class Credit extends AbstractPaymentGateway {
-	use \J7\WpUtils\Traits\SingletonTrait;
+final class Credit extends PaymentGateway {
+
+	/** @var string 付款方式 ID */
+	public $id = 'pp_ecpay_credit';
+
+	/** @var string 付款方式標題  (自訂，用來顯示) */
+	public string $payment_label = 'ECPay Credit';
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
-	public $payment_type = 'Credit';
-
-	/** Constructor */
-	public function __construct() {
-		$this->id                 = 'pp_ecpay_credit';
-		$this->has_fields         = false;
-		$this->order_button_text  = __( 'Pay via Credit', 'power_payment' );
-		$this->method_title       = __( 'ECPay Credit', 'power_payment' );
-		$this->method_description = '';
-		$this->icon               = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQMTjo4Y8SMNcXz0ZSm5Bg92fqHYYTICRTwPw&s';
-		$this->form_fields        = [];
-		parent::__construct();
-	}
-
+	public string $payment_type = 'Credit';
 
 	/**
 	 * [後台] 自訂欄位驗證邏輯

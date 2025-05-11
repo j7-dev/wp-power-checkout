@@ -17,12 +17,24 @@ abstract class AbstractPaymentService {
 	public string $mode;
 
 	/** @var \WP_Error 錯誤訊息 */
-	public $error;
+	public \WP_Error $error;
 
 	/** Constructor */
 	public function __construct() {
 		$this->error = new \WP_Error();
 		\add_action('shutdown', [ $this, 'print_error' ]);
+		\add_filter( 'woocommerce_payment_gateways', [ $this, 'add_method' ] );
+	}
+
+	/**
+	 * 添加付款方式
+	 *
+	 * @param array<string> $methods 付款方式
+	 *
+	 * @return array<string>
+	 */
+	public function add_method( array $methods ): array {
+		return $methods;
 	}
 
 	/** 每次請求結束時如果有錯誤就印出錯誤訊息 */

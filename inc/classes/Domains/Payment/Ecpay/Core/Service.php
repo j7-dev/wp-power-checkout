@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\AbstractPaymentService;
+use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentService;
 use J7\PowerPayment\Domains\Payment\Ecpay\Model\RequestParams;
 use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
 use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
 
 /** Service */
-final class Service extends AbstractPaymentService {
+final class Service extends PaymentService {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 服務 ID */
@@ -46,8 +46,21 @@ final class Service extends AbstractPaymentService {
 		// TODO 從 db 取得設定 可以抽象到 parrent 執行?
 		$this->mode = 'test';
 		$this->set_properties();
-		Credit::instance();
-		Atm::instance();
+		parent::__construct();
+	}
+
+	/**
+	 * 添加付款方式
+	 *
+	 * @param array<string> $methods 付款方式
+	 *
+	 * @return array<string>
+	 */
+	public function add_method( array $methods ): array {
+		$methods[] = Atm::class;
+		$methods[] = Credit::class;
+		$methods[] = Barcode::class;
+		return $methods;
 	}
 
 
