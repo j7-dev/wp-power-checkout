@@ -9,6 +9,7 @@ use J7\PowerPayment\Utils\Base as Utils;
 use J7\PowerPayment\Domains\Payment\Ecpay\Core\Service;
 use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
 use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
+use J7\PowerPayment\Utils\Order as OrderUtils;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
@@ -176,7 +177,7 @@ final class RequestParams extends DTO
 		$return_url = urldecode($gateway->get_return_url($order));
 		$service = Service::instance();
 
-		$args = [
+		$default_args = [
 			'MerchantID'        => $service->merchant_id,
 			'MerchantTradeNo'   => EcpayUtils::encode_trade_no( $order->get_id() ),
 			'MerchantTradeDate' => (new \DateTime('now', new \DateTimeZone('Asia/Taipei')))->format('Y/m/d H:i:s'),
@@ -194,12 +195,30 @@ final class RequestParams extends DTO
 		// 加上語言
 		$language = EcpayUtils::get_language();
 		if ( $language ) {
-			$args['Language'] = $language;
+			$default_args['Language'] = $language;
 		}
 
-		$args = self::add_type_info( $args, $order, $gateway );
+		$args = \wp_parse_args( $gateway->extra_request_params(), $default_args );
+
+
+		// 將 request params 存到訂單
+		$order->update_meta_data( OrderUtils::REQUEST_KEY, $args );
+		$order->save_meta_data();
+
+		// $args = self::add_type_info( $args, $order, $gateway );
 
 		return new self($args);
+	}
+
+	/**
+	 * 從訂單取得 request params
+	 * @param \WC_Order $order
+	 * @return self
+	 * */
+	public static function instance_from_order( \WC_Order $order ): self {
+		/** @var array<string, mixed> $args */
+		$args = $order->get_meta( OrderUtils::REQUEST_KEY );
+		return new self( $args );
 	}
 
 	protected function after_init(): void
@@ -294,6 +313,7 @@ final class RequestParams extends DTO
 	/**
 	 * 依照不同付款方式特性，加上額外參數
 	 * TODO 不同付款方式應該用不同的 DTO?
+	 * @deprecated
 	 * @param array<string, string|int> $args
 	 * @param \WC_Order $order
 	 * @param AbstractPaymentGateway $gateway
@@ -301,27 +321,7 @@ final class RequestParams extends DTO
 	 */
 	protected static function add_type_info( array $args, \WC_Order $order, AbstractPaymentGateway $gateway ): array {
 		switch ( $gateway->payment_type ) {
-			case 'Credit':
-				// 如果是分期，就額外加上參數
-					$number_of_periods = (int) $order->get_meta( '_ecpay_payment_number_of_periods', true );
-					if ( in_array( $number_of_periods, [ 3, 6, 12, 18, 24 ], true ) ) {
-						$args['CreditInstallment'] = $number_of_periods;
-						// DELETE 帶參數時加上 order note? 不合適吧，不如在 _ecpay_payment_number_of_periods 寫入時，就順便寫入 order note
-						$order->add_order_note(
-							sprintf(
-							/* translators: %d number of periods */
-								__( 'Credit installment to %d', 'power_payment' ),
-								$number_of_periods
-							)
-						);
-						$order->save();
-						//--------------------------------
-					}
-				break;
-			case 'ATM':
-				$args['ExpireDate'] = $gateway->expire_date;
-				break;
-			case 'BARCODE':
+
 			case 'CVS':
 				$args['StoreExpireDate'] = $gateway->expire_date;
 				break;

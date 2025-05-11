@@ -8,6 +8,7 @@ use J7\WpUtils\Classes\ApiBase;
 use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
 use J7\PowerPayment\Domains\Payment\Ecpay\Model\ResponseParams;
 use J7\Powerhouse\Utils\Base as PowerhouseUtils;
+use J7\PowerPayment\Utils\Order as OrderUtils;
 
 /** Api */
 final class Api extends ApiBase {
@@ -149,7 +150,7 @@ final class Api extends ApiBase {
 		// 如果都不是以上狀況那就是 RtnCode=1 (交易成功)
 		// 設定訂單的交易編號
 		$order->set_transaction_id( $response_params->TradeNo );
-		$order->update_meta_data( 'pp_gateway_response_params', $response_params->to_array() );
+		$order->update_meta_data( OrderUtils::RESPONSE_KEY, $response_params->to_array() );
 		$order->payment_complete(); // 修改狀態為 processing | completed
 		// phpcs:enable
 

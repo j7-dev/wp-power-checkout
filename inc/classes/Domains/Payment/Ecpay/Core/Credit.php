@@ -7,16 +7,18 @@ namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
 use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
 
 /** Credit */
-final class Credit extends PaymentGateway {
+class Credit extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
 	public $id = 'pp_ecpay_credit';
 
-	/** @var string 付款方式標題  (自訂，用來顯示) */
-	public string $payment_label = 'ECPay Credit';
-
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
 	public string $payment_type = 'Credit';
+
+	/** 取得付款方式標題 @return string */
+	public function set_label(): string {
+		return __( 'ECPay Credit', 'power_payment' );
+	}
 
 	/**
 	 * [後台] 自訂欄位驗證邏輯

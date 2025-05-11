@@ -51,6 +51,8 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/** Constructor */
 	public function __construct() {
 
+		$this->payment_label = $this->set_label();
+
 		$default_form_fields = [
 			'enabled'     => [
 				'title'   => __( 'Enable/Disable', 'woocommerce' ),
@@ -112,7 +114,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		$this->method_title      = sprintf( __( '%s - Power Payment', 'power_payment' ), $this->payment_label );
 		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_payment' ), $this->payment_label );
 
-		$this->form_fields = \wp_parse_args( $this->form_fields, $default_form_fields );
+		$this->form_fields = $this->filter_fields( $default_form_fields );
 		$strict            = \wp_get_environment_type() === 'local';
 		FormField::parse_array( $this->form_fields, $strict );
 		$this->init_settings();
@@ -133,6 +135,21 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
 			\add_action( "woocommerce_receipt_{$this->id}", [ $this, 'render_at_receipt' ] );
 		}
+	}
+
+	/** 取得付款方式標題 @return string */
+	public function set_label(): string {
+		return '';
+	}
+
+	/**
+	 * 過濾表單欄位
+	 *
+	 * @param array<string, mixed> $fields 表單欄位
+	 * @return array<string, mixed> 過濾後的表單欄位
+	 * */
+	public function filter_fields( array $fields ): array {
+		return $fields;
 	}
 
 	/**
@@ -200,6 +217,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				'result' => 'failure',
 			];
 		}
+		$this->before_process_payment( $order );
 		$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_payment' ), $this->method_title ) );
 		\wc_maybe_reduce_stock_levels( $order_id );
 		\wc_release_stock_for_order( $order );
@@ -208,6 +226,10 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			'result'   => 'success',
 			'redirect' => $order->get_checkout_payment_url( true ), // 前往 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
 		];
+	}
+
+	/** @param \WC_Order $order 訂單 在 process_payment 之前執行 */
+	protected function before_process_payment( \WC_Order $order ): void {
 	}
 
 	/**
@@ -250,15 +272,13 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		}
 	}
 
-
 	/**
-	 * 提交表單
-	 * 例如綠界需透過前端網頁導轉(Submit)到綠界付款API網址
+	 * 不同的 gateway 會有不同的自訂 request params
 	 *
-	 * @see https://developers.ecpay.com.tw/?p=2872
-	 * @param \WC_Order $order 訂單
+	 * @return array<string, mixed>
 	 */
-	protected function submit( \WC_Order $order ): void {
+	public function extra_request_params(): array {
+		return [];
 	}
 
 	/** [後台]顯示錯誤訊息，改用 WC_Admin_Settings */
@@ -295,6 +315,16 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				'trace'  => $functions,
 			]
 			);
+	}
+
+	/**
+	 * 提交表單
+	 * 例如綠界需透過前端網頁導轉(Submit)到綠界付款API網址
+	 *
+	 * @see https://developers.ecpay.com.tw/?p=2872
+	 * @param \WC_Order $order 訂單
+	 */
+	protected function submit( \WC_Order $order ): void {
 	}
 
 	/**

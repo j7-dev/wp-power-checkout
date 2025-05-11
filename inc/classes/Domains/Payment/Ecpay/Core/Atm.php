@@ -12,11 +12,24 @@ final class Atm extends PaymentGateway {
 	/** @var string 付款方式 ID */
 	public $id = 'pp_ecpay_atm';
 
-	/** @var string 付款方式標題  (自訂，用來顯示) */
-	public string $payment_label = 'ECPay ATM';
-
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
 	public string $payment_type = 'ATM';
+
+	/** 取得付款方式標題 @return string */
+	public function set_label(): string {
+		return __( 'ECPay ATM', 'power_payment' );
+	}
+
+	/**
+	 * 不同的 gateway 會有不同的自訂 request params
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function extra_request_params(): array {
+		return [
+			'ExpireDate' => $this->expire_date,
+		];
+	}
 
 	/**
 	 * [後台] 自訂欄位驗證邏輯
