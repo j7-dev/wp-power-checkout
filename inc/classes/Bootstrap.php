@@ -2,12 +2,12 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment;
+namespace J7\PowerCheckout;
 
-use J7\PowerPayment\Utils\Base;
+use J7\PowerCheckout\Utils\Base;
 use Kucrut\Vite;
 
-if ( class_exists( 'J7\PowerPayment\Bootstrap' ) ) {
+if ( class_exists( 'J7\PowerCheckout\Bootstrap' ) ) {
 	return;
 }
 /** Bootstrap */

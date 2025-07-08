@@ -1,16 +1,16 @@
 <?php
 /**
- * Custom Post Type: Power Payment
+ * Custom Post Type: Power Checkout
  */
 
 declare(strict_types=1);
 
-namespace J7\PowerPayment\Admin;
+namespace J7\PowerCheckout\Admin;
 
-use J7\PowerPayment\Utils\Base;
-use J7\PowerPayment\Plugin;
+use J7\PowerCheckout\Utils\Base;
+use J7\PowerCheckout\Plugin;
 
-if (class_exists('J7\PowerPayment\Admin\CPT')) {
+if (class_exists('J7\PowerCheckout\Admin\CPT')) {
 	return;
 }
 /**
@@ -71,51 +71,51 @@ final class CPT {
 
 		// add {$this->post_type}/{slug}/test rewrite rule
 		if ( ! empty( $this->rewrite ) ) {
-			\add_rewrite_rule( '^power-payment/([^/]+)/' . $this->rewrite['slug'] . '/?$', 'index.php?post_type=power-payment&name=$matches[1]&' . $this->rewrite['var'] . '=1', 'top' );
+			\add_rewrite_rule( '^power-checkout/([^/]+)/' . $this->rewrite['slug'] . '/?$', 'index.php?post_type=power-checkout&name=$matches[1]&' . $this->rewrite['var'] . '=1', 'top' );
 			\flush_rewrite_rules();
 		}
 	}
 
 	/**
-	 * Register power-payment custom post type
+	 * Register power-checkout custom post type
 	 */
 	public static function register_cpt(): void {
 
 		$labels = [
-			'name'                     => \esc_html__( 'power-payment', 'power_payment' ),
-			'singular_name'            => \esc_html__( 'power-payment', 'power_payment' ),
-			'add_new'                  => \esc_html__( 'Add new', 'power_payment' ),
-			'add_new_item'             => \esc_html__( 'Add new item', 'power_payment' ),
-			'edit_item'                => \esc_html__( 'Edit', 'power_payment' ),
-			'new_item'                 => \esc_html__( 'New', 'power_payment' ),
-			'view_item'                => \esc_html__( 'View', 'power_payment' ),
-			'view_items'               => \esc_html__( 'View', 'power_payment' ),
-			'search_items'             => \esc_html__( 'Search power-payment', 'power_payment' ),
-			'not_found'                => \esc_html__( 'Not Found', 'power_payment' ),
-			'not_found_in_trash'       => \esc_html__( 'Not found in trash', 'power_payment' ),
-			'parent_item_colon'        => \esc_html__( 'Parent item', 'power_payment' ),
-			'all_items'                => \esc_html__( 'All', 'power_payment' ),
-			'archives'                 => \esc_html__( 'power-payment archives', 'power_payment' ),
-			'attributes'               => \esc_html__( 'power-payment attributes', 'power_payment' ),
-			'insert_into_item'         => \esc_html__( 'Insert to this power-payment', 'power_payment' ),
-			'uploaded_to_this_item'    => \esc_html__( 'Uploaded to this power-payment', 'power_payment' ),
-			'featured_image'           => \esc_html__( 'Featured image', 'power_payment' ),
-			'set_featured_image'       => \esc_html__( 'Set featured image', 'power_payment' ),
-			'remove_featured_image'    => \esc_html__( 'Remove featured image', 'power_payment' ),
-			'use_featured_image'       => \esc_html__( 'Use featured image', 'power_payment' ),
-			'menu_name'                => \esc_html__( 'power-payment', 'power_payment' ),
-			'filter_items_list'        => \esc_html__( 'Filter power-payment list', 'power_payment' ),
-			'filter_by_date'           => \esc_html__( 'Filter by date', 'power_payment' ),
-			'items_list_navigation'    => \esc_html__( 'power-payment list navigation', 'power_payment' ),
-			'items_list'               => \esc_html__( 'power-payment list', 'power_payment' ),
-			'item_published'           => \esc_html__( 'power-payment published', 'power_payment' ),
-			'item_published_privately' => \esc_html__( 'power-payment published privately', 'power_payment' ),
-			'item_reverted_to_draft'   => \esc_html__( 'power-payment reverted to draft', 'power_payment' ),
-			'item_scheduled'           => \esc_html__( 'power-payment scheduled', 'power_payment' ),
-			'item_updated'             => \esc_html__( 'power-payment updated', 'power_payment' ),
+			'name'                     => \esc_html__( 'power-checkout', 'power_checkout' ),
+			'singular_name'            => \esc_html__( 'power-checkout', 'power_checkout' ),
+			'add_new'                  => \esc_html__( 'Add new', 'power_checkout' ),
+			'add_new_item'             => \esc_html__( 'Add new item', 'power_checkout' ),
+			'edit_item'                => \esc_html__( 'Edit', 'power_checkout' ),
+			'new_item'                 => \esc_html__( 'New', 'power_checkout' ),
+			'view_item'                => \esc_html__( 'View', 'power_checkout' ),
+			'view_items'               => \esc_html__( 'View', 'power_checkout' ),
+			'search_items'             => \esc_html__( 'Search power-checkout', 'power_checkout' ),
+			'not_found'                => \esc_html__( 'Not Found', 'power_checkout' ),
+			'not_found_in_trash'       => \esc_html__( 'Not found in trash', 'power_checkout' ),
+			'parent_item_colon'        => \esc_html__( 'Parent item', 'power_checkout' ),
+			'all_items'                => \esc_html__( 'All', 'power_checkout' ),
+			'archives'                 => \esc_html__( 'power-checkout archives', 'power_checkout' ),
+			'attributes'               => \esc_html__( 'power-checkout attributes', 'power_checkout' ),
+			'insert_into_item'         => \esc_html__( 'Insert to this power-checkout', 'power_checkout' ),
+			'uploaded_to_this_item'    => \esc_html__( 'Uploaded to this power-checkout', 'power_checkout' ),
+			'featured_image'           => \esc_html__( 'Featured image', 'power_checkout' ),
+			'set_featured_image'       => \esc_html__( 'Set featured image', 'power_checkout' ),
+			'remove_featured_image'    => \esc_html__( 'Remove featured image', 'power_checkout' ),
+			'use_featured_image'       => \esc_html__( 'Use featured image', 'power_checkout' ),
+			'menu_name'                => \esc_html__( 'power-checkout', 'power_checkout' ),
+			'filter_items_list'        => \esc_html__( 'Filter power-checkout list', 'power_checkout' ),
+			'filter_by_date'           => \esc_html__( 'Filter by date', 'power_checkout' ),
+			'items_list_navigation'    => \esc_html__( 'power-checkout list navigation', 'power_checkout' ),
+			'items_list'               => \esc_html__( 'power-checkout list', 'power_checkout' ),
+			'item_published'           => \esc_html__( 'power-checkout published', 'power_checkout' ),
+			'item_published_privately' => \esc_html__( 'power-checkout published privately', 'power_checkout' ),
+			'item_reverted_to_draft'   => \esc_html__( 'power-checkout reverted to draft', 'power_checkout' ),
+			'item_scheduled'           => \esc_html__( 'power-checkout scheduled', 'power_checkout' ),
+			'item_updated'             => \esc_html__( 'power-checkout updated', 'power_checkout' ),
 		];
 		$args   = [
-			'label'                 => \esc_html__( 'power-payment', 'power_payment' ),
+			'label'                 => \esc_html__( 'power-checkout', 'power_checkout' ),
 			'labels'                => $labels,
 			'description'           => '',
 			'public'                => true,
@@ -143,7 +143,7 @@ final class CPT {
 			],
 		];
 
-		\register_post_type( 'power-payment', $args );
+		\register_post_type( 'power-checkout', $args );
 	}
 
 	/**
@@ -181,7 +181,7 @@ final class CPT {
 		if ( in_array( $post_type, [ Plugin::$kebab ] ) ) {
 			\add_meta_box(
 				Plugin::$kebab . '-metabox',
-				__( 'Power Payment', 'power_payment' ),
+				__( 'Power Checkout', 'power_checkout' ),
 				[ $this, 'render_meta_box' ],
 				$post_type,
 				'advanced',
@@ -253,7 +253,7 @@ final class CPT {
 		$post_type = \sanitize_text_field( $_POST['post_type'] ?? '' );
 
 		// Check the user's permissions.
-		if ( 'power-payment' !== $post_type ) {
+		if ( 'power-checkout' !== $post_type ) {
 			return $post_id;
 		}
 

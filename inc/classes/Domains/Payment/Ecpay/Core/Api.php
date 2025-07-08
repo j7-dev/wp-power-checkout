@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
 
 use J7\WpUtils\Classes\ApiBase;
-use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
-use J7\PowerPayment\Domains\Payment\Ecpay\Model\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Model\ResponseParams;
 use J7\Powerhouse\Utils\Base as PowerhouseUtils;
-use J7\PowerPayment\Utils\Order as OrderUtils;
+use J7\PowerCheckout\Utils\Order as OrderUtils;
 
 /** Api */
 final class Api extends ApiBase {
@@ -18,7 +18,7 @@ final class Api extends ApiBase {
 	const SUCCESS_CODE = '1|OK';
 
 	/** @var string $namespace */
-	protected $namespace = 'power-payment';
+	protected $namespace = 'power-checkout';
 
 	/** @var array{endpoint:string,method:string,permission_callback?: callable|null, callback?: callable|null}[] APIs */
 	protected $apis = [
@@ -97,7 +97,7 @@ final class Api extends ApiBase {
 			throw new \Exception( "訂單 {$order_id} 不是 WC_Order 實例" );
 		}
 
-		/** @var \J7\PowerPayment\Domains\Payment\AbstractPaymentGateway $gateway */
+		/** @var \J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway $gateway */
 		$gateway = \wc_get_payment_gateway_by_order( $order );
 
 		// ----- ▼ 寫入 order_note, order_meta, log ----- //

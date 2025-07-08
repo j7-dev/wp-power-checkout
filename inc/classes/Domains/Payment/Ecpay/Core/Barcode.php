@@ -2,9 +2,9 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
 
 /** Barcode */
 final class Barcode extends PaymentGateway {
@@ -23,11 +23,11 @@ final class Barcode extends PaymentGateway {
 	 * */
 	public function filter_fields( array $fields ): array {
 		$fields['expire_date'] = [
-			'title'             => __( 'Payment deadline', 'power_payment' ),
+			'title'             => __( 'Payment deadline', 'power_checkout' ),
 			'type'              => 'decimal',
 			'default'           => 7,
 			'placeholder'       => 7,
-			'description'       => __( 'Barcode allowable payment deadline from 1 day to 60 days.', 'power_payment' ),
+			'description'       => __( 'Barcode allowable payment deadline from 1 day to 60 days.', 'power_checkout' ),
 			'custom_attributes' => [
 				'min'  => 1,
 				'max'  => 30,
@@ -39,7 +39,7 @@ final class Barcode extends PaymentGateway {
 
 	/** 取得付款方式標題 @return string */
 	public function set_label(): string {
-		return __( 'ECPay Barcode', 'power_payment' );
+		return __( 'ECPay Barcode', 'power_checkout' );
 	}
 
 	/**
@@ -102,12 +102,12 @@ final class Barcode extends PaymentGateway {
 	public function process_payment( $order_id ): array {
 		$order = \wc_get_order( $order_id );
 		if ( ! $order instanceof \WC_Order ) {
-			\wc_add_notice( __( 'Order not found.', 'power_payment' ), 'error' );
+			\wc_add_notice( __( 'Order not found.', 'power_checkout' ), 'error' );
 			return [
 				'result' => 'failure',
 			];
 		}
-		$order->add_order_note( __( 'Pay via ECPay ATM', 'power_payment' ) );
+		$order->add_order_note( __( 'Pay via ECPay ATM', 'power_checkout' ) );
 		\wc_maybe_reduce_stock_levels( $order_id );
 		\wc_release_stock_for_order( $order );
 
@@ -146,15 +146,15 @@ final class Barcode extends PaymentGateway {
 		$max_amount  = (float) $max_amount;
 
 		if ( $expire_date < 1 || $expire_date > 30 ) {
-			$this->errors[] = __( 'Save failed. Barcode payment deadline out of range.', 'power_payment' );
+			$this->errors[] = __( 'Save failed. Barcode payment deadline out of range.', 'power_checkout' );
 		}
 
 		if ($min_amount < 31 ) {
-			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_payment' ), $this->method_title );
+			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 
 		if ( $max_amount > 20000 ) {
-			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_payment' ), $this->method_title );
+			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 
 		if ( $this->errors ) {

@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\WC_Settings_API\Model;
+namespace J7\PowerCheckout\Domains\WC_Settings_API\Model;
 
 use J7\WpUtils\Classes\DTO;
 

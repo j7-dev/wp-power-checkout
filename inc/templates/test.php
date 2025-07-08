@@ -12,7 +12,7 @@
 
 <body <?php body_class(); ?> style="background-color:#fff;">
 
-	<div id="power_payment"></div>
+	<div id="power_checkout"></div>
 
 	<?php wp_footer(); ?>
 </body>

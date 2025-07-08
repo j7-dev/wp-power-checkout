@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Power Checkout
- * Plugin URI:        https://github.com/j7-dev/power-payment
+ * Plugin URI:        https://github.com/j7-dev/power-checkout
  * Description:       your description
  * Version:           0.0.1
  * Requires at least: 5.7
@@ -10,20 +10,20 @@
  * Author URI:        https://github.com/j7-dev
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       power_payment
+ * Text Domain:       power_checkout
  * Domain Path:       /languages
  * Tags: your tags
  */
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment;
+namespace J7\PowerCheckout;
 
 if (!defined('ABSPATH')) {
 	exit; // Exit if accessed directly
 }
 
-if ( \class_exists( 'J7\PowerPayment\Plugin' ) ) {
+if ( \class_exists( 'J7\PowerCheckout\Plugin' ) ) {
 	return;
 }
 require_once __DIR__ . '/vendor/autoload.php';
@@ -58,10 +58,10 @@ final class Plugin {
 
 		$this->init(
 			[
-				'app_name'    => 'Power Payment',
-				'github_repo' => 'https://github.com/j7-dev/power-payment',
+				'app_name'    => 'Power Checkout',
+				'github_repo' => 'https://github.com/j7-dev/power-checkout',
 				'callback'    => [ Bootstrap::class, 'instance' ],
-				'lc'          => false,
+				'lc'          => 'ZmFsc2',
 			]
 		);
 	}

@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
 
 /** Credit 綠界信用卡分期付款 */
 final class CreditInstallment extends Credit {
@@ -26,7 +26,7 @@ final class CreditInstallment extends Credit {
 
 	/** 取得付款方式標題 @return string */
 	public function set_label(): string {
-		return \__( 'ECPay Credit(installment)', 'power_payment' );
+		return \__( 'ECPay Credit(installment)', 'power_checkout' );
 	}
 
 	/**
@@ -37,7 +37,7 @@ final class CreditInstallment extends Credit {
 	 * */
 	public function filter_fields( array $fields ): array {
 		$fields['number_of_periods'] = [
-			'title'             => __( 'Enable number of periods', 'power_payment' ),
+			'title'             => __( 'Enable number of periods', 'power_checkout' ),
 			'type'              => 'multiselect',
 			'class'             => 'wc-enhanced-select',
 			'css'               => 'width: 400px;',
@@ -85,7 +85,7 @@ final class CreditInstallment extends Credit {
 		/*html*/'
 		<p>%1$s</p>
 		',
-		\_x( 'Number of periods', 'Checkout info', 'power_payment' )
+		\_x( 'Number of periods', 'Checkout info', 'power_checkout' )
 		);
 
 		echo /*html*/'<select name="ecpay_number_of_periods">';

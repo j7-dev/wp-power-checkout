@@ -2,14 +2,14 @@
 // phpcs:disable
 declare(strict_types=1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Model;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Model;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerPayment\Utils\Base as Utils;
-use J7\PowerPayment\Domains\Payment\Ecpay\Core\Service;
-use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
-use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerPayment\Utils\Order as OrderUtils;
+use J7\PowerCheckout\Utils\Base as Utils;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Core\Service;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
+use J7\PowerCheckout\Utils\Order as OrderUtils;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
@@ -172,7 +172,7 @@ final class RequestParams extends DTO
 	 */
 	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway ): self
 	{
-		$notify_url = urldecode(\site_url('wp-json/power-payment/ecpay-aio', 'https'));
+		$notify_url = urldecode(\site_url('wp-json/power-checkout/ecpay-aio', 'https'));
 
 		$return_url = urldecode($gateway->get_return_url($order));
 		$service = Service::instance();

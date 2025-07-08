@@ -2,9 +2,9 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Abstracts;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts;
 
-use J7\PowerPayment\Domains\Payment\AbstractPaymentService;
+use J7\PowerCheckout\Domains\Payment\AbstractPaymentService;
 
 /**
  * EcPay 用付款服務抽象類別

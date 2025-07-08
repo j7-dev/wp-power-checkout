@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Utils;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Utils;
 
-use J7\PowerPayment\Utils\Base as Utils;
+use J7\PowerCheckout\Utils\Base as Utils;
 
 /** Utils */
 abstract class Base {

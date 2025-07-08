@@ -2,9 +2,9 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
 
 /** CVS 超商取貨 */
 final class CVS extends PaymentGateway {
@@ -17,7 +17,7 @@ final class CVS extends PaymentGateway {
 
 	/** 取得付款方式標題 @return string */
 	public function set_label(): string {
-		return __( 'ECPay CVS', 'power_payment' );
+		return __( 'ECPay CVS', 'power_checkout' );
 	}
 
 	/**
@@ -29,11 +29,11 @@ final class CVS extends PaymentGateway {
 	 * */
 	public function filter_fields( array $fields ): array {
 		$fields['expire_date'] = [
-			'title'             => __( 'Payment deadline (minutes)', 'power_payment' ),
+			'title'             => __( 'Payment deadline (minutes)', 'power_checkout' ),
 			'type'              => 'decimal',
 			'default'           => 10080,
 			'placeholder'       => 10080,
-			'description'       => __( 'CVS allowable payment deadline from 1 minute to 60 days.', 'power_payment' ),
+			'description'       => __( 'CVS allowable payment deadline from 1 minute to 60 days.', 'power_checkout' ),
 			'custom_attributes' => [
 				'min'  => 1,
 				'max'  => 43200,
@@ -82,15 +82,15 @@ final class CVS extends PaymentGateway {
 		$max_amount  = (float) $max_amount;
 
 		if ( $expire_date < 1 || $expire_date > 60 ) {
-			$this->errors[] = __( 'Save failed. ATM payment deadline out of range.', 'power_payment' );
+			$this->errors[] = __( 'Save failed. ATM payment deadline out of range.', 'power_checkout' );
 		}
 
 		if ( $min_amount < 5 ) {
-			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_payment' ), $this->method_title );
+			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 
 		if ( $max_amount > 20000 ) {
-			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_payment' ), $this->method_title );
+			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 
 		if ( $this->errors ) {
@@ -109,22 +109,22 @@ final class CVS extends PaymentGateway {
 			return;
 		}
 		?>
-<h3 style="clear:both"><?php echo __( 'Payment details', 'power_payment' ); ?>
+<h3 style="clear:both"><?php echo __( 'Payment details', 'power_checkout' ); ?>
 </h3>
 <table>
 	<tr>
-		<td><?php echo __( 'Bank', 'power_payment' ); ?>
+		<td><?php echo __( 'Bank', 'power_checkout' ); ?>
 		</td>
-		<td><?php echo _x( $order->get_meta( '_ecpay_atm_BankCode' ), 'Bank code', 'power_payment' ); ?> (<?php echo $order->get_meta( '_ecpay_atm_BankCode' ); ?>)</td>
+		<td><?php echo _x( $order->get_meta( '_ecpay_atm_BankCode' ), 'Bank code', 'power_checkout' ); ?> (<?php echo $order->get_meta( '_ecpay_atm_BankCode' ); ?>)</td>
 	</tr>
 	<tr>
-		<td><?php echo __( 'ATM Bank account', 'power_payment' ); ?>
+		<td><?php echo __( 'ATM Bank account', 'power_checkout' ); ?>
 		</td>
 		<td><?php echo $order->get_meta( '_ecpay_atm_vAccount' ); ?>
 		</td>
 	</tr>
 	<tr>
-		<td><?php echo __( 'Payment deadline', 'power_payment' ); ?>
+		<td><?php echo __( 'Payment deadline', 'power_checkout' ); ?>
 		</td>
 		<td><?php echo $order->get_meta( '_ecpay_atm_ExpireDate' ); ?>
 		</td>

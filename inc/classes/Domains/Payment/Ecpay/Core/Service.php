@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentService;
-use J7\PowerPayment\Domains\Payment\Ecpay\Model\RequestParams;
-use J7\PowerPayment\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerPayment\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentService;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Model\RequestParams;
+use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
 
 /** Service */
 final class Service extends PaymentService {
@@ -93,7 +93,7 @@ final class Service extends PaymentService {
 	public function get_check_value( array $args, string $hash_algo ): string {
 
 		if ( ! in_array( $hash_algo, [ 'sha256', 'md5' ], true ) ) {
-			throw new \Exception( __( 'Invalid hash algorithm', 'power_payment' ) );
+			throw new \Exception( __( 'Invalid hash algorithm', 'power_checkout' ) );
 		}
 
 		unset( $args['CheckMacValue'] ); // 確保不會用 CheckMacValue 生成

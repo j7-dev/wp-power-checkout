@@ -2,9 +2,9 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\Payment;
+namespace J7\PowerCheckout\Domains\Payment;
 
-use J7\PowerPayment\Domains\WC_Settings_API\Model\FormField;
+use J7\PowerCheckout\Domains\WC_Settings_API\Model\FormField;
 
 /** 付款閘道抽象類別 */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
@@ -52,14 +52,14 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	public function __construct() {
 
 		$this->payment_label     = $this->set_label();
-		$this->method_title      = sprintf( __( '%s - Power Payment', 'power_payment' ), $this->payment_label );
-		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_payment' ), $this->payment_label );
+		$this->method_title      = sprintf( __( '%s - Power Checkout', 'power_checkout' ), $this->payment_label );
+		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_checkout' ), $this->payment_label );
 
 		$default_form_fields = [
 			'enabled'     => [
 				'title'   => __( 'Enable/Disable', 'woocommerce' ),
 				/* translators: %s: Gateway method title */
-				'label'   => sprintf( __( 'Enable %s', 'power_payment' ), $this->method_title ),
+				'label'   => sprintf( __( 'Enable %s', 'power_checkout' ), $this->method_title ),
 				'type'    => 'checkbox',
 				'default' => 'no',
 			],
@@ -78,7 +78,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				'description' => __( 'This controls the description which the user sees during checkout.', 'woocommerce' ),
 			],
 			'min_amount'  => [
-				'title'             => __( 'Minimum order amount', 'power_payment' ),
+				'title'             => __( 'Minimum order amount', 'power_checkout' ),
 				'type'              => 'decimal',
 				'default'           => 5,
 				'custom_attributes' => [
@@ -87,7 +87,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				],
 			],
 			'max_amount'  => [
-				'title'             => __( 'Maximum order amount', 'power_payment' ),
+				'title'             => __( 'Maximum order amount', 'power_checkout' ),
 				'type'              => 'decimal',
 				'default'           => 0,
 				'custom_attributes' => [
@@ -96,11 +96,11 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				],
 			],
 			'expire_date' => [
-				'title'             => __( 'Payment deadline', 'power_payment' ),
+				'title'             => __( 'Payment deadline', 'power_checkout' ),
 				'type'              => 'decimal',
 				'default'           => 3,
 				'placeholder'       => 3,
-				'description'       => __( 'ATM allowable payment deadline from 1 day to 60 days.', 'power_payment' ),
+				'description'       => __( 'ATM allowable payment deadline from 1 day to 60 days.', 'power_checkout' ),
 				'custom_attributes' => [
 					'min'  => 1,
 					'max'  => 60,
@@ -207,13 +207,13 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	public function process_payment( $order_id ): array {
 		$order = \wc_get_order( $order_id );
 		if ( ! $order instanceof \WC_Order ) {
-			\wc_add_notice( __( 'Order not found.', 'power_payment' ), 'error' );
+			\wc_add_notice( __( 'Order not found.', 'power_checkout' ), 'error' );
 			return [
 				'result' => 'failure',
 			];
 		}
 		$this->before_process_payment( $order );
-		$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_payment' ), $this->method_title ) );
+		$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
 		\wc_maybe_reduce_stock_levels( $order_id );
 		\wc_release_stock_for_order( $order );
 

@@ -2,9 +2,9 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
 
-use J7\PowerPayment\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
 
 /** Credit */
 class Credit extends PaymentGateway {
@@ -17,7 +17,7 @@ class Credit extends PaymentGateway {
 
 	/** 取得付款方式標題 @return string */
 	public function set_label(): string {
-		return __( 'ECPay Credit', 'power_payment' );
+		return __( 'ECPay Credit', 'power_checkout' );
 	}
 
 	/**
@@ -45,11 +45,11 @@ class Credit extends PaymentGateway {
 		$max_amount = (float) $max_amount;
 
 		if ( $min_amount < 5 ) {
-			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_payment' ), $this->method_title );
+			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 
 		if ( $max_amount > 199999 ) {
-			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_payment' ), $this->method_title );
+			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 
 		if ( $this->errors ) {
@@ -69,7 +69,7 @@ class Credit extends PaymentGateway {
 			return;
 		}
 		?>
-<h3 style="clear:both"><?php echo __( 'Payment details', 'power_payment' ); ?>
+<h3 style="clear:both"><?php echo __( 'Payment details', 'power_checkout' ); ?>
 </h3>
 TODO
 		<?php

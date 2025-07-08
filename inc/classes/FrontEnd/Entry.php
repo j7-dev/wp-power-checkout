@@ -5,11 +5,11 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerPayment\FrontEnd;
+namespace J7\PowerCheckout\FrontEnd;
 
-use J7\PowerPayment\Utils\Base;
+use J7\PowerCheckout\Utils\Base;
 
-if (class_exists('J7\PowerPayment\FrontEnd\Entry')) {
+if (class_exists('J7\PowerCheckout\FrontEnd\Entry')) {
 	return;
 }
 /**

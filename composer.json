@@ -1,5 +1,5 @@
 {
-	"name": "j7-dev/power-payment",
+	"name": "j7-dev/power-checkout",
 	"description": "This is a boilerplate for creating a WordPress plugin with React, Tailwind, Ant Design, TypeScript, Zod, MSW, React Router v6, React Query v4, SCSS and Vite.",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-only",
@@ -19,7 +19,7 @@
 	],
 	"autoload": {
 		"psr-4": {
-			"J7\\PowerPayment\\": "inc/classes/"
+			"J7\\PowerCheckout\\": "inc/classes/"
 		}
 	},
 	"config": {

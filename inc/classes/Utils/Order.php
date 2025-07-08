@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerPayment\Utils;
+namespace J7\PowerCheckout\Utils;
 
 /** Order 相關 */
 abstract class Order {

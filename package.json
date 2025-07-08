@@ -1,5 +1,5 @@
 {
-	"name": "create-power-payment",
+	"name": "create-power-checkout",
 	"private": false,
 	"version": "0.0.1",
 	"type": "module",
@@ -21,7 +21,7 @@
 		"create:release": "env-cmd -f ../../.env node ./release/create-release.cjs",
 		"sync:version": "wp-update-project-version -s package.json -p plugin.php",
 		"replace-string": "node ./replace-string.cjs",
-		"i18n": "wp i18n make-pot . languages/power_payment.pot",
+		"i18n": "wp i18n make-pot . languages/power_checkout.pot",
 		"i18n:commit": "pnpm i18n && git add . && git commit --amend --no-edit"
 	},
 	"dependencies": {

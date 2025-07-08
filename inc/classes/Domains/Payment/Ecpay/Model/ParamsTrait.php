@@ -2,7 +2,7 @@
 // phpcs:disable
 declare(strict_types=1);
 
-namespace J7\PowerPayment\Domains\Payment\Ecpay\Model;
+namespace J7\PowerCheckout\Domains\Payment\Ecpay\Model;
 
 /**
  * 綠界全方位金流 API RequestParams & ResponseParams 共用屬性

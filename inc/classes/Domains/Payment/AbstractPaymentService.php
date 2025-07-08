@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerPayment\Domains\Payment;
+namespace J7\PowerCheckout\Domains\Payment;
 
 /**
  * 付款服務抽象類別
