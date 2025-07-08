@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       Power Payment
+ * Plugin Name:       Power Checkout
  * Plugin URI:        https://github.com/j7-dev/power-payment
  * Description:       your description
  * Version:           0.0.1
