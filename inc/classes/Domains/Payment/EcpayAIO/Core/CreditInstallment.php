@@ -2,13 +2,13 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
 /** Credit 綠界信用卡分期付款 */
 final class CreditInstallment extends Credit {
 
 	/** @var string 付款方式 ID */
-	public $id = 'pp_ecpay_credit_installment';
+	public $id = 'pc_ecpayaio_credit_installment';
 
 	/** @var array<int> 分期期數 */
 	public array $number_of_periods = [ 3, 6, 12, 18, 24 ];
@@ -102,8 +102,8 @@ final class CreditInstallment extends Credit {
 
 	/** 在 process_payment 之前執行 */
 	public function before_process_payment( \WC_Order $order ): void {
-		if ( isset( $_POST['ecpay_number_of_periods'] ) ) {
-			$this->number_of_period = (int) $_POST['ecpay_number_of_periods'];
+		if ( isset( $_POST['ecpay_number_of_periods'] ) ) { // phpcs:ignore
+			$this->number_of_period = (int) $_POST['ecpay_number_of_periods']; // phpcs:ignore
 		}
 	}
 }

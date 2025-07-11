@@ -30,7 +30,8 @@
 	},
 	"require": {
 		"kucrut/vite-for-wp": "^0.11.6",
-		"j7-dev/wp-utils": "0.3.46"
+		"j7-dev/wp-utils": "0.3.47",
+		"giggsey/libphonenumber-for-php-lite": "^9.0"
 	},
 	"require-dev": {
 		"squizlabs/php_codesniffer": "@stable",

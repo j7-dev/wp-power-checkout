@@ -2,15 +2,15 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
-use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentGateway;
 
 /** Barcode */
 final class Barcode extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	public $id = 'pp_ecpay_barcode';
+	public $id = 'pc_ecpayaio_barcode';
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
 	public string $payment_type = 'BARCODE';

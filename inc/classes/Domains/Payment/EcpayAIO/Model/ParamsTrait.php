@@ -1,8 +1,8 @@
 <?php
-// phpcs:disable
+
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Model;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Model;
 
 /**
  * 綠界全方位金流 API RequestParams & ResponseParams 共用屬性
@@ -10,8 +10,8 @@ namespace J7\PowerCheckout\Domains\Payment\Ecpay\Model;
  * @see https://developers.ecpay.com.tw/?p=2862
  * @see https://developers.ecpay.com.tw/?p=2878
  */
-trait ParamsTrait
-{
+trait ParamsTrait {
+
 
 	/** @var string *特店編號 (10) */
 	public string $MerchantID;
@@ -48,4 +48,3 @@ trait ParamsTrait
 	/** @var string 自訂名稱欄位4 (50) 提供合作廠商使用記錄客製化欄位。 */
 	public string $CustomField4;
 }
-// phpcs:enable

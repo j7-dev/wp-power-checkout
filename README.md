@@ -1,4 +1,11 @@
 
+讓結帳頁，為你的轉換率加上渦輪
+從金流、物流到畫面設計，全面優化 WordPress 的結帳體驗
+
+# 代辦事項
+
+1. 需要支援 HPOS
+2. 需要支援新版本結帳頁
 
 
 ## 金流商回傳的資料統一紀錄在 `pp_gateway_response_params` order_meta

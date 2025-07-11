@@ -2,22 +2,33 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
-use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentGateway;
 
-/** WebAtm 插卡網路ATM */
-final class WebAtm extends PaymentGateway {
+/** Atm */
+final class Atm extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	public $id = 'pp_ecpay_webatm';
+	public $id = 'pc_ecpayaio_atm';
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
-	public string $payment_type = 'WebATM';
+	public string $payment_type = 'ATM';
 
 	/** 取得付款方式標題 @return string */
 	public function set_label(): string {
-		return __( 'ECPay WebATM', 'power_checkout' );
+		return __( 'ECPay ATM', 'power_checkout' );
+	}
+
+	/**
+	 * 不同的 gateway 會有不同的自訂 request params
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function extra_request_params(): array {
+		return [
+			'ExpireDate' => $this->expire_date,
+		];
 	}
 
 	/**

@@ -1,22 +1,24 @@
 <?php
-// phpcs:disable
+
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Model;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Model;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Utils\Base as Utils;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Core\Service;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Service;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
 use J7\PowerCheckout\Utils\Order as OrderUtils;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
+ *
  * @see https://developers.ecpay.com.tw/?p=2862
  */
-final class RequestParams extends DTO
-{
+final class RequestParams extends DTO {
+
 	use ParamsTrait; // 共用屬性
 
 	/** @var string *特店交易時間 (20) yyyy/MM/dd HH:mm:ss */
@@ -167,21 +169,21 @@ final class RequestParams extends DTO
 
 	/**
 	 * 組成變數的主要邏輯可以寫在裡面
-	 *  @param \WC_Order           $order 訂單
+	 *
+	 *  @param \WC_Order              $order 訂單
 	 *  @param AbstractPaymentGateway $gateway 付款方式
 	 */
-	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway ): self
-	{
+	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway ): self {
 		$notify_url = urldecode(\site_url('wp-json/power-checkout/ecpay-aio', 'https'));
 
 		$return_url = urldecode($gateway->get_return_url($order));
-		$service = Service::instance();
+		$service    = Service::instance();
 
 		$default_args = [
-			'MerchantID'        => $service->merchant_id,
+			'MerchantID'        => $service->settings->merchant_id,
 			'MerchantTradeNo'   => EcpayUtils::encode_trade_no( $order->get_id() ),
-			'MerchantTradeDate' => (new \DateTime('now', new \DateTimeZone('Asia/Taipei')))->format('Y/m/d H:i:s'),
-			'TotalAmount'       => (int) ceil((float) $order->get_total()), // 無條件進位
+			'MerchantTradeDate' => ( new \DateTime('now', new \DateTimeZone('Asia/Taipei')) )->format('Y/m/d H:i:s'),
+			'TotalAmount'       => (int) ceil( (float) $order->get_total()), // 無條件進位
 			'TradeDesc'         => \get_bloginfo('name'),
 			'ItemName'          => EcpayUtils::get_item_name($order),
 			'ReturnURL'         => $notify_url,
@@ -200,7 +202,6 @@ final class RequestParams extends DTO
 
 		$args = \wp_parse_args( $gateway->extra_request_params(), $default_args );
 
-
 		// 將 request params 存到訂單
 		$order->update_meta_data( OrderUtils::REQUEST_KEY, $args );
 		$order->save_meta_data();
@@ -212,7 +213,8 @@ final class RequestParams extends DTO
 
 	/**
 	 * 從訂單取得 request params
-	 * @param \WC_Order $order
+	 *
+	 * @param \WC_Order $order 訂單
 	 * @return self
 	 * */
 	public static function instance_from_order( \WC_Order $order ): self {
@@ -221,14 +223,13 @@ final class RequestParams extends DTO
 		return new self( $args );
 	}
 
-	protected function after_init(): void
-	{
+	/** 初始化後執行 */
+	protected function after_init(): void {
 		$this->add_check_value( 'sha256' );
 	}
 
 	/** 自訂驗證邏輯 */
-	protected function validate(): void
-	{
+	protected function validate(): void {
 
 		if ('aio' !== $this->PaymentType) {
 			$this->dto_error->add(
@@ -237,7 +238,7 @@ final class RequestParams extends DTO
 			);
 		}
 
-		if (Utils::include_special_char($this->MerchantTradeNo)) {
+		if (Helper::include_special_char($this->MerchantTradeNo)) {
 			$this->dto_error->add(
 				'MerchantTradeNo',
 				"MerchantTradeNo 不能包含特殊字元, 但目前為 {$this->MerchantTradeNo}"
@@ -245,32 +246,32 @@ final class RequestParams extends DTO
 		}
 
 		// 檢查字串長度
-		if (Utils::strlen($this->MerchantTradeNo) > 20) {
+		if (Helper::strlen($this->MerchantTradeNo) > 20) {
 			$this->dto_error->add(
 				'MerchantTradeNo',
-				"MerchantTradeNo 長度不能超過 20 個字, 但目前為 " . strlen($this->MerchantTradeNo) . " 字"
+				'MerchantTradeNo 長度不能超過 20 個字, 但目前為 ' . Helper::strlen($this->MerchantTradeNo) . ' 字'
 			);
 		}
 
-		if (Utils::include_special_char($this->TradeDesc)) {
+		if (Helper::include_special_char($this->TradeDesc)) {
 			$this->dto_error->add(
 				'TradeDesc',
 				"TradeDesc 不能包含特殊字元, 但目前為 {$this->TradeDesc}"
 			);
 		}
 
-		if (Utils::strlen($this->TradeDesc) > 200) {
+		if (Helper::strlen($this->TradeDesc) > 200) {
 			$this->dto_error->add(
 				'TradeDesc',
-				"TradeDesc 長度不能超過 200 個字, 但目前為 " . strlen($this->TradeDesc) . " 字"
+				'TradeDesc 長度不能超過 200 個字, 但目前為 ' . Helper::strlen($this->TradeDesc) . ' 字'
 			);
 		}
 
-		$payment_options = ['Credit', 'TWQR', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'BNPL'];
-		if (!in_array($this->ChoosePayment, [...$payment_options, 'ALL'])) {
+		$payment_options = [ 'Credit', 'TWQR', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'BNPL' ];
+		if (!in_array($this->ChoosePayment, [ ...$payment_options, 'ALL' ], true)) {
 			$this->dto_error->add(
 				'ChoosePayment',
-				"ChoosePayment 必須為 " . implode(', ', [...$payment_options, 'ALL']) . " 其中一個, 但目前為 {$this->ChoosePayment}"
+				'ChoosePayment 必須為 ' . implode(', ', [ ...$payment_options, 'ALL' ]) . " 其中一個, 但目前為 {$this->ChoosePayment}"
 			);
 		}
 
@@ -281,9 +282,8 @@ final class RequestParams extends DTO
 			);
 		}
 
-
 		if (isset($this->NeedExtraPaidInfo)) {
-			if (!in_array($this->NeedExtraPaidInfo, ['N', 'Y'])) {
+			if (!in_array($this->NeedExtraPaidInfo, [ 'N', 'Y' ])) {
 				$this->dto_error->add(
 					'NeedExtraPaidInfo',
 					"NeedExtraPaidInfo 必須為 'N' | 'Y' 其中一個, 但目前為 {$this->NeedExtraPaidInfo}"
@@ -295,13 +295,13 @@ final class RequestParams extends DTO
 			if (!in_array($this->IgnorePayment, $payment_options)) {
 				$this->dto_error->add(
 					'IgnorePayment',
-					"IgnorePayment 必須為 " . implode(', ', $payment_options) . " 其中一個, 但目前為 {$this->IgnorePayment}"
+					'IgnorePayment 必須為 ' . implode(', ', $payment_options) . " 其中一個, 但目前為 {$this->IgnorePayment}"
 				);
 			}
 		}
 
 		if (isset($this->Language)) {
-			if (!in_array($this->Language, ['ENG', 'KOR', 'JPN', 'CHI'])) {
+			if (!in_array($this->Language, [ 'ENG', 'KOR', 'JPN', 'CHI' ])) {
 				$this->dto_error->add(
 					'Language',
 					"Language 必須為 'ENG' | 'KOR' | 'JPN' | 'CHI' 其中一個, 但目前為 {$this->Language}"
@@ -312,13 +312,13 @@ final class RequestParams extends DTO
 
 	/**
 	 * 依照不同付款方式特性，加上額外參數
+	 *
 	 * @param string $hash_algo 'sha256' | 'md5' 雜湊演算法
 	 */
 	protected function add_check_value( string $hash_algo ): void {
 		$service = Service::instance();
 		/** @var array<string, string|int> $args */
-		$args = $this->to_array();
+		$args                = $this->to_array();
 		$this->CheckMacValue = $service->get_check_value( $args, $hash_algo );
 	}
 }
-// phpcs:enable

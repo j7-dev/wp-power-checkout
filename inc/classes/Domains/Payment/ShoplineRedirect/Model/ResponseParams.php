@@ -1,18 +1,19 @@
 <?php
-// phpcs:disable
+
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Model;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Core\Service;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Service;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
+ *
  * @see https://developers.ecpay.com.tw/?p=2862
  */
-final class ResponseParams extends DTO
-{
+final class ResponseParams extends DTO {
+
 	use ParamsTrait; // 共用屬性
 
 	/**
@@ -47,7 +48,7 @@ final class ResponseParams extends DTO
 	public float $PaymentTypeChargeFee;
 
 	/** @var int 訂單成立時間 格式為yyyy/MM/dd HH:mm:ss */
-	public int $TradeDate ;
+	public int $TradeDate;
 
 	/** @var int 是否為模擬付款 0=不是 1=是 */
 	public int $SimulatePaid;
@@ -97,10 +98,10 @@ final class ResponseParams extends DTO
 
 	/**
 	 * 取得實例
+	 *
 	 *  @param array<string, mixed> $params
 	 */
-	public static function instance( array $params ): self
-	{
+	public static function instance( array $params ): self {
 		$params = \wp_unslash( $params ); // 去除轉譯斜線
 		return new self( $params );
 	}
@@ -136,9 +137,8 @@ final class ResponseParams extends DTO
 	}
 
 	/** 自訂驗證邏輯 */
-	protected function validate(): void
-	{
-		if (in_array($this->SimulatePaid, [0, 1])) {
+	protected function validate(): void {
+		if (in_array($this->SimulatePaid, [ 0, 1 ])) {
 			throw new \Exception('SimulatePaid 必須是 0 或 1');
 		}
 
@@ -151,8 +151,4 @@ final class ResponseParams extends DTO
 	protected function after_init(): void {
 		$this->RtnCodeLabel = $this->get_rtn_code_label();
 	}
-
-
-
 }
-// phpcs:enable

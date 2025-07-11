@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
 use J7\WpUtils\Classes\ApiBase;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Model\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\ResponseParams;
 use J7\Powerhouse\Utils\Base as PowerhouseUtils;
 use J7\PowerCheckout\Utils\Order as OrderUtils;
 

@@ -2,56 +2,22 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
-use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentGateway;
 
-/** CVS 超商取貨 */
-final class CVS extends PaymentGateway {
+/** WebAtm 插卡網路ATM */
+final class WebAtm extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	public $id = 'pp_ecpay_cvs';
+	public $id = 'pc_ecpayaio_webatm';
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
-	public string $payment_type = 'CVS';
+	public string $payment_type = 'WebATM';
 
 	/** 取得付款方式標題 @return string */
 	public function set_label(): string {
-		return __( 'ECPay CVS', 'power_checkout' );
-	}
-
-	/**
-	 * 過濾表單欄位
-	 *
-	 * @see https://developers.ecpay.com.tw/?p=2874
-	 * @param array<string, mixed> $fields 表單欄位
-	 * @return array<string, mixed> 過濾後的表單欄位
-	 * */
-	public function filter_fields( array $fields ): array {
-		$fields['expire_date'] = [
-			'title'             => __( 'Payment deadline (minutes)', 'power_checkout' ),
-			'type'              => 'decimal',
-			'default'           => 10080,
-			'placeholder'       => 10080,
-			'description'       => __( 'CVS allowable payment deadline from 1 minute to 60 days.', 'power_checkout' ),
-			'custom_attributes' => [
-				'min'  => 1,
-				'max'  => 43200,
-				'step' => 1,
-			],
-		];
-		return $fields;
-	}
-
-	/**
-	 * 不同的 gateway 會有不同的自訂 request params
-	 *
-	 * @return array<string, mixed>
-	 */
-	public function extra_request_params(): array {
-		return [
-			'StoreExpireDate' => $this->expire_date,
-		];
+		return __( 'ECPay WebATM', 'power_checkout' );
 	}
 
 	/**
@@ -89,7 +55,7 @@ final class CVS extends PaymentGateway {
 			$this->errors[] = sprintf( __( 'Save failed. %s minimum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 
-		if ( $max_amount > 20000 ) {
+		if ( $max_amount > 50000 ) {
 			$this->errors[] = sprintf( __( 'Save failed. %s maximum amount out of range.', 'power_checkout' ), $this->method_title );
 		}
 

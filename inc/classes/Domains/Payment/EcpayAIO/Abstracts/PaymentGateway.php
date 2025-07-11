@@ -2,11 +2,11 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts;
 
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Core\Service;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Service;
 
 
 /** EcPay 用付款閘道抽象類別 */
@@ -32,7 +32,7 @@ abstract class PaymentGateway extends AbstractPaymentGateway {
 				'auto-form',
 				[
 					'params' => $params,
-					'url'    => $service->aio_checkout_endpoint,
+					'url'    => $service->settings->aio_checkout_endpoint,
 				]
 				);
 
@@ -40,7 +40,7 @@ abstract class PaymentGateway extends AbstractPaymentGateway {
 		\WC()->cart->empty_cart();
 	}
 
-	/** [後台]顯示錯誤訊息，改用 WC_Admin_Settings */
+	/** [後台]顯示錯誤訊息 WC_Admin_Settings */
 	public function display_errors(): void {
 		if ( $this->errors ) {
 			foreach ( $this->errors as $error ) {

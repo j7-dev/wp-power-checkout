@@ -2,49 +2,28 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\Ecpay\Core;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
-use J7\PowerCheckout\Domains\Payment\Ecpay\Abstracts\PaymentService;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Model\RequestParams;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentService;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\RequestParams;
 use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerCheckout\Domains\Payment\Ecpay\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\Settings;
 
 /** Service */
 final class Service extends PaymentService {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 服務 ID */
-	public string $id = 'ecpay-aio';
+	public string $id = Settings::KEY;
 
-	/** @var 'prod' | 'test' 模式 */
-	public string $mode = 'test';
-
-	/** @var string 綠界特店編號 */
-	public string $merchant_id;
-
-	/** @var string HashKey */
-	public string $hash_key;
-
-	/** @var string HashIV */
-	public string $hash_iv;
-
-	/** @var string CheckMacValue */
-	public string $check_mac_value;
-
-	/** @var string 綠界 AioCheckOut 端點 */
-	public string $aio_checkout_endpoint;
-
-	/** @var string 綠界 QueryTradeInfo 端點 */
-	public string $query_trade_info_endpoint;
-
-	/** @var string 綠界 SPCreateTrade 端點 */
-	public string $sptoken_endpoint;
+	/** @var Settings 設定 */
+	public Settings $settings;
 
 
 	/** Constructor */
 	public function __construct() {
-		// TODO 從 db 取得設定 可以抽象到 parrent 執行?
-		$this->mode = 'test';
+		$this->settings = Settings::instance();
 		$this->set_properties();
 		parent::__construct();
 	}
@@ -100,11 +79,11 @@ final class Service extends PaymentService {
 		ksort( $args, SORT_STRING | SORT_FLAG_CASE );   // 依照 key 字母排序
 
 		$args_string   = [];
-		$args_string[] = "HashKey={$this->hash_key}";// 開頭加上 HashKey
+		$args_string[] = "HashKey={$this->settings->hash_key}";// 開頭加上 HashKey
 		foreach ( $args as $key => $value ) {
 			$args_string[] = "{$key}={$value}";
 		}
-		$args_string[] = "HashIV={$this->hash_iv}";// 結尾加上 HashIV
+		$args_string[] = "HashIV={$this->settings->hash_iv}";// 結尾加上 HashIV
 
 		$args_string = implode( '&', $args_string ); // 用 & 連接
 		$args_string = EcpayUtils::urlencode( $args_string ); // 綠界要求 urlencode 的規則
@@ -118,26 +97,27 @@ final class Service extends PaymentService {
 
 
 
-	/**TODO 看有沒要補充的
+	/**
 	 * 設定屬性
+	 * TODO 看有沒要補充的
 	 */
 	private function set_properties(): void {
-		switch ($this->mode) {
+		switch ($this->settings->mode) {
 			case 'prod':
-				$this->merchant_id               = '3002599';
-				$this->hash_key                  = 'spPjZn66i0OhqJsQ';
-				$this->hash_iv                   = 'hT5OJckN45isQTTs';
-				$this->aio_checkout_endpoint     = 'https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5';
-				$this->query_trade_info_endpoint = 'https://payment.ecpay.com.tw/Cashier/QueryTradeInfo/V5';
-				$this->sptoken_endpoint          = 'https://payment.ecpay.com.tw/SP/CreateTrade';
+				$this->settings->merchant_id               = '3002599';
+				$this->settings->hash_key                  = 'spPjZn66i0OhqJsQ';
+				$this->settings->hash_iv                   = 'hT5OJckN45isQTTs';
+				$this->settings->aio_checkout_endpoint     = 'https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5';
+				$this->settings->query_trade_info_endpoint = 'https://payment.ecpay.com.tw/Cashier/QueryTradeInfo/V5';
+				$this->settings->sptoken_endpoint          = 'https://payment.ecpay.com.tw/SP/CreateTrade';
 				break;
 			default: // test
-				$this->merchant_id               = '3002599';
-				$this->hash_key                  = 'spPjZn66i0OhqJsQ';
-				$this->hash_iv                   = 'hT5OJckN45isQTTs';
-				$this->aio_checkout_endpoint     = 'https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5';
-				$this->query_trade_info_endpoint = 'https://payment-stage.ecpay.com.tw/Cashier/QueryTradeInfo/V5';
-				$this->sptoken_endpoint          = 'https://payment-stage.ecpay.com.tw/SP/CreateTrade';
+				$this->settings->merchant_id               = '3002599';
+				$this->settings->hash_key                  = 'spPjZn66i0OhqJsQ';
+				$this->settings->hash_iv                   = 'hT5OJckN45isQTTs';
+				$this->settings->aio_checkout_endpoint     = 'https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5';
+				$this->settings->query_trade_info_endpoint = 'https://payment-stage.ecpay.com.tw/Cashier/QueryTradeInfo/V5';
+				$this->settings->sptoken_endpoint          = 'https://payment-stage.ecpay.com.tw/SP/CreateTrade';
 				break;
 		}
 	}

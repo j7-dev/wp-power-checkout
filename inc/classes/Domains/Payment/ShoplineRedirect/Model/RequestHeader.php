@@ -1,11 +1,11 @@
 <?php
-// phpcs:disable WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase, WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+
 declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model;
 
 use J7\WpUtils\Classes\DTO;
-
+use J7\PowerCheckout\Utils\Helper;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Service;
 
 /**
@@ -38,6 +38,13 @@ final class RequestHeader extends DTO {
 	/** @var string (32) 冪等 KEY (還不知道用途) */
 	public string $idempotentKey;
 
+	/** @var array<string> 必填屬性 */
+	protected $required_properties = [
+		'merchantId',
+		'apiKey',
+		'requestId',
+	];
+
 	/**
 	 * @param \WC_Order $order 訂單
 	 * @return self 取得實例
@@ -45,10 +52,11 @@ final class RequestHeader extends DTO {
 	public static function instance( \WC_Order $order ): self {
 		$service      = Service::instance();
 		$milliseconds = intval(( new \DateTimeImmutable() )->format('Uv')); // 13位
+		$request_id   = $order->get_id() . '-' . \wp_unique_id() . '-' . $milliseconds;
 		$args         = [
-			'merchantId' => $service->merchant_id,
-			'apiKey'     => $service->api_key,
-			'requestId'  => $order->get_id() . '-' . \wp_unique_id() . '-' . $milliseconds,
+			'merchantId' => $service->settings->merchantId,
+			'apiKey'     => $service->settings->apiKey,
+			'requestId'  => ( new Helper($request_id) )->max( 32 )->value,
 		];
 
 		return new self($args);
@@ -64,20 +72,7 @@ final class RequestHeader extends DTO {
 
 	/** 自訂驗證邏輯 */
 	protected function validate(): void {
-		$required_params = [
-			'merchantId',
-			'apiKey',
-			'requestId',
-		];
-
-		foreach ($required_params as $param) {
-			if (!isset($this->$param)) {
-				$this->dto_error->add(
-				'validate_failed',
-				"{$param} 必須設定"
-				);
-			}
-		}
+		parent::validate();
 
 		if (strlen($this->requestId) > 32) {
 			$this->dto_error->add(
@@ -96,4 +91,3 @@ final class RequestHeader extends DTO {
 		}
 	}
 }
-// phpcs:enable WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase, WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
