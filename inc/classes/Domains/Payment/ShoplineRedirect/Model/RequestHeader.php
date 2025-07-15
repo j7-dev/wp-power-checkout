@@ -15,7 +15,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Service;
  * @example 放進 wp_remote_post 的 header 中
  * $response = wp_remote_post( $url, array(
  *   'body'    => $data,
- *   'headers' => RequestHeader::instance()->to_array(),
+ *   'headers' => RequestHeader::create()->to_array(),
  * ) );
  */
 final class RequestHeader extends DTO {
@@ -49,7 +49,7 @@ final class RequestHeader extends DTO {
 	 * @param \WC_Order $order 訂單
 	 * @return self 取得實例
 	 */
-	public static function instance( \WC_Order $order ): self {
+	public static function create( \WC_Order $order ): self {
 		$service      = Service::instance();
 		$milliseconds = intval(( new \DateTimeImmutable() )->format('Uv')); // 13位
 		$request_id   = $order->get_id() . '-' . \wp_unique_id() . '-' . $milliseconds;

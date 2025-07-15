@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\CustomerType;
 
 /**
  * Customer 顧客資訊，SLP智慧風控必需
@@ -15,8 +16,8 @@ final class Customer extends DTO {
 	/** @var string (64) *顧客唯一標識，需為唯一值 */
 	public string $referenceCustomerId;
 
-	/** @var '0' | '1' (1) *顧客類型，0 為遊客，1 為登入會員 */
-	public string $type;
+	/** @var CustomerType (1) *顧客類型，0 為遊客，1 為登入會員 */
+	public CustomerType $type;
 
 	/** @var PersonalInfo 收件人資訊 */
 	public PersonalInfo $personalInfo;
@@ -54,13 +55,6 @@ final class Customer extends DTO {
 				'validate_failed',
 				'referenceCustomerId 不能為空'
 					);
-		}
-
-		if ( ! in_array( $this->type, [ '0', '1' ], true ) ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'type 必須為 0 或 1'
-			);
 		}
 	}
 }

@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Settings\Model\Settings as PowerCheckoutSettings;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components\AllowPaymentMethodList;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\PaymentMethod;
 
 /**
  * Shopline 跳轉支付設定，單例
@@ -33,8 +33,8 @@ final class Settings extends DTO {
 	/** @var string 端點 */
 	public string $apiUrl;
 
-	/** @var AllowPaymentMethodList 允許的付款方式 */
-	public AllowPaymentMethodList $allowPaymentMethodList;
+	/** @var Enums\PaymentMethod[] 允許的付款方式 */
+	public array $allowPaymentMethodList;
 
 	/**
 	 * 創建實例，單例

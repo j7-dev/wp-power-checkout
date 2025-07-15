@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
 
 use J7\WpUtils\Classes\DTO;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\Currency;
 
 
 /**
@@ -16,8 +17,8 @@ final class Amount extends DTO {
 	/** @var int (14) *金額，台幣傳金額*100，譬如1元傳入100 */
 	public int $value;
 
-	/** @var 'TWD' 幣種，目前僅支援 TWD */
-	public string $currency = 'TWD';
+	/** @var Currency 幣種，目前僅支援 TWD */
+	public Currency $currency;
 
 	/** @var array<string> 必填屬性 */
 	protected $required_properties = [

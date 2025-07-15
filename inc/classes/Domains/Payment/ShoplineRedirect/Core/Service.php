@@ -8,7 +8,6 @@ use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Abstracts\PaymentService;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\RequestParams;
 use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Utils\Base as ShoplineUtils;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components\AllowPaymentMethodList;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
 
 /**
@@ -61,7 +60,7 @@ final class Service extends PaymentService {
 	 * @throws \Exception 如果參數不符合規定
 	 *  */
 	public function get_params( \WC_Order $order, AbstractPaymentGateway $gateway ): array {
-		$params_dto = RequestParams::instance( $order, $gateway );
+		$params_dto = RequestParams::create( $order, $gateway );
 		return $params_dto->to_array();
 	}
 

@@ -6,14 +6,15 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Utils\Helper;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\Country;
 
 /**
  * Address 物流送貨地址
  * 請求會帶
  *  */
 final class Address extends DTO {
-	/** @var 'CN' | 'TW' | 'HK' (2) *國家地區編碼，如 TW */
-	public string $countryCode;
+	/** @var Country (2) *國家地區編碼，如 TW */
+	public Country $countryCode;
 
 	/** @var string (12) 州或省代碼 */
 	public string $stateCode = '';
@@ -59,19 +60,6 @@ final class Address extends DTO {
 	/** 自訂驗證邏輯 */
 	protected function validate(): void {
 		parent::validate();
-		if ( ! in_array( $this->countryCode, [ 'CN', 'TW', 'HK' ], true ) ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'countryCode 必須為 CN、TW 或 HK'
-			);
-		}
-
-		if ( Helper::strlen( $this->countryCode ) > 2 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'countryCode 長度不能超過 2 位'
-			);
-		}
 
 		if ( Helper::strlen( $this->stateCode ) > 12 ) {
 			$this->dto_error->add(
