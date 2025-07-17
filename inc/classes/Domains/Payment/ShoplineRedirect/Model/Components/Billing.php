@@ -44,11 +44,13 @@ final class Billing extends DTO {
 	protected function validate(): void {
 		parent::validate();
 
-		if ( Helper::strlen( $this->description ) > 32 ) {
-			$this->dto_error->add(
+		if ( isset( $this->description ) ) {
+			if ( Helper::strlen( $this->description ) > 32 ) {
+				$this->dto_error->add(
 				'validate_failed',
 				'description 長度不能超過 32 位'
-			);
+				);
+			}
 		}
 	}
 }

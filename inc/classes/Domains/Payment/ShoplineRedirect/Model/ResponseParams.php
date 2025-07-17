@@ -38,11 +38,10 @@ final class ResponseParams extends DTO {
 	/**
 	 * 創建實例
 	 *
+	 * @param array $args 參數
 	 * @return self 實例
 	 */
-	public static function create(): self {
-		$args = [];
-
+	public static function create( array $args ): self {
 		return new self($args);
 	}
 }

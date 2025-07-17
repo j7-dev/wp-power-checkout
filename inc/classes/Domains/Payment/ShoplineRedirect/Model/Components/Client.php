@@ -56,8 +56,8 @@ final class Client extends DTO {
 		$args = [
 			'ip'        => $order->get_customer_ip_address(),
 			'userAgent' => $order->get_customer_user_agent(),
-			'accept'    => \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT'] ?? '' ) ),
-			'language'  => \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '' ) ),
+			'accept'    => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT'] ?? '' ) ) ) )->max( 128 )->value,
+			'language'  => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '' ) ) ) )->max( 32 )->value,
 		];
 		return new self($args);
 	}

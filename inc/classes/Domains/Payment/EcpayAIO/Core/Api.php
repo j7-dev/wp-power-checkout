@@ -39,9 +39,9 @@ final class Api extends ApiBase {
 	 * @phpstan-ignore-next-line
 	 */
 	public function post_ecpay_aio_callback( $request ) { // phpcs:ignore
-		$params               = $request->get_body_params();
-		$params               = \wp_unslash( $params ); // 去除轉譯斜線
-		$service              = Service::instance();
+		$params = $request->get_body_params();
+		$params = \wp_unslash( $params ); // 去除轉譯斜線
+		// $service              = Service::instance();
 		$is_check_value_valid = false;
 
 		try {
@@ -55,7 +55,7 @@ final class Api extends ApiBase {
 			$this->set_transaction_info( $response_params );
 			return $this->response_to_ecpay( $is_check_value_valid );
 		} catch (\Throwable $th) {
-			$service->error->add( 400, $th->getMessage() );
+			// $service->error->add( 400, $th->getMessage() );
 			return $this->response_to_ecpay( $is_check_value_valid );
 		}
 	}

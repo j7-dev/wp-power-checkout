@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\Shared;
 
 use J7\PowerCheckout\Domains\WC_Settings_API\Model\FormField;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
+use J7\WpUtils\Classes\WP;
 
 /** 付款閘道抽象類別 */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
@@ -52,6 +53,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/** @var int 付款方式最大金額 */
 	public $max_amount;
 
+	/** @var \WC_Order|null 訂單 */
+	public \WC_Order|null $order = null;
+
+	/** @var \WP_Error 錯誤訊息 */
+	public \WP_Error $error;
+
 	/** @var array<string> 必須設定的屬性 */
 	private array $require_properties = [
 		'id',
@@ -61,6 +68,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** Constructor */
 	public function __construct() {
+		$this->error             = new \WP_Error();
 		$this->title             = $this->payment_label;
 		$this->method_title      = $this->payment_label;
 		$this->order_button_text = sprintf( __( 'Pay via %s', 'woocommerce' ), $this->payment_label );
@@ -142,6 +150,8 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		}
 
 		$this->validate_properties();
+
+		\add_action('shutdown', [ $this, 'print_error' ]);
 	}
 
 	/**
@@ -271,14 +281,32 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/**
 	 * 記錄 log
+	 * info, error, warning 會同步記錄到 order note
 	 *
 	 * @param string               $message 訊息
 	 * @param string               $level 等級 info | error | alert | critical | debug | emergency | warning | notice
 	 * @param array<string, mixed> $args 附加資訊
 	 * @param int                  $trace_limit 追蹤堆疊層數
 	 */
-	public function logger( string $message, string $level = 'info', array $args = [], $trace_limit = 0 ): void {
+	public function logger( string $message, string $level = 'debug', array $args = [], $trace_limit = 0 ): void {
 		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, "power_checkout_{$this->id}", $trace_limit );
+		if ( $this->order && in_array( $level, [ 'info', 'error', 'warning' ], true ) ) {
+			$order_note = WP::array_to_html( $args, [ 'title' => $message ] );
+			$this->order->add_order_note( $order_note );
+		}
+	}
+
+	/** 每次請求結束時如果有錯誤就印出錯誤訊息 */
+	public function print_error(): void {
+		if ( !$this->error->has_errors() ) {
+			return;
+		}
+
+		$error_messages = $this->error->get_error_messages();
+		if ( ! $error_messages ) {
+			return;
+		}
+		$this->logger( $error_messages[0], 'critical', [ 'messages' => $error_messages ], 5 );
 	}
 
 	/**

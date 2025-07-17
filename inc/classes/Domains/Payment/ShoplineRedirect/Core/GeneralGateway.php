@@ -15,7 +15,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 final class GeneralGateway extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	public $id = 'pc_sr';
+	public $id = 'pc_shoplinepayment_redirect';
 
 	/** Constructor */
 	public function __construct() {
@@ -33,13 +33,13 @@ final class GeneralGateway extends PaymentGateway {
 	 */
 	public function process_payment( $order_id ): array {
 		$order = \wc_get_order( $order_id );
-
 		try {
 			if ( ! $order instanceof \WC_Order ) {
 				throw new \Exception( __( 'Order not found.', 'power_checkout' ) );
 			}
-			$service = Service::instance();
-			$service->set_properties( $this, $order );
+			$this->order = $order;
+			$service     = Service::instance( $this, $order );
+			$service->create_trade();
 			return ProcessResult::SUCCESS->to_array( $order );
 		} catch (\Throwable $th) {
 			\wc_add_notice( $th->getMessage(), 'error' );

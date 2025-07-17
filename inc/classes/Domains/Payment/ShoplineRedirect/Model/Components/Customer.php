@@ -39,7 +39,7 @@ final class Customer extends DTO {
 		}
 
 		$args = [
-			'referenceCustomerId' => ( new Helper($customer_ref) )->max( 64 )->value,
+			'referenceCustomerId' => ( new Helper( (string) $customer_ref) )->max( 64 )->value,
 			'type'                => $order->get_customer_id() ? CustomerType::MEMBER : CustomerType::GUEST,
 			'personalInfo'        => PersonalInfo::create( $order ),
 		];

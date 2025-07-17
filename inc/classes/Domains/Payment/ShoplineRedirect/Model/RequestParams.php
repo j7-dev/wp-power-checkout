@@ -55,7 +55,6 @@ final class RequestParams extends DTO {
 	protected array $require_properties = [
 		'referenceId',
 		'amount',
-		'expireTime',
 		'returnUrl',
 		'mode',
 		'allowPaymentMethodList',

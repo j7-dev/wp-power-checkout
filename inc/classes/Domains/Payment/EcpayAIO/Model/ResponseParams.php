@@ -131,9 +131,7 @@ final class ResponseParams extends DTO {
 	 * @return bool 是否驗證成功
 	 */
 	public function is_check_value_valid(): bool {
-		$service = Service::instance();
-
-		$check_value = $service->get_check_value( $this->dto_data, 'sha256' );
+		$check_value = Service::get_check_value( $this->dto_data, 'sha256' );
 		return $this->CheckMacValue === $check_value;
 	}
 

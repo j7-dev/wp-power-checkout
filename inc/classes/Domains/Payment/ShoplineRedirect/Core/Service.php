@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
 
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\PaymentService;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\RequestParams;
-use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Requester;
+use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 
 /**
- * Shopline Payment 跳轉式支付
+ * Shopline Payment 跳轉式支付服務類
+ *
+ * 1. 建立交易
  *
  * @see https://docs.shoplinepayments.com/guide/session/
  *  */
-final class Service extends PaymentService {
+final class Service {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 服務 ID */
@@ -24,32 +25,34 @@ final class Service extends PaymentService {
 	public Settings $settings;
 
 	/** Constructor */
-	public function __construct() {
+	public function __construct(
+		/** @var AbstractPaymentGateway 付款閘道 */
+		public AbstractPaymentGateway $gateway,
+		/** @var \WC_Order 訂單 */
+		public \WC_Order $order
+	) {
 		$this->settings = Settings::instance();
-		parent::__construct();
 	}
 
-	/** 添加付款方式 @param array<string> $methods 付款方式 @return array<string> */
-	public function add_method( array $methods ): array {
-		$methods[] = GeneralGateway::class;
-		return $methods;
-	}
+
+
 
 
 	/**
-	 * 取得參數
+	 * 建立交易
 	 *
-	 * @return array<string, mixed> 綠界參數
-	 * @throws \Exception 如果參數不符合規定
+	 * @see https://docs.shoplinepayments.com/api/trade/session/
+	 * @throws \Exception 如果交易建立失敗
 	 *  */
-	public function get_params(): array {
-		$params_dto = RequestParams::create( $this->order, $this->gateway );
-		return $params_dto->to_array();
-	}
+	public function create_trade(): void {
+		$requester = Requester::instance( $this->gateway, $this->order );
+		$response  = $requester->post( '/trade/payment/create' );
+		if ( ! $response ) {
+			exit;
+		}
+		\wp_safe_redirect( $response->sessionUrl );
 
-	/**
-	 * 發送請求
-	 *  */
-	public function post_request(): void {
+		// 跳轉支付，就不繼續往下執行
+		exit;
 	}
 }

@@ -4,6 +4,8 @@ declare (strict_types = 1);
 
 namespace J7\PowerCheckout\Domains\Payment\Shared;
 
+use J7\WpUtils\Classes\WP;
+
 /**
  * 請求、回應參數
  * 每次付款請求，不論是哪種付款方式，都將請求參數、回應參數 raw data 儲存在 order meta 中
@@ -21,9 +23,21 @@ class Params {
 		private \WC_Order $order,
 	) {}
 
-	/** @param array<string, mixed> $params 儲存請求參數 @return self */
-	public function save_request( array $params ): self {
-		$this->order->update_meta_data( self::REQUEST_KEY, $params );
+	/**
+	 * 儲存請求參數
+	 *
+	 * @param array<string, mixed> $params 儲存請求參數
+	 * @param string               $url 請求 URL
+	 * @return self
+	 */
+	public function save_request( array $params, string $url ): self {
+		$this->order->update_meta_data(
+			self::REQUEST_KEY,
+			[
+				'params' => $params,
+				'url'    => $url,
+			]
+			);
 		$this->order->save_meta_data();
 		return $this;
 	}
@@ -36,7 +50,12 @@ class Params {
 
 	/** @param array<string, mixed> $params 儲存回應參數 @return self */
 	public function save_response( array $params ): self {
-		$this->order->update_meta_data( self::RESPONSE_KEY, $params );
+		$this->order->update_meta_data(
+			self::RESPONSE_KEY,
+			[
+				'params' => $params,
+			]
+			);
 		$this->order->save_meta_data();
 		return $this;
 	}

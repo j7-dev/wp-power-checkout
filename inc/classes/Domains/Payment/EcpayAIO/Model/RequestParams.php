@@ -176,11 +176,10 @@ final class RequestParams extends DTO {
 		$notify_url = urldecode(\site_url('wp-json/power-checkout/ecpay-aio', 'https'));
 
 		$return_url = urldecode($gateway->get_return_url($order));
-		$service    = Service::instance();
-		$service->set_properties( $gateway, $order );
+		$settings   = Settings::instance();
 
 		$default_args = [
-			'MerchantID'        => $service->settings->merchant_id,
+			'MerchantID'        => $settings->merchant_id,
 			'MerchantTradeNo'   => EcpayUtils::encode_trade_no( $order->get_id() ),
 			'MerchantTradeDate' => ( new \DateTime('now', new \DateTimeZone('Asia/Taipei')) )->format('Y/m/d H:i:s'),
 			'TotalAmount'       => (int) ceil( (float) $order->get_total()), // 無條件進位
@@ -203,7 +202,7 @@ final class RequestParams extends DTO {
 		$args = \wp_parse_args( $gateway->extra_request_params(), $default_args );
 
 		// 將 request params 存到訂單
-		( new Params($order) )->save_request( $args );
+		// ( new Params($order) )->save_request( $args );
 
 		// $args = self::add_type_info( $args, $order, $gateway );
 
@@ -315,9 +314,8 @@ final class RequestParams extends DTO {
 	 * @param string $hash_algo 'sha256' | 'md5' 雜湊演算法
 	 */
 	protected function add_check_value( string $hash_algo ): void {
-		$service = Service::instance( $this->gateway, $this->order );
 		/** @var array<string, string|int> $args */
 		$args                = $this->to_array();
-		$this->CheckMacValue = $service->get_check_value( $args, $hash_algo );
+		$this->CheckMacValue = Service::get_check_value( $args, $hash_algo );
 	}
 }

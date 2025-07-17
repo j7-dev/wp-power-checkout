@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentService;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\RequestParams;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\Settings;
 
 /** Service */
-final class Service extends PaymentService {
+final class Service {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 服務 ID */
@@ -22,28 +21,17 @@ final class Service extends PaymentService {
 
 
 	/** Constructor */
-	public function __construct() {
+	public function __construct(
+		/** @var AbstractPaymentGateway 付款閘道 */
+		public AbstractPaymentGateway $gateway,
+		/** @var \WC_Order 訂單 */
+		public \WC_Order $order
+	) {
 		$this->settings = Settings::instance();
 		$this->set_properties();
-		parent::__construct();
 	}
 
-	/**
-	 * 添加付款方式
-	 *
-	 * @param array<string> $methods 付款方式
-	 *
-	 * @return array<string>
-	 */
-	public function add_method( array $methods ): array {
-		$methods[] = Atm::class;
-		$methods[] = WebAtm::class;
-		$methods[] = Credit::class;
-		$methods[] = CreditInstallment::class;
-		$methods[] = Barcode::class;
-		$methods[] = CVS::class;
-		return $methods;
-	}
+
 
 
 	/**
@@ -69,7 +57,7 @@ final class Service extends PaymentService {
 	 * @return string CheckMacValue
 	 * @throws \Exception 如果雜湊演算法不符合規定
 	 */
-	public function get_check_value( array $args, string $hash_algo ): string {
+	public static function get_check_value( array $args, string $hash_algo ): string {
 
 		if ( ! in_array( $hash_algo, [ 'sha256', 'md5' ], true ) ) {
 			throw new \Exception( __( 'Invalid hash algorithm', 'power_checkout' ) );
@@ -78,12 +66,14 @@ final class Service extends PaymentService {
 		unset( $args['CheckMacValue'] ); // 確保不會用 CheckMacValue 生成
 		ksort( $args, SORT_STRING | SORT_FLAG_CASE );   // 依照 key 字母排序
 
+		$settings = Settings::instance();
+
 		$args_string   = [];
-		$args_string[] = "HashKey={$this->settings->hash_key}";// 開頭加上 HashKey
+		$args_string[] = "HashKey={$settings->hash_key}";// 開頭加上 HashKey
 		foreach ( $args as $key => $value ) {
 			$args_string[] = "{$key}={$value}";
 		}
-		$args_string[] = "HashIV={$this->settings->hash_iv}";// 結尾加上 HashIV
+		$args_string[] = "HashIV={$settings->hash_iv}";// 結尾加上 HashIV
 
 		$args_string = implode( '&', $args_string ); // 用 & 連接
 		$args_string = EcpayUtils::urlencode( $args_string ); // 綠界要求 urlencode 的規則
