@@ -25,22 +25,22 @@ final class Settings extends DTO {
 	public Components\Payments $payments;
 
 	/** @var Components\Shippings 物流 */
-	public Components\Shippings $shippings;
+	// public Components\Shippings $shippings;
 
 	/** @var Components\Invoices 電子發票 */
-	public Components\Invoices $invoices;
+	// public Components\Invoices $invoices;
 
 	/** 取得實例，單例 */
 	public static function instance(): self {
 		if (self::$dto_instance) {
 			return self::$dto_instance;
 		}
-		$settings           = \get_option(self::OPTION_NAME, []);
-		$settings           = is_array($settings) ? $settings : [];
-		$args               = [
-			'payments'  => Components\Payments::create($settings['payments'] ?? []),
-			'shippings' => Components\Shippings::create($settings['shippings'] ?? []),
-			'invoices'  => Components\Invoices::create($settings['invoices'] ?? []),
+		$settings = \get_option(self::OPTION_NAME, []);
+		$settings = is_array($settings) ? $settings : [];
+		$args     = [
+			'payments' => Components\Payments::create($settings['payments'] ?? []),
+			// 'shippings' => Components\Shippings::create($settings['shippings'] ?? []),
+			// 'invoices'  => Components\Invoices::create($settings['invoices'] ?? []),
 		];
 		self::$dto_instance = new self($args);
 		return self::$dto_instance;

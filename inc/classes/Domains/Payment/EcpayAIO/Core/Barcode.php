@@ -15,6 +15,12 @@ final class Barcode extends PaymentGateway {
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
 	public string $payment_type = 'BARCODE';
 
+	/** Constructor */
+	public function __construct() {
+		$this->payment_label = __( 'ECPayAIO Barcode', 'power_checkout' );
+		parent::__construct();
+	}
+
 	/**
 	 * 過濾表單欄位
 	 *
@@ -35,11 +41,6 @@ final class Barcode extends PaymentGateway {
 			],
 		];
 		return $fields;
-	}
-
-	/** 取得付款方式標題 @return string */
-	public function set_label(): string {
-		return __( 'ECPay Barcode', 'power_checkout' );
 	}
 
 	/**

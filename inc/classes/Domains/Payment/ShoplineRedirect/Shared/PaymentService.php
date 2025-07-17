@@ -2,9 +2,9 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Abstracts;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared;
 
-use J7\PowerCheckout\Domains\Payment\AbstractPaymentService;
+use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentService;
 
 /**
  * Shopline 跳轉支付付款服務抽象類別

@@ -38,6 +38,9 @@ final class Settings extends DTO {
 	/** @var string 綠界 SPCreateTrade 端點 */
 	public string $sptoken_endpoint;
 
+	/** @var self|null 單例 */
+	protected static $dto_instance = null;
+
 	/**
 	 * 創建實例，單例
 	 *

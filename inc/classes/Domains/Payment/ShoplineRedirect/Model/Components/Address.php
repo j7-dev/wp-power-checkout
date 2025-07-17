@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Utils\Helper;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\Country;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\Country;
 
 /**
  * Address 物流送貨地址

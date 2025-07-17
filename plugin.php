@@ -45,7 +45,7 @@ final class Plugin {
 				'name'     => 'WooCommerce',
 				'slug'     => 'woocommerce',
 				'required' => true,
-				'version'  => '7.6.0',
+				'version'  => '8.3.0',
 			],
 		];
 

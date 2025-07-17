@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Model;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Utils\Base as Utils;
 use J7\PowerCheckout\Utils\Helper;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Service;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
-use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerCheckout\Utils\Order as OrderUtils;
+use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Params;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
@@ -203,8 +202,7 @@ final class RequestParams extends DTO {
 		$args = \wp_parse_args( $gateway->extra_request_params(), $default_args );
 
 		// 將 request params 存到訂單
-		$order->update_meta_data( OrderUtils::REQUEST_KEY, $args );
-		$order->save_meta_data();
+		( new Params($order) )->save_request( $args );
 
 		// $args = self::add_type_info( $args, $order, $gateway );
 
@@ -219,7 +217,7 @@ final class RequestParams extends DTO {
 	 * */
 	public static function instance_from_order( \WC_Order $order ): self {
 		/** @var array<string, mixed> $args */
-		$args = $order->get_meta( OrderUtils::REQUEST_KEY );
+		$args = ( new Params($order) )->get_request();
 		return new self( $args );
 	}
 

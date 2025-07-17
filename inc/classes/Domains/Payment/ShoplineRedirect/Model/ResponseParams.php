@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model;
 
 use J7\WpUtils\Classes\DTO;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums;
 
 /**
  * Shopline Payment 跳轉式支付 ResponseParams
@@ -34,6 +35,11 @@ final class ResponseParams extends DTO {
 	/** @var Components\PaymentDetail[] *付款方式詳細資訊 */
 	public readonly array $paymentDetails;
 
+	/**
+	 * 創建實例
+	 *
+	 * @return self 實例
+	 */
 	public static function create(): self {
 		$args = [];
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\Currency;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\Currency;
 
 
 /**

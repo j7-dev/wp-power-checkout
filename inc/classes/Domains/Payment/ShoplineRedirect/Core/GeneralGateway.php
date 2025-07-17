@@ -2,33 +2,32 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
 
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\PaymentGateway;
 
-/** WebAtm 插卡網路ATM */
-final class WebAtm extends PaymentGateway {
+/**
+ * GeneralGateway 跳轉支付
+ * TODO Shopline payment 似乎是跳轉到 Shopline 的頁面才選擇支付方式，與綠界不同  確認後，再改成正確的備註
+ * */
+final class GeneralGateway extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	public $id = 'pc_ecpayaio_webatm';
-
-	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
-	public string $payment_type = 'WebATM';
-
+	public $id = 'pc_sr';
 
 	/** Constructor */
 	public function __construct() {
-		$this->payment_label = __( 'ECPayAIO WebATM', 'power_checkout' );
+		$this->payment_label = __( 'Shopline Payment (Redirect)', 'power_checkout' );
 		parent::__construct();
 	}
-
 
 	/**
 	 * [後台] 自訂欄位驗證邏輯
 	 * 可以用 \WC_Admin_Settings::add_error 來替欄位加入錯誤訊息
 	 * ATM手續費最低收取金額*+1元」(含)~49,999元(含)
+	 * TODO 待處理
 	 *
-	 * @see https://support.ecpay.com.tw/4804/
+	 * @see https://docs.shoplinepayments.com/api/trade/session/
 	 * @see WC_Settings_API::process_admin_options
 	 * @return bool was anything saved?
 	 */
@@ -70,7 +69,7 @@ final class WebAtm extends PaymentGateway {
 		return parent::process_admin_options();
 	}
 
-	/** TODO
+	/** TODO 待處理
 	 * [Admin] 在後台 order detail 頁地址下方顯示資訊
 	 */
 	public function render_after_billing_address( \WC_Order $order ): void {

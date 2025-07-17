@@ -38,9 +38,8 @@ final class Payments extends DTO {
 
 		$args = [];
 		foreach ( $payment_keys as $key => $class ) {
-			if ( isset( $payments[ $key ] ) ) {
-				$args[ $key ] = call_user_func( [ $class, 'create' ], $payments[ $key ] );
-			}
+			// 將 $payments[ $key ] array 傳入到 Settings class 的 create 方法創建實例
+			$args[ $key ] = call_user_func( [ $class, 'create' ], $payments[ $key ] ?? [] );
 		}
 
 		self::$dto_instance = new self($args);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums;
 
 /**
  * Shopline Payment 跳轉式支付 Currency

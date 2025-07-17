@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Utils\Helper;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\CustomerType;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\CustomerType;
 
 /**
  * Customer 顧客資訊，SLP智慧風控必需

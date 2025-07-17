@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway;
-use J7\PowerCheckout\Utils\Order as OrderUtils;
+use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
+use J7\PowerCheckout\Domains\Payment\Shared\Params;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums;
 
 /**
  * Shopline Payment 跳轉式支付 RequestParams
@@ -65,8 +66,7 @@ final class RequestParams extends DTO {
 		$args = [];
 
 		// 將 request params 存到訂單
-		$order->update_meta_data( OrderUtils::REQUEST_KEY, $args );
-		$order->save_meta_data();
+		( new Params($order) )->save_request( $args );
 
 		return new self($args);
 	}

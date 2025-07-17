@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
 
 use J7\WpUtils\Classes\DTO;
 use J7\WpUtils\Classes\General;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Enums\PaymentMethod;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\PaymentMethod;
 
 /**
  * PaymentMethodOption

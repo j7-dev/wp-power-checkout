@@ -35,7 +35,7 @@ final class RequestHeader extends DTO {
 	/** @var string (32) *請求流水號，每個 HTTP 請求唯一，可以用 $order_id + 請求唯一數 + 13位timestamp， order_id 16位之類都沒問題 */
 	public string $requestId;
 
-	/** @var string (32) 冪等 KEY (還不知道用途) */
+	/** @var string (32) 冪等 KEY AI: 冪等性意思是同一個操作執行多次，結果都一樣。在金流中，就是避免用戶重複點擊付款按鈕導致重複扣款的災難。 */
 	public string $idempotentKey;
 
 	/** @var array<string> 必填屬性 */

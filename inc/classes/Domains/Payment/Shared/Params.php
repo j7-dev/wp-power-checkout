@@ -1,0 +1,49 @@
+<?php
+
+declare (strict_types = 1);
+
+namespace J7\PowerCheckout\Domains\Payment\Shared;
+
+/**
+ * 請求、回應參數
+ * 每次付款請求，不論是哪種付款方式，都將請求參數、回應參數 raw data 儲存在 order meta 中
+ */
+class Params {
+
+	/** @var string 請求參數 meta_key */
+	const REQUEST_KEY = 'pc_payment_req_params';
+
+	/** @var string 回應參數 meta_key */
+	const RESPONSE_KEY = 'pc_payment_res_params';
+
+	/** @var \WC_Order 訂單 */
+	public function __construct(
+		private \WC_Order $order,
+	) {}
+
+	/** @param array<string, mixed> $params 儲存請求參數 @return self */
+	public function save_request( array $params ): self {
+		$this->order->update_meta_data( self::REQUEST_KEY, $params );
+		$this->order->save_meta_data();
+		return $this;
+	}
+
+	/** @return array<string, mixed> 取得請求參數 */
+	public function get_request(): array {
+		$params = $this->order->get_meta( self::REQUEST_KEY );
+		return is_array( $params ) ? $params : [];
+	}
+
+	/** @param array<string, mixed> $params 儲存回應參數 @return self */
+	public function save_response( array $params ): self {
+		$this->order->update_meta_data( self::RESPONSE_KEY, $params );
+		$this->order->save_meta_data();
+		return $this;
+	}
+
+	/** @return array<string, mixed> 取得回應參數 */
+	public function get_response(): array {
+		$params = $this->order->get_meta( self::RESPONSE_KEY );
+		return is_array( $params ) ? $params : [];
+	}
+}

@@ -18,15 +18,12 @@ final class CreditInstallment extends Credit {
 
 	/** Constructor */
 	public function __construct() {
+		$this->payment_label = __( 'ECPayAIO Credit(installment)', 'power_checkout' );
+
 		/** @var mixed $saved_number_of_periods */
 		$saved_number_of_periods = $this->get_option( 'number_of_periods', [] );
 		$this->number_of_periods = is_array( $saved_number_of_periods ) ? $saved_number_of_periods : [];
 		parent::__construct();
-	}
-
-	/** 取得付款方式標題 @return string */
-	public function set_label(): string {
-		return \__( 'ECPay Credit(installment)', 'power_checkout' );
 	}
 
 	/**

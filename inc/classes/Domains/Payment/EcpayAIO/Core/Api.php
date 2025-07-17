@@ -8,7 +8,7 @@ use J7\WpUtils\Classes\ApiBase;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\ResponseParams;
 use J7\Powerhouse\Utils\Base as PowerhouseUtils;
-use J7\PowerCheckout\Utils\Order as OrderUtils;
+use J7\PowerCheckout\Domains\Payment\Shared\Params;
 
 /** Api */
 final class Api extends ApiBase {
@@ -97,13 +97,13 @@ final class Api extends ApiBase {
 			throw new \Exception( "訂單 {$order_id} 不是 WC_Order 實例" );
 		}
 
-		/** @var \J7\PowerCheckout\Domains\Payment\AbstractPaymentGateway $gateway */
+		/** @var \J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway $gateway */
 		$gateway = \wc_get_payment_gateway_by_order( $order );
 
 		// ----- ▼ 寫入 order_note, order_meta, log ----- //
 
 		// 儲存綠界付款類型到訂單中繼資料
-		$gateway->log( $response_params->to_array(), '綠界交易回傳資料' );
+		$gateway->logger( '綠界交易回傳資料', 'info', $response_params->to_array() );
 
 		// 新增訂單備註
 		$table_html = PowerhouseUtils::array_to_html( $response_params->to_array(), [ 'title' => '綠界付款回傳資訊' ] );
@@ -114,7 +114,7 @@ final class Api extends ApiBase {
 
 		if (!$transaction_id) {
 			// 訂單已經有交易編號，什麼也不做
-			$gateway->log( "訂單已經有交易編號 #{$transaction_id}，無法再透過綠界回傳值設定訂單狀態" );
+			$gateway->logger( "訂單已經有交易編號 #{$transaction_id}，無法再透過綠界回傳值設定訂單狀態", 'warning' );
 			$order->add_order_note( "訂單已經有交易編號 #{$transaction_id}，無法再透過綠界回傳值設定訂單狀態" );
 			return;
 		}
@@ -122,7 +122,7 @@ final class Api extends ApiBase {
 		if ($order->is_paid()) {
 			// 訂單已付款，什麼也不做
 			// 需注意的是 is_paid 只檢查狀態，不代表真的有付款
-			$gateway->log( '訂單已付款，無法再透過綠界回傳值設定訂單狀態' );
+			$gateway->logger( '訂單已付款，無法再透過綠界回傳值設定訂單狀態', 'warning' );
 			$order->add_order_note( '訂單已付款，無法再透過綠界回傳值設定訂單狀態' );
 			return;
 		}
@@ -150,7 +150,7 @@ final class Api extends ApiBase {
 		// 如果都不是以上狀況那就是 RtnCode=1 (交易成功)
 		// 設定訂單的交易編號
 		$order->set_transaction_id( $response_params->TradeNo );
-		$order->update_meta_data( OrderUtils::RESPONSE_KEY, $response_params->to_array() );
+		(new Params($order))->save_response( $response_params->to_array() );
 		$order->payment_complete(); // 修改狀態為 processing | completed
 		// phpcs:enable
 

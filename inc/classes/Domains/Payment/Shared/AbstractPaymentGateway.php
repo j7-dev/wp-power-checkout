@@ -2,7 +2,7 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment;
+namespace J7\PowerCheckout\Domains\Payment\Shared;
 
 use J7\PowerCheckout\Domains\WC_Settings_API\Model\FormField;
 
@@ -10,7 +10,7 @@ use J7\PowerCheckout\Domains\WC_Settings_API\Model\FormField;
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
-	public string $payment_type;
+	public string $payment_type = '';
 
 	/** @var string 付款方式標題  (自訂，用來顯示) */
 	public string $payment_label;
@@ -37,7 +37,10 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	public $title;
 
 	/** @var string 前台顯示付款方式描述 */
-	public $description;
+	public $description = '';
+
+	/** @var string 前台顯示付款方式按鈕文字 */
+	public $order_button_text;
 
 	/** @var int 付款截止日(天)，通常 ATM / CVS / BARCODE 才有 */
 	public int $expire_date = 3;
@@ -48,12 +51,18 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/** @var int 付款方式最大金額 */
 	public $max_amount;
 
+	/** @var array<string> 必須設定的屬性 */
+	private array $require_properties = [
+		'id',
+		'icon',
+		'payment_label',
+	];
+
 	/** Constructor */
 	public function __construct() {
-
-		$this->payment_label     = $this->set_label();
-		$this->method_title      = sprintf( __( '%s - Power Checkout', 'power_checkout' ), $this->payment_label );
-		$this->order_button_text = sprintf( __( 'Pay via %s', 'power_checkout' ), $this->payment_label );
+		$this->title             = $this->payment_label;
+		$this->method_title      = $this->payment_label;
+		$this->order_button_text = sprintf( __( 'Pay via %s', 'woocommerce' ), $this->payment_label );
 
 		$default_form_fields = [
 			'enabled'     => [
@@ -130,11 +139,8 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
 			\add_action( "woocommerce_receipt_{$this->id}", [ $this, 'render_at_receipt' ] );
 		}
-	}
 
-	/** 取得付款方式標題 @return string */
-	public function set_label(): string {
-		return '';
+		$this->validate_properties();
 	}
 
 	/**
@@ -262,7 +268,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 			/** @var \WC_Order $order */
 			$this->submit( $order );
 		} catch (\Throwable $th) {
-			$this->log( $th->getMessage(), '', 'error' );
+			$this->logger( $th->getMessage(), 'error', [], 5 );
 			return;
 		}
 	}
@@ -288,28 +294,13 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/**
 	 * 記錄 log
 	 *
-	 * @param mixed  $message 訊息
-	 * @param string $title 標題
-	 * @param string $level 等級 info | error | alert | critical | debug | emergency | warning | notice
+	 * @param string               $message 訊息
+	 * @param string               $level 等級 info | error | alert | critical | debug | emergency | warning | notice
+	 * @param array<string, mixed> $args 附加資訊
+	 * @param int                  $trace_limit 追蹤堆疊層數
 	 */
-	public function log( mixed $message, string $title = '', string $level = 'info' ): void {
-
-		$trace     = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5); // 只看5層
-		$functions = [];
-		foreach ( $trace as $t ) {
-			$line        = $t['line'] ?? 'N/A';
-			$functions[] = "{$t['function']} #L:{$line}";
-		}
-
-		\J7\WpUtils\Classes\WC::log(
-			$message,
-			$title,
-			$level,
-			[
-				'source' => "{$this->id}__{$level}",
-				'trace'  => $functions,
-			]
-			);
+	public function logger( string $message, string $level = 'info', array $args = [], $trace_limit = 0 ): void {
+		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, "{$this->id}__{$level}", $trace_limit );
 	}
 
 	/**
@@ -344,5 +335,14 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		}
 
 		return true;
+	}
+
+	/** 驗證必須設定的屬性 */
+	private function validate_properties(): void {
+		foreach ( $this->require_properties as $property ) {
+			if ( ! isset( $this->$property ) ) {
+				throw new \Exception(  static::class . "必須設定 {$property} 屬性" );
+			}
+		}
 	}
 }
