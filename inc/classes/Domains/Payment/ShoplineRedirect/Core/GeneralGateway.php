@@ -5,6 +5,8 @@ declare (strict_types = 1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
 
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\PaymentGateway;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Service;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 
 /**
  * GeneralGateway 跳轉支付
@@ -19,6 +21,30 @@ final class GeneralGateway extends PaymentGateway {
 	public function __construct() {
 		$this->payment_label = __( 'Shopline Payment (Redirect)', 'power_checkout' );
 		parent::__construct();
+	}
+
+	/**
+	 * Shopline 跳轉式支付核心支付邏輯
+	 *
+	 * @see \WC_Payment_Gateway::process_payment
+	 * @param int $order_id 訂單 ID
+	 * @return array{result: ProcessResult::SUCCESS | ProcessResult::FAILED, redirect?: string}
+	 * @throws \Exception 如果訂單不存在
+	 */
+	public function process_payment( $order_id ): array {
+		$order = \wc_get_order( $order_id );
+
+		try {
+			if ( ! $order instanceof \WC_Order ) {
+				throw new \Exception( __( 'Order not found.', 'power_checkout' ) );
+			}
+			$service = Service::instance();
+			$service->set_properties( $this, $order );
+			return ProcessResult::SUCCESS->to_array( $order );
+		} catch (\Throwable $th) {
+			\wc_add_notice( $th->getMessage(), 'error' );
+			return ProcessResult::FAILED->to_array( $order );
+		}
 	}
 
 	/**

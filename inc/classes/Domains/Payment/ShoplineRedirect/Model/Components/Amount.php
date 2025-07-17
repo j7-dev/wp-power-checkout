@@ -18,7 +18,7 @@ final class Amount extends DTO {
 	public int $value;
 
 	/** @var Currency 幣種，目前僅支援 TWD */
-	public Currency $currency;
+	public Currency $currency = Currency::TWD;
 
 	/** @var array<string> 必填屬性 */
 	protected $required_properties = [

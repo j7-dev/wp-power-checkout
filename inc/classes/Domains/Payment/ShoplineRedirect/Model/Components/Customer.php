@@ -19,7 +19,7 @@ final class Customer extends DTO {
 	/** @var CustomerType (1) *顧客類型，0 為遊客，1 為登入會員 */
 	public CustomerType $type;
 
-	/** @var PersonalInfo 收件人資訊 */
+	/** @var PersonalInfo *收件人資訊 */
 	public PersonalInfo $personalInfo;
 
 	/** @var array<string> 必填屬性 */
@@ -40,7 +40,7 @@ final class Customer extends DTO {
 
 		$args = [
 			'referenceCustomerId' => ( new Helper($customer_ref) )->max( 64 )->value,
-			'type'                => $order->get_customer_id() ? '1' : '0',
+			'type'                => $order->get_customer_id() ? CustomerType::MEMBER : CustomerType::GUEST,
 			'personalInfo'        => PersonalInfo::create( $order ),
 		];
 		return new self($args);

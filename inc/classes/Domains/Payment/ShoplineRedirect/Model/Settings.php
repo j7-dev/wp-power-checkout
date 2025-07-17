@@ -33,8 +33,15 @@ final class Settings extends DTO {
 	/** @var string 端點 */
 	public string $apiUrl = 'https://api.shoplinepayments.com';
 
-	/** @var Enums\PaymentMethod[] 允許的付款方式 */
-	public array $allowPaymentMethodList;
+	/** @var array<Enums\PaymentMethod::value> 允許的付款方式 */
+	public array $allowPaymentMethodList = [
+		Enums\PaymentMethod::CREDITCARD,
+		Enums\PaymentMethod::VIRTUALACCOUNT,
+		Enums\PaymentMethod::JKOPAY,
+		Enums\PaymentMethod::APPLEPAY,
+		Enums\PaymentMethod::LINEPAY,
+		Enums\PaymentMethod::CHAILEASEBNPL,
+	];
 
 	/** @var self|null 單例 */
 	protected static $dto_instance = null;
@@ -57,7 +64,7 @@ final class Settings extends DTO {
 	 * 如果是測試模式，則回傳測試模式的設定
 	 */
 	public function __get( string $property ): mixed {
-		if ( $this->mode !== Enums\Mode::TEST ) {
+		if ( $this->mode->value !== Enums\Mode::TEST->value ) {
 			return $this->$property;
 		}
 		// 只有測試模式才會複寫下面的屬性

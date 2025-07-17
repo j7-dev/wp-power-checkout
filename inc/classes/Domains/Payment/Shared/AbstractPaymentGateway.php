@@ -278,7 +278,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @param int                  $trace_limit 追蹤堆疊層數
 	 */
 	public function logger( string $message, string $level = 'info', array $args = [], $trace_limit = 0 ): void {
-		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, "{$this->id}__{$level}", $trace_limit );
+		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, "power_checkout_{$this->id}", $trace_limit );
 	}
 
 	/**
@@ -315,7 +315,11 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		return true;
 	}
 
-	/** 驗證必須設定的屬性 @throws \Exception 如果屬性未設定 */
+	/**
+	 * 驗證必須設定的屬性
+	 *
+	 * @throws \Exception 如果屬性未設定
+	 *  */
 	private function validate_properties(): void {
 		foreach ( $this->require_properties as $property ) {
 			if ( ! isset( $this->$property ) ) {

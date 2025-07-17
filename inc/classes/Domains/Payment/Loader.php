@@ -10,7 +10,6 @@ final class Loader {
 
 	/** Constructor */
 	public function __construct() {
-		EcpayAIO\Core\Service::instance();
 		ShoplineRedirect\Core\Service::instance();
 	}
 }

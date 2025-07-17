@@ -16,6 +16,12 @@ abstract class AbstractPaymentService {
 	/** @var \WP_Error 錯誤訊息 */
 	public \WP_Error $error;
 
+	/** @var AbstractPaymentGateway 付款閘道 */
+	public AbstractPaymentGateway $gateway;
+
+	/** @var \WC_Order 訂單 */
+	public \WC_Order $order;
+
 	/** Constructor */
 	public function __construct() {
 		$this->error = new \WP_Error();
@@ -23,16 +29,14 @@ abstract class AbstractPaymentService {
 		\add_filter( 'woocommerce_payment_gateways', [ $this, 'add_method' ] );
 	}
 
-	/**
-	 * 添加付款方式
-	 *
-	 * @param array<string> $methods 付款方式
-	 *
-	 * @return array<string>
-	 */
-	public function add_method( array $methods ): array {
-		return $methods;
+	/** 設定付款閘道和訂單 @param AbstractPaymentGateway $gateway 付款閘道 @param \WC_Order $order 訂單 */
+	public function set_properties( AbstractPaymentGateway $gateway, \WC_Order $order ): void {
+		$this->gateway = $gateway;
+		$this->order   = $order;
 	}
+
+	/** 添加付款方式 @param array<string> $methods 付款方式  @return array<string> */
+	abstract public function add_method( array $methods ): array;
 
 	/** 每次請求結束時如果有錯誤就印出錯誤訊息 */
 	public function print_error(): void {
@@ -44,13 +48,6 @@ abstract class AbstractPaymentService {
 		if ( ! $error_messages ) {
 			return;
 		}
-		\J7\WpUtils\Classes\WC::logger(
-			$error_messages[0],
-			'error',
-			[
-				'messages' => $error_messages,
-			],
-			$this->id . '__errors'
-		);
+		$this->gateway->logger( $error_messages[0], 'critical', [ 'messages' => $error_messages ], 5 );
 	}
 }

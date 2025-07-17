@@ -21,10 +21,10 @@ final class Shipping extends DTO {
 	/** @var string (64) *物流通道，如黑貓宅配等 */
 	public string $carrier;
 
-	/** @var PersonalInfo 收件人資訊 */
+	/** @var PersonalInfo *收件人資訊 */
 	public PersonalInfo $personalInfo;
 
-	/** @var Address 收件地址 */
+	/** @var Address *收件地址 */
 	public Address $address;
 
 	/** @var array<string> 必填屬性 */

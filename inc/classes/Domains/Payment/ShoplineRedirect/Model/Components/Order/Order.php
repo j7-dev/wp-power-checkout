@@ -29,7 +29,6 @@ final class Order extends DTO {
 	 * @return self 創建實例
 	 */
 	public static function create( \WC_Order $order ): self {
-
 		$products = [];
 		foreach ( $order->get_items() as $item ) {
 			/** @var \WC_Order_Item_Product $item */

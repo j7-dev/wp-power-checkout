@@ -13,8 +13,8 @@ use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\Country;
  * 請求會帶
  *  */
 final class Address extends DTO {
-	/** @var Country (2) *國家地區編碼，如 TW */
-	public Country $countryCode;
+	/** @var Country::value (2) *國家地區編碼，如 TW */
+	public string $countryCode;
 
 	/** @var string (12) 州或省代碼 */
 	public string $stateCode = '';
@@ -60,6 +60,13 @@ final class Address extends DTO {
 	/** 自訂驗證邏輯 */
 	protected function validate(): void {
 		parent::validate();
+
+		if ( ! Country::tryFrom( $this->countryCode ) ) {
+			$this->dto_error->add(
+				'validate_failed',
+				'countryCode 必須是 Enum 定義的 TW, CN, HK 其中一個'
+			);
+		}
 
 		if ( Helper::strlen( $this->stateCode ) > 12 ) {
 			$this->dto_error->add(

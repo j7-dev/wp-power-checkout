@@ -177,6 +177,7 @@ final class RequestParams extends DTO {
 
 		$return_url = urldecode($gateway->get_return_url($order));
 		$service    = Service::instance();
+		$service->set_properties( $gateway, $order );
 
 		$default_args = [
 			'MerchantID'        => $service->settings->merchant_id,
@@ -314,7 +315,7 @@ final class RequestParams extends DTO {
 	 * @param string $hash_algo 'sha256' | 'md5' 雜湊演算法
 	 */
 	protected function add_check_value( string $hash_algo ): void {
-		$service = Service::instance();
+		$service = Service::instance( $this->gateway, $this->order );
 		/** @var array<string, string|int> $args */
 		$args                = $this->to_array();
 		$this->CheckMacValue = $service->get_check_value( $args, $hash_algo );

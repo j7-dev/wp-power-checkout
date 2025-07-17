@@ -12,13 +12,14 @@ use J7\PowerCheckout\Utils\Helper;
  * 請求會帶
  *  */
 final class Billing extends DTO {
+
 	/** @var string (32) 帳單描述，還沒想要要記錄那些資訊 */
 	public string $description;
 
-	/** @var PersonalInfo 收件人資訊 */
+	/** @var PersonalInfo *收件人資訊 */
 	public PersonalInfo $personalInfo;
 
-	/** @var Address 收件地址 */
+	/** @var Address *收件地址 */
 	public Address $address;
 
 	/** @var array<string> 必填屬性 */

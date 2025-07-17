@@ -25,6 +25,7 @@ abstract class PaymentGateway extends AbstractPaymentGateway {
 	 */
 	protected function submit( \WC_Order $order ): void {
 		$service = Service::instance();
+		$service->set_properties( $this, $order );
 		/** @var \WC_Order $order */
 		$params = $service->get_params( $order, $this );
 
