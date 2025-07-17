@@ -15,6 +15,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\Params;
 /**
  * Requester 請求器
  * 用來發請求 & 格式化回應
+ * 預先填好 Header
  *
  * @see https://docs.shoplinepayments.com/guide/session/
  *  */
@@ -44,23 +45,23 @@ final class Requester {
 	/**
 	 * 發送請求
 	 *
-	 *  @param string $endpoint 端點
+	 *  @param string               $endpoint 端點
+	 *  @param array<string, mixed> $request_body 請求參數
 	 *  @return ResponseParams|null 回應參數
 	 *  @throws \Exception 發生錯誤時拋出
 	 */
-	public function post( string $endpoint ): ResponseParams|null {
-		$url  = $this->get_endpoint( $endpoint );
-		$body = RequestParams::create( $this->order, $this->gateway )->to_array();
+	public function post( string $endpoint, array $request_body = [] ): ResponseParams|null {
+		$api_url = $this->get_endpoint( $endpoint );
 		// 儲存請求參數
-		( new Params( $this->order ) )->save_request( $body, $url );
+		( new Params( $this->order ) )->save_request( $request_body, $api_url );
 
-		$header = RequestHeader::create( $this->order )->to_array();
+		$request_header = RequestHeader::create( $this->order )->to_array();
 		try {
 			$response = \wp_remote_post(
-			$url,
+			$api_url,
 			[
-				'body'     => $body,
-				'headers'  => $header,
+				'body'     => $request_body,
+				'headers'  => $request_header,
 				'blocking' => true,
 				'timeout'  => self::TIMEOUT,
 			]
@@ -79,9 +80,9 @@ final class Requester {
 				"{$this->gateway->payment_label} Payment Response #{$this->order->get_id()}",
 				'info',
 				[
-					'api_url'        => $url,
-					'request_header' => $header,
-					'request_body'   => $body,
+					'api_url'        => $api_url,
+					'request_header' => $request_header,
+					'request_body'   => $request_body,
 					'response_body'  => $response_body,
 				]
 				);
@@ -96,9 +97,9 @@ final class Requester {
 				$th->getMessage(),
 				'error',
 				[
-					'api_url'        => $url,
-					'request_header' => $header,
-					'request_body'   => $body,
+					'api_url'        => $api_url,
+					'request_header' => $request_header,
+					'request_body'   => $request_body,
 				],
 				5
 				);

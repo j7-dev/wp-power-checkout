@@ -67,10 +67,10 @@ final class RequestParams extends DTO {
 	/**
 	 * 組成變數的主要邏輯可以寫在裡面
 	 *
-	 *  @param \WC_Order              $order 訂單
 	 *  @param AbstractPaymentGateway $gateway 付款方式
+	 *  @param \WC_Order              $order 訂單
 	 */
-	public static function create( \WC_Order $order, AbstractPaymentGateway $gateway ): self {
+	public static function create( AbstractPaymentGateway $gateway, \WC_Order $order, ): self {
 		$settings = Settings::instance();
 		$total    = $order->get_total();
 		$args     = [

@@ -42,10 +42,16 @@ class Params {
 		return $this;
 	}
 
-	/** @return array<string, mixed> 取得請求參數 */
-	public function get_request(): array {
+	/**
+	 * 取得請求參數
+	 *
+	 * @param string $key 取得請求參數的 key
+	 * @return array<string, mixed> 請求參數
+	 */
+	public function get_request( string $key = 'params' ): array {
 		$params = $this->order->get_meta( self::REQUEST_KEY );
-		return is_array( $params ) ? $params : [];
+		$params = is_array( $params ) ? $params : [];
+		return $key ? ( $params[ $key ] ?? [] ) : $params;
 	}
 
 	/** @param array<string, mixed> $params 儲存回應參數 @return self */
@@ -60,9 +66,15 @@ class Params {
 		return $this;
 	}
 
-	/** @return array<string, mixed> 取得回應參數 */
-	public function get_response(): array {
+	/**
+	 * 取得回應參數
+	 *
+	 * @param string $key 取得回應參數的 key
+	 * @return array<string, mixed> 回應參數
+	 */
+	public function get_response( string $key = 'params' ): array {
 		$params = $this->order->get_meta( self::RESPONSE_KEY );
-		return is_array( $params ) ? $params : [];
+		$params = is_array( $params ) ? $params : [];
+		return $key ? ( $params[ $key ] ?? [] ) : $params;
 	}
 }
