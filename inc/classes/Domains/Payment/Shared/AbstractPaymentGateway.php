@@ -5,6 +5,7 @@ declare (strict_types = 1);
 namespace J7\PowerCheckout\Domains\Payment\Shared;
 
 use J7\PowerCheckout\Domains\WC_Settings_API\Model\FormField;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 
 /** 付款閘道抽象類別 */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
@@ -186,47 +187,24 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 *
 	 * @see WC_Payment_Gateway::process_payment
 	 * @param int $order_id 訂單 ID
-	 * @return array{result: 'success' | 'failure', redirect?: string}
-	 *
-	 * @example
-	 * [success]
-	 * return [
-	 *     'result'   => 'success',
-	 *     'redirect' => $order->get_checkout_payment_url( true ),
-	 * ];
-	 *
-	 * $order->get_checkout_order_received_url() // 正常的感謝頁
-	 *
-	 * \wc_get_endpoint_url( 'order-received', '', wc_get_checkout_url() )
-	 * /checkout/order-received/ 謝謝，我們已經收到您的訂單。
-	 *
-	 * $order->get_checkout_payment_url( true ) // 小小的結帳視窗
-	 * /checkout/order-pay/2801/?key=wc_order_GrFD9faIj520O
-	 *
-	 * [failure]
-	 * 搭配 wc_add_notice 來顯示錯誤訊息
-	 * \wc_add_notice( 'error message', 'error' );
-	 * return [
-	 *     'result'   => 'failure',
-	 * ];
+	 * @return array{result: ProcessResult::SUCCESS | ProcessResult::FAILED, redirect?: string}
+	 * @throws \Exception 如果訂單不存在
 	 */
 	public function process_payment( $order_id ): array {
 		$order = \wc_get_order( $order_id );
-		if ( ! $order instanceof \WC_Order ) {
-			\wc_add_notice( __( 'Order not found.', 'power_checkout' ), 'error' );
-			return [
-				'result' => 'failure',
-			];
+		try {
+			if ( ! $order instanceof \WC_Order ) {
+				throw new \Exception( __( 'Order not found.', 'power_checkout' ) );
+			}
+			$this->before_process_payment( $order );
+			$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
+			\wc_maybe_reduce_stock_levels( $order_id );
+			\wc_release_stock_for_order( $order );
+			return ProcessResult::SUCCESS->to_array( $order );
+		} catch (\Throwable $th) {
+			\wc_add_notice( $th->getMessage(), 'error' );
+			return ProcessResult::FAILED->to_array( $order );
 		}
-		$this->before_process_payment( $order );
-		$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
-		\wc_maybe_reduce_stock_levels( $order_id );
-		\wc_release_stock_for_order( $order );
-
-		return [
-			'result'   => 'success',
-			'redirect' => $order->get_checkout_payment_url( true ), // 前往 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
-		];
 	}
 
 	/** @param \WC_Order $order 訂單 在 process_payment 之前執行 */
@@ -337,7 +315,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		return true;
 	}
 
-	/** 驗證必須設定的屬性 */
+	/** 驗證必須設定的屬性 @throws \Exception 如果屬性未設定 */
 	private function validate_properties(): void {
 		foreach ( $this->require_properties as $property ) {
 			if ( ! isset( $this->$property ) ) {
