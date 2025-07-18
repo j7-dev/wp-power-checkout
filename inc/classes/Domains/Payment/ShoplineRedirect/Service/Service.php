@@ -7,8 +7,8 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service\Requester;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\RequestParams;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Session\Create\RequestParams;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Session\Create\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 
 /**
@@ -44,7 +44,7 @@ final class Service {
 	 * @return string  shopline payment return 的 session url
 	 * @throws \Exception 如果交易建立失敗
 	 *  */
-	public function create_trade(): string {
+	public function create_session(): string {
 		$request_body = RequestParams::create( $this->gateway, $this->order )->to_array();
 		$response     = $this->requester->post( '/trade/sessions/create', $request_body );
 		return $response->sessionUrl;
@@ -56,7 +56,7 @@ final class Service {
 	 * @see https://docs.shoplinepayments.com/api/trade/sessionQuery/
 	 * @throws \Exception 如果交易查詢失敗
 	 *  */
-	public function query_trade(): ResponseParams|null {
+	public function query_session(): ResponseParams|null {
 		$response_params_array = ( new Params( $this->order ) )->get_response();
 		$response_params       = ResponseParams::create( $response_params_array );
 		if (!isset($response_params->sessionId)) {

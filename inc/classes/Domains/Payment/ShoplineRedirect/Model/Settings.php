@@ -37,9 +37,9 @@ final class Settings extends DTO {
 	public array $allowPaymentMethodList = [
 		'CreditCard',
 		'VirtualAccount',
-		// 'JKOPay',
+		'JKOPay',
 		'ApplePay',
-		// 'LinePay',
+		'LinePay',
 		'ChaileaseBNPL',
 	];
 

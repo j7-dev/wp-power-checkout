@@ -11,7 +11,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Init;
  */
 enum CallBack: string {
 	/** @var string 建立交易 */
-	case CREATE_TRADE = 'create_trade';
+	case CREATE_SESSION = 'create_session';
 
 	/** @return string action 取得 WC API action name */
 	public function action(): string {
@@ -24,7 +24,7 @@ enum CallBack: string {
 	}
 
 	/** @return string action 取得 WC API endpoint */
-	public function endpoint( \WC_Order $order ): string {
+	public function endpoint(): string {
 		return \WC()->api_request_url( Init::PREFIX . $this->value, true );
 	}
 }

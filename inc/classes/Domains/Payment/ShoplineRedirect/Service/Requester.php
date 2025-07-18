@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
 
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\RequestHeader;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Session\Create\RequestHeader;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Session\Create\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 
@@ -95,7 +95,7 @@ final class Requester {
 
 		$this->gateway->logger(
 				"✅ {$this->gateway->payment_label} 交易成功 #{$this->order->get_id()}",
-				'debug',
+				'info',
 				$response_body
 				);
 

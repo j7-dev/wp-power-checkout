@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Session\Create;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\PaymentMethod;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Components;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
 
 /**
  * Shopline Payment 跳轉式支付 RequestParams

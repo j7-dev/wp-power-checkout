@@ -2,13 +2,12 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
 
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Init;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service\Service;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\CallBack;
 
 /**
  * GeneralGateway 跳轉支付
@@ -26,16 +25,19 @@ final class GeneralGateway extends PaymentGateway {
 	}
 
 	/**
-	 * Shopline Payment 跳轉式支付後，return 的 url
-	 *
-	 * @param \WC_Order|null $order Order object.
-	 * @return string
-	 */
-	public function get_return_url( $order = null ) {
-		if ( !$order ) {
-			return parent::get_return_url();
-		}
-		return CallBack::CREATE_TRADE->endpoint($order);
+	 * [前台] 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
+	 * RY 在這邊做表單提交
+	 * 已經確認過 order 存在，且是當前的付款方式，所以不用再驗證
+	 * */
+	public function render_at_receipt( int $order_id ): void {
+		// 清空購物車
+		\WC()->cart->empty_cart();
+		/** @var \WC_Order $order */
+		$order = \wc_get_order( $order_id );
+
+		// 狀態轉為保留，因為 SLP 的付款成功狀態是非同步，所以待確認
+		$order->update_status( 'wc-on-hold' );
+		$order->add_order_note( \__( 'Shopline Payment 付款狀態確認中', 'power_checkout' ) );
 	}
 
 	/**
@@ -53,7 +55,7 @@ final class GeneralGateway extends PaymentGateway {
 			$this->order = $order;
 			$service     = new Service( $this, $order );
 			// 取得要跳轉的 url
-			$redirect = $service->create_trade();
+			$redirect = $service->create_session();
 			return ProcessResult::SUCCESS->to_array( $redirect );
 		} catch (\Throwable $th) {
 			$this->logger( $th->getMessage(), 'error', [], 5 );

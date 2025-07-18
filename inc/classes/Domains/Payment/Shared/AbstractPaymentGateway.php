@@ -8,7 +8,9 @@ use J7\PowerCheckout\Domains\WC_Settings_API\Model\FormField;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 use J7\WpUtils\Classes\WP;
 
-/** 付款閘道抽象類別 */
+/**
+ * 付款閘道抽象類別 單例模式，一進 WC 就會被實例化
+ *  */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */
@@ -144,10 +146,10 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		// [Admin] 在後台 order detail 頁地址下方顯示資訊
 		\add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_after_billing_address' ] );
 
-		if ( $this->enabled ) {
-			// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
-			\add_action( "woocommerce_receipt_{$this->id}", [ $this, 'render_at_receipt' ] );
-		}
+		// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
+		\add_action( "woocommerce_receipt_{$this->id}", [ $this, 'render_at_receipt' ] );
+		// 在 /checkout/order-received/ 頁渲染 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
+		\add_action( "woocommerce_thankyou_{$this->id}", [ $this, 'render_at_receipt' ] );
 
 		$this->validate_properties();
 
@@ -240,21 +242,12 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	/**
 	 * [前台] 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
 	 * RY 在這邊做表單提交
+	 * 已經確認過 order 存在，且是當前的付款方式，所以不用再驗證
 	 * */
 	public function render_at_receipt( int $order_id ): void {
-		try {
-
-			if (! $this->can_use( $order_id )) {
-				return;
-			}
-
-			$order = \wc_get_order( $order_id );
-			/** @var \WC_Order $order */
-			$this->submit( $order );
-		} catch (\Throwable $th) {
-			$this->logger( $th->getMessage(), 'error', [], 5 );
-			return;
-		}
+		$order = \wc_get_order( $order_id );
+		/** @var \WC_Order $order */
+		$this->submit( $order );
 	}
 
 	/**
@@ -323,7 +316,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @return bool
 	 * @throws \Exception 如果訂單不是實例或不是實例的訂單
 	 */
-	protected function can_use( \WC_Order|int|string $order_or_id ): bool {
+	public function validate_order( \WC_Order|int|string $order_or_id ): bool {
 		if ( is_numeric($order_or_id)) {
 			$order_or_id = \wc_get_order( $order_or_id );
 		}
