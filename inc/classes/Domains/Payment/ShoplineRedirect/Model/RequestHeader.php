@@ -55,7 +55,7 @@ final class RequestHeader extends DTO {
 		$args         = [
 			'merchantId' => $settings->merchantId,
 			'apiKey'     => $settings->apiKey,
-			'requestId'  => ( new Helper($request_id) )->max( 32 )->value,
+			'requestId'  => ( new Helper($request_id, 'requestId', 32) )->substr()->value,
 		];
 
 		return new self($args);
@@ -69,23 +69,21 @@ final class RequestHeader extends DTO {
 		return $to_array;
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
 
 		if (strlen($this->requestId) > 32) {
-			$this->dto_error->add(
-			'validate_failed',
-			'requestId 長度不能超過 32 個字'
-			);
+			throw new \Exception('requestId 長度不能超過 32 個字');
 		}
 
 		if (isset($this->idempotentKey)) {
 			if (strlen($this->idempotentKey) > 32) {
-				$this->dto_error->add(
-				'validate_failed',
-				'idempotentKey 長度不能超過 32 個字'
-				);
+				throw new \Exception('idempotentKey 長度不能超過 32 個字');
 			}
 		}
 	}

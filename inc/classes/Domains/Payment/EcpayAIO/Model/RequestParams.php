@@ -226,84 +226,45 @@ final class RequestParams extends DTO {
 		$this->add_check_value( 'sha256' );
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
+		parent::validate();
 
 		if ('aio' !== $this->PaymentType) {
-			$this->dto_error->add(
-				'PaymentType',
-				"PaymentType 必須為 aio, 但目前為 {$this->PaymentType}"
-			);
+			throw new \Exception("PaymentType 必須為 aio, 但目前為 {$this->PaymentType}");
 		}
 
-		if (Helper::include_special_char($this->MerchantTradeNo)) {
-			$this->dto_error->add(
-				'MerchantTradeNo',
-				"MerchantTradeNo 不能包含特殊字元, 但目前為 {$this->MerchantTradeNo}"
-			);
-		}
-
-		// 檢查字串長度
-		if (Helper::strlen($this->MerchantTradeNo) > 20) {
-			$this->dto_error->add(
-				'MerchantTradeNo',
-				'MerchantTradeNo 長度不能超過 20 個字, 但目前為 ' . Helper::strlen($this->MerchantTradeNo) . ' 字'
-			);
-		}
-
-		if (Helper::include_special_char($this->TradeDesc)) {
-			$this->dto_error->add(
-				'TradeDesc',
-				"TradeDesc 不能包含特殊字元, 但目前為 {$this->TradeDesc}"
-			);
-		}
-
-		if (Helper::strlen($this->TradeDesc) > 200) {
-			$this->dto_error->add(
-				'TradeDesc',
-				'TradeDesc 長度不能超過 200 個字, 但目前為 ' . Helper::strlen($this->TradeDesc) . ' 字'
-			);
-		}
+		( new Helper($this->MerchantTradeNo, 'MerchantTradeNo', 20) )->validate();
+		( new Helper($this->TradeDesc, 'TradeDesc', 200) )->validate();
 
 		$payment_options = [ 'Credit', 'TWQR', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'BNPL' ];
 		if (!in_array($this->ChoosePayment, [ ...$payment_options, 'ALL' ], true)) {
-			$this->dto_error->add(
-				'ChoosePayment',
-				'ChoosePayment 必須為 ' . implode(', ', [ ...$payment_options, 'ALL' ]) . " 其中一個, 但目前為 {$this->ChoosePayment}"
-			);
+			throw new \Exception('ChoosePayment 必須為 ' . implode(', ', [ ...$payment_options, 'ALL' ]) . " 其中一個, 但目前為 {$this->ChoosePayment}");
 		}
 
 		if ($this->EncryptType !== 1) {
-			$this->dto_error->add(
-				'EncryptType',
-				"EncryptType 必須為 1, 但目前為 {$this->EncryptType}"
-			);
+			throw new \Exception("EncryptType 必須為 1, 但目前為 {$this->EncryptType}");
 		}
 
 		if (isset($this->NeedExtraPaidInfo)) {
 			if (!in_array($this->NeedExtraPaidInfo, [ 'N', 'Y' ])) {
-				$this->dto_error->add(
-					'NeedExtraPaidInfo',
-					"NeedExtraPaidInfo 必須為 'N' | 'Y' 其中一個, 但目前為 {$this->NeedExtraPaidInfo}"
-				);
+				throw new \Exception("NeedExtraPaidInfo 必須為 'N' | 'Y' 其中一個, 但目前為 {$this->NeedExtraPaidInfo}");
 			}
 		}
 
 		if (isset($this->IgnorePayment)) {
 			if (!in_array($this->IgnorePayment, $payment_options)) {
-				$this->dto_error->add(
-					'IgnorePayment',
-					'IgnorePayment 必須為 ' . implode(', ', $payment_options) . " 其中一個, 但目前為 {$this->IgnorePayment}"
-				);
+				throw new \Exception('IgnorePayment 必須為 ' . implode(', ', $payment_options) . " 其中一個, 但目前為 {$this->IgnorePayment}");
 			}
 		}
 
 		if (isset($this->Language)) {
 			if (!in_array($this->Language, [ 'ENG', 'KOR', 'JPN', 'CHI' ])) {
-				$this->dto_error->add(
-					'Language',
-					"Language 必須為 'ENG' | 'KOR' | 'JPN' | 'CHI' 其中一個, 但目前為 {$this->Language}"
-				);
+				throw new \Exception("Language 必須為 'ENG' | 'KOR' | 'JPN' | 'CHI' 其中一個, 但目前為 {$this->Language}");
 			}
 		}
 	}

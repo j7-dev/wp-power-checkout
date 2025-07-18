@@ -2,25 +2,23 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
 
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\RequestHeader;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\RequestParams;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 
 
 /**
- * Requester 請求器
+ * Requester 請求器 工廠模式
  * 用來發請求 & 格式化回應
  * 預先填好 Header
  *
  * @see https://docs.shoplinepayments.com/guide/session/
  *  */
 final class Requester {
-	use \J7\WpUtils\Traits\SingletonTrait;
 
 	const API_VERSION = '/api/v1';
 
@@ -56,54 +54,51 @@ final class Requester {
 		( new Params( $this->order ) )->save_request( $request_body, $api_url );
 
 		$request_header = RequestHeader::create( $this->order )->to_array();
-		try {
-			$response = \wp_remote_post(
+
+		$response = \wp_remote_post(
 			$api_url,
 			[
-				'body'     => $request_body,
+				'body'     => \wp_json_encode( $request_body ),
 				'headers'  => $request_header,
 				'blocking' => true,
 				'timeout'  => self::TIMEOUT,
 			]
 			);
 
-			if ( \is_wp_error( $response ) ) {
-				throw new \Exception( $response->get_error_message() );
-			}
+		if ( \is_wp_error( $response ) ) {
+			throw new \Exception( $response->get_error_message() );
+		}
 
-			/** @var array<string, mixed>|array{code: int, msg: string} $response_body */
-			$response_body = json_decode( \wp_remote_retrieve_body( $response ), true );
-			// 儲存回應參數
-			( new Params( $this->order ) )->save_response( $response_body );
-			// LOG 記錄
-			$this->gateway->logger(
-				"{$this->gateway->payment_label} Payment Response #{$this->order->get_id()}",
-				'info',
+		/** @var array<string, mixed>|array{code: int, msg: string} $response_body */
+		$response_body = json_decode( \wp_remote_retrieve_body( $response ), true );
+		// 儲存回應參數
+		( new Params( $this->order ) )->save_response( $response_body );
+		// LOG 記錄
+		$this->gateway->logger(
+				"{$this->gateway->payment_label} 請求參數 #{$this->order->get_id()}",
+				'debug',
 				[
 					'api_url'        => $api_url,
 					'request_header' => $request_header,
 					'request_body'   => $request_body,
-					'response_body'  => $response_body,
 				]
 				);
 
-			if ( isset( $response_body['code'] ) ) {
-				throw new \Exception( (string) $response_body['msg'], (int) $response_body['code'] );
-			}
-
-			return ResponseParams::create( $response_body );
-		} catch (\Throwable $th) {
+		if ( isset( $response_body['code'] ) ) {
 			$this->gateway->logger(
-				$th->getMessage(),
+				"❌ {$this->gateway->payment_label} 交易失敗 #{$this->order->get_id()}",
 				'error',
-				[
-					'api_url'        => $api_url,
-					'request_header' => $request_header,
-					'request_body'   => $request_body,
-				],
-				5
+				$response_body
 				);
-			return null;
+			throw new \Exception( (string) $response_body['msg'], (int) $response_body['code'] );
 		}
+
+		$this->gateway->logger(
+				"✅ {$this->gateway->payment_label} 交易成功 #{$this->order->get_id()}",
+				'debug',
+				$response_body
+				);
+
+		return ResponseParams::create( $response_body );
 	}
 }

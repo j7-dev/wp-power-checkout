@@ -13,7 +13,7 @@ use J7\PowerCheckout\Utils\Helper;
  *  */
 final class Billing extends DTO {
 
-	/** @var string (32) 帳單描述，還沒想要要記錄那些資訊 */
+	/** @var string (32) 訂單備註 */
 	public string $description;
 
 	/** @var PersonalInfo *收件人資訊 */
@@ -34,23 +34,23 @@ final class Billing extends DTO {
 	 */
 	public static function create( \WC_Order $order ): self {
 		$args = [
+			'description'  => ( new Helper($order->get_customer_note(), 'description', 32) )->substr()->value,
 			'personalInfo' => PersonalInfo::create( $order ),
 			'address'      => Address::create( $order ),
 		];
 		return new self($args);
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 * */
 	protected function validate(): void {
 		parent::validate();
 
 		if ( isset( $this->description ) ) {
-			if ( Helper::strlen( $this->description ) > 32 ) {
-				$this->dto_error->add(
-				'validate_failed',
-				'description 長度不能超過 32 位'
-				);
-			}
+			( new Helper($this->description, 'description', 32) )->get_strlen(true);
 		}
 	}
 }

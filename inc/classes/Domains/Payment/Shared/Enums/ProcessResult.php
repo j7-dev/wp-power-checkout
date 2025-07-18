@@ -40,14 +40,14 @@ enum ProcessResult: string {
 	/**
 	 * 取得結果陣列
 	 *
-	 * @param \WC_Order $order 訂單
+	 * @param string $redirect 跳轉 URL
 	 * @return array{result: string, redirect?: string} 結果陣列
 	 */
-	public function to_array( \WC_Order $order ): array {
+	public function to_array( string $redirect = '' ): array {
 		return match ( $this ) {
 			self::SUCCESS => [
 				'result'   => self::SUCCESS->value,
-				'redirect' => $order->get_checkout_payment_url( true ),
+				'redirect' => $redirect,
 			],
 			self::FAILED  => [
 				'result' => self::FAILED->value,

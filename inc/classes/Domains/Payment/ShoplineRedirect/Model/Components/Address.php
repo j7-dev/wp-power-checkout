@@ -48,66 +48,28 @@ final class Address extends DTO {
 		$street = $order->get_billing_address_1() . ' ' . $order->get_billing_address_2();
 
 		$args = [
-			'countryCode' => ( new Helper($order->get_billing_country()) )->max( 2 )->value,
-			'city'        => ( new Helper($order->get_billing_state()) )->max( 128 )->value,
-			'district'    => ( new Helper($order->get_billing_city()) )->max( 128 )->value,
-			'street'      => ( new Helper($street) )->max( 128 )->value,
-			'postcode'    => ( new Helper($order->get_billing_postcode()) )->max( 32 )->value,
+			'countryCode' => ( new Helper($order->get_billing_country(), 'billing_country', 2) )->substr()->value,
+			'city'        => ( new Helper($order->get_billing_state(), 'billing_state', 128) )->substr()->value,
+			'district'    => ( new Helper($order->get_billing_city(), 'billing_city', 128) )->substr()->value,
+			'street'      => ( new Helper($street, 'street', 128) )->substr()->value,
+			'postcode'    => ( new Helper($order->get_billing_postcode(), 'billing_postcode', 32) )->substr()->value,
 		];
 		return new self($args);
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
-
-		if ( ! Country::tryFrom( $this->countryCode ) ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'countryCode 必須是 Enum 定義的 TW, CN, HK 其中一個'
-			);
-		}
-
-		if ( Helper::strlen( $this->stateCode ) > 12 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'stateCode 長度不能超過 12 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->state ) > 128 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'state 長度不能超過 128 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->city ) > 128 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'city 長度不能超過 128 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->district ) > 128 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'district 長度不能超過 128 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->street ) > 128 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'street 長度不能超過 128 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->postcode ) > 32 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'postcode 長度不能超過 32 位'
-			);
-		}
+		Country::from( $this->countryCode );
+		( new Helper($this->stateCode, 'stateCode', 12) )->get_strlen(true);
+		( new Helper($this->state, 'state', 128) )->get_strlen(true);
+		( new Helper($this->city, 'city', 128) )->get_strlen(true);
+		( new Helper($this->district, 'district', 128) )->get_strlen(true);
+		( new Helper($this->street, 'street', 128) )->get_strlen(true);
+		( new Helper($this->postcode, 'postcode', 32) )->get_strlen(true);
 	}
 }

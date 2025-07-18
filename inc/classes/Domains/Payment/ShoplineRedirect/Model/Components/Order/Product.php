@@ -50,8 +50,8 @@ final class Product extends DTO {
 	public static function create( \WC_Order_Item_Product $item ): self {
 		$id   = (string) ( $item->get_variation_id() ?: $item->get_product_id() );
 		$args = [
-			'id'       => ( new Helper($id) )->filter()->max( 64 )->value,
-			'name'     => ( new Helper($item->get_name()) )->filter()->max( 128 )->value,
+			'id'       => ( new Helper($id, 'id', 64) )->filter()->substr()->value,
+			'name'     => ( new Helper($item->get_name(), 'name', 128) )->filter()->substr()->value,
 			'quantity' => $item->get_quantity(),
 			'amount'   => Amount::create( (float) $item->get_total() ),
 		];
@@ -59,54 +59,29 @@ final class Product extends DTO {
 		$product = $item->get_product();
 		if ( $product ) { // 預防有人訂單產生後，刪除產品，就會拿不到資料
 			/** @var \WC_Product $product */
-			$args['desc'] = ( new Helper($product->get_short_description()) )->filter()->max( 512 )->value;
+			$args['desc'] = ( new Helper($product->get_short_description(), 'desc', 512) )->filter()->substr()->value;
 			$url          = $product->get_permalink();
 			if ( strlen( $url ) <= 256 ) {
 				$args['url'] = $url;
 			}
 
-			$args['sku'] = ( new Helper($product->get_sku()) )->filter()->max( 64 )->value;
+			$args['sku'] = ( new Helper($product->get_sku(), 'sku', 64) )->filter()->substr()->value;
 		}
 
 		return new self( $args );
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
-		if ( Helper::strlen( $this->id ) > 64 ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'id 長度不能超過 64 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->name ) > 128 ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'name 長度不能超過 128 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->desc ) > 512 ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'desc 長度不能超過 512 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->url ) > 256 ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'url 長度不能超過 256 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->sku ) > 64 ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'sku 長度不能超過 64 位'
-			);
-		}
+		( new Helper($this->id, 'id', 64) )->get_strlen(true);
+		( new Helper($this->name, 'name', 128) )->get_strlen(true);
+		( new Helper($this->desc, 'desc', 512) )->get_strlen(true);
+		( new Helper($this->url, 'url', 256) )->get_strlen(true);
+		( new Helper($this->sku, 'sku', 64) )->get_strlen(true);
 	}
 }

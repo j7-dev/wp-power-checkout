@@ -42,8 +42,8 @@ final class Shipping extends DTO {
 	 */
 	public static function create( \WC_Order $order ): self {
 		$args = [
-			'shippingMethod' => ( new Helper($order->get_shipping_method()) )->max( 64 )->value,
-			'carrier'        => ( new Helper($order->get_shipping_method()) )->max( 64 )->value,
+			'shippingMethod' => ( new Helper($order->get_shipping_method() ?: 'N/A', 'shippingMethod', 64) )->substr()->value,
+			'carrier'        => ( new Helper($order->get_shipping_method() ?: 'N/A', 'carrier', 64) )->substr()->value,
 			'personalInfo'   => PersonalInfo::create( $order ),
 			'address'        => Address::create( $order ),
 		];
@@ -51,22 +51,14 @@ final class Shipping extends DTO {
 		return new self( $args );
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
-
-		if ( Helper::strlen( $this->shippingMethod ) > 64 ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'shippingMethod 長度不能超過 64 位'
-			);
-		}
-
-		if ( Helper::strlen( $this->carrier ) > 64 ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'carrier 長度不能超過 64 位'
-			);
-		}
+		( new Helper($this->shippingMethod, 'shippingMethod', 64) )->get_strlen(true);
+		( new Helper($this->carrier, 'carrier', 64) )->get_strlen(true);
 	}
 }

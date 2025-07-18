@@ -141,18 +141,13 @@ final class ResponseParams extends DTO {
 	 * @throws \Exception 驗證失敗時拋出例外
 	 */
 	protected function validate(): void {
-		if (in_array($this->SimulatePaid, [ 0, 1 ], true)) {
-			$this->dto_error->add(
-				'SimulatePaid',
-				'SimulatePaid 必須是 0 或 1'
-			);
+		parent::validate();
+		if (!in_array($this->SimulatePaid, [ 0, 1 ], true)) {
+			throw new \Exception('SimulatePaid 必須是 0 或 1');
 		}
 
 		if (empty($this->MerchantTradeNo)) {
-			$this->dto_error->add(
-				'MerchantTradeNo',
-				'MerchantTradeNo 不存在'
-			);
+			throw new \Exception('MerchantTradeNo 不存在');
 		}
 	}
 

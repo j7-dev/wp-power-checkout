@@ -15,8 +15,8 @@ final class Settings extends DTO {
 
 	const KEY = 'ShoplineRedirect';
 
-	/** @var Enums\Mode 模式 */
-	public Enums\Mode $mode;
+	/** @var Enums\Mode::value 模式 */
+	public string $mode;
 
 	/** @var string SLP 平台 ID，平台特店必填，平台特店底下會有子特店 */
 	public string $platformId;
@@ -35,12 +35,12 @@ final class Settings extends DTO {
 
 	/** @var array<Enums\PaymentMethod::value> 允許的付款方式 */
 	public array $allowPaymentMethodList = [
-		Enums\PaymentMethod::CREDITCARD,
-		Enums\PaymentMethod::VIRTUALACCOUNT,
-		Enums\PaymentMethod::JKOPAY,
-		Enums\PaymentMethod::APPLEPAY,
-		Enums\PaymentMethod::LINEPAY,
-		Enums\PaymentMethod::CHAILEASEBNPL,
+		'CreditCard',
+		'VirtualAccount',
+		// 'JKOPay',
+		'ApplePay',
+		// 'LinePay',
+		'ChaileaseBNPL',
 	];
 
 	/** @var self|null 單例 */
@@ -54,6 +54,7 @@ final class Settings extends DTO {
 
 		$mode = $args['mode'] ?? Enums\Mode::TEST->value;
 		if (Enums\Mode::TEST->value === $mode) {
+			$args['mode']       = Enums\Mode::TEST->value;
 			$args['merchantId'] = '3252264968486264832';
 			$args['apiKey']     = 'sk_sandbox_fc8d1884a9064b6ba4b2cc16d124663c';
 			$args['clinetKey']  = 'pk_sandbox_f03ae82192c946888fbf0901b8d2053a';
@@ -67,5 +68,18 @@ final class Settings extends DTO {
 	/**  @return self 取得實例，單例 */
 	public static function instance(): self {
 		return PowerCheckoutSettings::instance()->payments->ShoplineRedirect;
+	}
+
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
+	public function validate(): void {
+		parent::validate();
+		Enums\Mode::from( $this->mode );
+		foreach ( $this->allowPaymentMethodList as $payment_method ) {
+			Enums\PaymentMethod::from( $payment_method );
+		}
 	}
 }

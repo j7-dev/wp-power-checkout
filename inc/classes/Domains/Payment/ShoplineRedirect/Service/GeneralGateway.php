@@ -2,11 +2,13 @@
 
 declare (strict_types = 1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
 
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Init;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\PaymentGateway;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Service;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service\Service;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\Enums\CallBack;
 
 /**
  * GeneralGateway 跳轉支付
@@ -15,12 +17,25 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 final class GeneralGateway extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	public $id = 'pc_shoplinepayment_redirect';
+	public $id = Init::PREFIX . 'redirect';
 
 	/** Constructor */
 	public function __construct() {
 		$this->payment_label = __( 'Shopline Payment (Redirect)', 'power_checkout' );
 		parent::__construct();
+	}
+
+	/**
+	 * Shopline Payment 跳轉式支付後，return 的 url
+	 *
+	 * @param \WC_Order|null $order Order object.
+	 * @return string
+	 */
+	public function get_return_url( $order = null ) {
+		if ( !$order ) {
+			return parent::get_return_url();
+		}
+		return CallBack::CREATE_TRADE->endpoint($order);
 	}
 
 	/**
@@ -32,18 +47,18 @@ final class GeneralGateway extends PaymentGateway {
 	 * @throws \Exception 如果訂單不存在
 	 */
 	public function process_payment( $order_id ): array {
-		$order = \wc_get_order( $order_id );
 		try {
-			if ( ! $order instanceof \WC_Order ) {
-				throw new \Exception( __( 'Order not found.', 'power_checkout' ) );
-			}
+			parent::process_payment( $order_id );
+			$order       = \wc_get_order( $order_id );
 			$this->order = $order;
-			$service     = Service::instance( $this, $order );
-			$service->create_trade();
-			return ProcessResult::SUCCESS->to_array( $order );
+			$service     = new Service( $this, $order );
+			// 取得要跳轉的 url
+			$redirect = $service->create_trade();
+			return ProcessResult::SUCCESS->to_array( $redirect );
 		} catch (\Throwable $th) {
+			$this->logger( $th->getMessage(), 'error', [], 5 );
 			\wc_add_notice( $th->getMessage(), 'error' );
-			return ProcessResult::FAILED->to_array( $order );
+			return ProcessResult::FAILED->to_array();
 		}
 	}
 

@@ -202,19 +202,15 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 */
 	public function process_payment( $order_id ): array {
 		$order = \wc_get_order( $order_id );
-		try {
-			if ( ! $order instanceof \WC_Order ) {
-				throw new \Exception( __( 'Order not found.', 'power_checkout' ) );
-			}
-			$this->before_process_payment( $order );
-			$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
-			\wc_maybe_reduce_stock_levels( $order_id );
-			\wc_release_stock_for_order( $order );
-			return ProcessResult::SUCCESS->to_array( $order );
-		} catch (\Throwable $th) {
-			\wc_add_notice( $th->getMessage(), 'error' );
-			return ProcessResult::FAILED->to_array( $order );
+		if ( ! $order instanceof \WC_Order ) {
+			throw new \Exception( __( 'Order not found.', 'power_checkout' ) );
 		}
+		$this->before_process_payment( $order );
+		$order->add_order_note( \sprintf( __( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
+		\wc_maybe_reduce_stock_levels( $order_id );
+		\wc_release_stock_for_order( $order );
+		$redirect = $order->get_checkout_payment_url( true );
+		return ProcessResult::SUCCESS->to_array( $redirect );
 	}
 
 	/** @param \WC_Order $order 訂單 在 process_payment 之前執行 */

@@ -2,27 +2,23 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
 
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Requester;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service\Requester;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\RequestParams;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 
 /**
- * Shopline Payment 跳轉式支付服務類
- *
+ * Shopline Payment 跳轉式支付服務類 工廠模式
+ * 方法
  * 1. 建立交易
  *
  * @see https://docs.shoplinepayments.com/guide/session/
  *  */
 final class Service {
-	use \J7\WpUtils\Traits\SingletonTrait;
-
-	/** @var string 服務 ID */
-	public string $id = Settings::KEY;
 
 	/** @var Settings 設定 */
 	public Settings $settings;
@@ -38,25 +34,20 @@ final class Service {
 		public \WC_Order $order
 	) {
 		$this->settings  = Settings::instance();
-		$this->requester = Requester::instance( $this->gateway, $this->order );
+		$this->requester = new Requester( $this->gateway, $this->order );
 	}
 
 	/**
 	 * 建立結帳交易
 	 *
 	 * @see https://docs.shoplinepayments.com/api/trade/session/
+	 * @return string  shopline payment return 的 session url
 	 * @throws \Exception 如果交易建立失敗
 	 *  */
-	public function create_trade(): void {
+	public function create_trade(): string {
 		$request_body = RequestParams::create( $this->gateway, $this->order )->to_array();
-		$response     = $this->requester->post( '/trade/payment/create', $request_body );
-		if ( ! $response ) {
-			exit;
-		}
-		\wp_safe_redirect( $response->sessionUrl );
-
-		// 跳轉支付，就不繼續往下執行
-		exit;
+		$response     = $this->requester->post( '/trade/sessions/create', $request_body );
+		return $response->sessionUrl;
 	}
 
 	/**

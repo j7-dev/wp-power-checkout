@@ -25,36 +25,29 @@ final class PaymentMethodOption extends DTO {
 	public int $paymentExpireTime;
 
 
-	/** 驗證 installmentCounts 的值是否都是數字 */
+	/**
+	 * 驗證 installmentCounts 的值是否都是數字
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
+		parent::validate();
 		if (!in_array( $this->type, PaymentMethod::get_option_names(), true )) {
-			$this->dto_error->add(
-				'validate_failed',
-				'type 必須為 ' . implode( ',', PaymentMethod::get_option_names() ) . ' 其中一個'
-			);
+			throw new \Exception('type 必須為 ' . implode( ',', PaymentMethod::get_option_names() ) . ' 其中一個');
 		}
 
 		if ( isset( $this->installmentCounts ) ) {
 			if (!General::array_every( $this->installmentCounts, 'is_numeric' )) {
-				$this->dto_error->add(
-				'validate_failed',
-				'installmentCounts 必須為數字，' . implode( ',', $this->installmentCounts ) . ' 不是數字'
-				);
+				throw new \Exception('installmentCounts 必須為數字，' . implode( ',', $this->installmentCounts ) . ' 不是數字');
 			}
 		}
 
 		if ('CreditCardOption' === $this->type && isset($this->paymentExpireTime)) {
-			$this->dto_error->add(
-			'validate_failed',
-			'CreditCardOption 不需要 paymentExpireTime 設定'
-			);
+			throw new \Exception('CreditCardOption 不需要 paymentExpireTime 設定');
 		}
 
 		if ( in_array( $this->type, [ 'JKOPayOption', 'VirtualAccountOption' ], true ) && isset( $this->installmentCounts ) ) {
-			$this->dto_error->add(
-			'validate_failed',
-			'JKOPayOption 不需要 installmentCounts 設定'
-			);
+			throw new \Exception('JKOPayOption 不需要 installmentCounts 設定');
 		}
 	}
 }

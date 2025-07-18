@@ -65,6 +65,7 @@ class FormField extends DTO {
 	 * @throws \Exception 型別不符合
 	 * */
 	protected function validate(): void {
+		parent::validate();
 		$allowed_types = [ 'text', 'safe_text', 'decimal', 'password', 'color', 'textarea', 'checkbox', 'select', 'multiselect', 'title' ];
 		if ( ! in_array( $this->type, $allowed_types, true ) ) {
 			throw new \Exception( 'Invalid field type, expected one of: ' . implode( ', ', $allowed_types ) . ". `{$this->type}` given." );

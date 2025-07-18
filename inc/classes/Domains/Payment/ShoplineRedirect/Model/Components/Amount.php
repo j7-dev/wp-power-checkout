@@ -17,8 +17,8 @@ final class Amount extends DTO {
 	/** @var int (14) *金額，台幣傳金額*100，譬如1元傳入100 */
 	public int $value;
 
-	/** @var Currency 幣種，目前僅支援 TWD */
-	public Currency $currency = Currency::TWD;
+	/** @var Currency::value 幣種，目前僅支援 TWD */
+	public string $currency = 'TWD';
 
 	/** @var array<string> 必填屬性 */
 	protected $required_properties = [
@@ -38,15 +38,16 @@ final class Amount extends DTO {
 		return new self($args);
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
 
 		if (strlen( (string) $this->value) > 14) {
-			$this->dto_error->add(
-			'validate_failed',
-			'value 長度不能超過 14 位，台幣金額不能超過 12 位'
-			);
+			throw new \Exception('value 長度不能超過 14 位，台幣金額不能超過 12 位');
 		}
 	}
 }

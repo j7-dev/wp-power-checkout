@@ -16,8 +16,8 @@ final class Customer extends DTO {
 	/** @var string (64) *顧客唯一標識，需為唯一值 */
 	public string $referenceCustomerId;
 
-	/** @var CustomerType (1) *顧客類型，0 為遊客，1 為登入會員 */
-	public CustomerType $type;
+	/** @var CustomerType::value (1) *顧客類型，0 為遊客，1 為登入會員 */
+	public string $type;
 
 	/** @var PersonalInfo *收件人資訊 */
 	public PersonalInfo $personalInfo;
@@ -39,22 +39,23 @@ final class Customer extends DTO {
 		}
 
 		$args = [
-			'referenceCustomerId' => ( new Helper( (string) $customer_ref) )->max( 64 )->value,
-			'type'                => $order->get_customer_id() ? CustomerType::MEMBER : CustomerType::GUEST,
+			'referenceCustomerId' => ( new Helper( (string) $customer_ref, 'customer_ref', 64) )->substr()->value,
+			'type'                => $order->get_customer_id() ? CustomerType::MEMBER->value : CustomerType::GUEST->value,
 			'personalInfo'        => PersonalInfo::create( $order ),
 		];
 		return new self($args);
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
 
 		if ( ! $this->referenceCustomerId ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'referenceCustomerId 不能為空'
-					);
+			throw new \Exception('referenceCustomerId 不能為空');
 		}
 	}
 }

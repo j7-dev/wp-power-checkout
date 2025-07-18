@@ -40,29 +40,25 @@ final class PersonalInfo extends DTO {
 		$phone_proto   = $phone_util->parse($billing_phone, $order->get_billing_country());
 		$phone_number  = $phone_util->format($phone_proto, \libphonenumber\PhoneNumberFormat::E164);
 		$args          = [
-			'firstName' => ( new Helper($order->get_billing_first_name()) )->filter()->max( 128 )->value,
-			'lastName'  => ( new Helper($order->get_billing_last_name()) )->filter()->max( 128 )->value,
-			'email'     => ( new Helper($order->get_billing_email()) )->max( 128 )->value,
-			'phone'     => ( new Helper($phone_number) )->max( 64 )->value,
+			'firstName' => ( new Helper($order->get_billing_first_name(), 'firstName', 128) )->filter()->substr()->value,
+			'lastName'  => ( new Helper($order->get_billing_last_name(), 'lastName', 128) )->filter()->substr()->value,
+			'email'     => ( new Helper($order->get_billing_email(), 'email', 128) )->substr()->value,
+			'phone'     => ( new Helper($phone_number, 'phone', 64) )->substr()->value,
 		];
 		return new self($args);
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
-		if ( Helper::strlen( "{$this->firstName}{$this->lastName}" ) > 128 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'firstName 和 lastName 加總長度不可超過 128'
-			);
-		}
+		( new Helper( "{$this->firstName}{$this->lastName}", 'full name', 128) )->get_strlen(true);
 
 		if ( ! isset( $this->email ) && ! isset( $this->phone ) ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'郵箱和電話二者需至少傳入其一'
-			);
+			throw new \Exception('郵箱和電話二者需至少傳入其一');
 		}
 	}
 }

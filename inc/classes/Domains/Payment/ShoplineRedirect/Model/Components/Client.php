@@ -56,102 +56,56 @@ final class Client extends DTO {
 		$args = [
 			'ip'        => $order->get_customer_ip_address(),
 			'userAgent' => $order->get_customer_user_agent(),
-			'accept'    => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT'] ?? '' ) ) ) )->max( 128 )->value,
-			'language'  => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '' ) ) ) )->max( 32 )->value,
+			'accept'    => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT'] ?? '' ) ), 'HTTP_ACCEPT', 128 ) )->substr()->value,
+			'language'  => ( new Helper( \sanitize_text_field( \wp_unslash( $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '' ) ), 'HTTP_ACCEPT_LANGUAGE', 32 ) )->substr()->value,
 		];
 		return new self($args);
 	}
 
-	/** 自訂驗證邏輯 */
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
 	protected function validate(): void {
 		parent::validate();
 
-		if ( Helper::strlen( $this->ip ) > 32 ) {
-			$this->dto_error->add(
-				'validate_failed',
-				'ip 長度不能超過 32 位'
-			);
-		}
+		( new Helper($this->ip, 'ip', 32) )->get_strlen(true);
 
 		if ( isset( $this->screenWidth ) ) {
-			if ( Helper::strlen( $this->screenWidth ) > 16 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'screenWidth 長度不能超過 16 位'
-				);
-			}
+			( new Helper($this->screenWidth, 'screenWidth', 16) )->get_strlen(true);
 		}
 
 		if ( isset( $this->screenHeight ) ) {
-			if ( Helper::strlen( $this->screenHeight ) > 16 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'screenHeight 長度不能超過 16 位'
-				);
-			}
+			( new Helper($this->screenHeight, 'screenHeight', 16) )->get_strlen(true);
 		}
 
 		if ( isset( $this->javaEnabled ) ) {
-			if ( Helper::strlen( $this->javaEnabled ) > 16 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'javaEnabled 長度不能超過 16 位'
-				);
-			}
+			( new Helper($this->javaEnabled, 'javaEnabled', 16) )->get_strlen(true);
 		}
 
 		if ( isset( $this->timeZoneOffset ) ) {
-			if ( Helper::strlen( $this->timeZoneOffset ) > 16 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'timeZoneOffset 長度不能超過 16 位'
-				);
-			}
+			( new Helper($this->timeZoneOffset, 'timeZoneOffset', 16) )->get_strlen(true);
 		}
 
 		if ( isset( $this->transactionWebSite ) ) {
-			if ( Helper::strlen( $this->transactionWebSite ) > 512 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'transactionWebSite 長度不能超過 512 位'
-				);
-			}
+			( new Helper($this->transactionWebSite, 'transactionWebSite', 512) )->get_strlen(true);
 		}
 
 		if ( isset( $this->userAgent ) ) {
-			if ( Helper::strlen( $this->userAgent ) > 128 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'userAgent 長度不能超過 128 位'
-				);
-			}
+			( new Helper($this->userAgent, 'userAgent', 128) )->get_strlen(true);
 		}
 
 		if ( isset( $this->language ) ) {
-			if ( Helper::strlen( $this->language ) > 32 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'language 長度不能超過 32 位'
-				);
-			}
+			( new Helper($this->language, 'language', 32) )->get_strlen(true);
 		}
 
 		if ( isset( $this->colorDepth ) ) {
-			if ( Helper::strlen( $this->colorDepth ) > 16 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'colorDepth 長度不能超過 16 位'
-				);
-			}
+			( new Helper($this->colorDepth, 'colorDepth', 16) )->get_strlen(true);
 		}
 
 		if ( isset( $this->accept ) ) {
-			if ( Helper::strlen( $this->accept ) > 128 ) {
-				$this->dto_error->add(
-					'validate_failed',
-					'accept 長度不能超過 128 位'
-				);
-			}
+			( new Helper($this->accept, 'accept', 128) )->get_strlen(true);
 		}
 	}
 }

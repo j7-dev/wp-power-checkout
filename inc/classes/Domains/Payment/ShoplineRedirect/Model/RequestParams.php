@@ -88,4 +88,16 @@ final class RequestParams extends DTO {
 		];
 		return new self($args);
 	}
+
+	/**
+	 * 自訂驗證邏輯
+	 *
+	 * @throws \Exception 如果驗證失敗
+	 *  */
+	public function validate(): void {
+		parent::validate();
+		foreach ( $this->allowPaymentMethodList as $payment_method ) {
+			PaymentMethod::from( $payment_method );
+		}
+	}
 }
