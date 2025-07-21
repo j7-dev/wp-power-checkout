@@ -49,4 +49,10 @@ final class Body extends DTO {
 		$args['data'] = $data;
 		return new self($args);
 	}
+
+	/** 自訂驗證邏輯 */
+	public function validate(): void {
+		parent::validate();
+		EvenType::from($this->type);
+	}
 }

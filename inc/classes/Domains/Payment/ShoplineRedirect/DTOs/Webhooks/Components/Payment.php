@@ -19,8 +19,8 @@ final class Payment extends DTO {
 	/** @var Enums\PaymentMethod::value *付款方式 (16) */
 	public string $paymentMethod;
 
-	/** @var string *子付款方式 (16) 選填 */
-	public string $subPaymentMethod;
+	/** @var string|null 子付款方式 (16) 選填 */
+	public string|null $subPaymentMethod;
 
 	/** @var bool 自動確認，默認為 false 選填 */
 	public bool $autoConfirm;
@@ -31,17 +31,17 @@ final class Payment extends DTO {
 	/** @var Enums\PaymentBehavior::value *付款場景 (32) 必填參考 */
 	public string $paymentBehavior;
 
-	/** @var string 付款成功时间 (32) 選填 */
-	public string $paymentSuccessTime;
+	/** @var string|null 付款成功时间 (32) 選填 13位 timestamp */
+	public string|null $paymentSuccessTime;
 
 	/** @var Components\Amount *必填 */
 	public Components\Amount $paidAmount;
 
 	/** @var string 第三方平台流水號，街口支付和 LINE Pay 特店對帳使用 選填 */
-	public string $channelDealId;
+	public string|null $channelDealId;
 
 	/** @var string SHOPLINE Payments 付款會員 ID，快捷付款、定期扣款場景必填 (32) 選填 */
-	public string $paymentCustomerId;
+	public string|null $paymentCustomerId;
 
 	/** @var array 必填屬性 */
 	protected array $require_properties = [ 'paymentMethod', 'paymentBehavior', 'paidAmount' ];

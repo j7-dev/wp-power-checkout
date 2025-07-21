@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
 
 use J7\WpUtils\Classes\ApiBase;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Settings;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Webhooks\Body;
 
 /**
  * WebHooks 用來接收 Shopline 的 WebHooks 通知
@@ -43,26 +44,22 @@ final class WebHooks extends ApiBase {
 	 * @param \WP_REST_Request $request 請求
 	 * @return \WP_REST_Response 回應
 	 */
-	public function post_session_callback( \WP_REST_Request $request ): \WP_REST_Response {
+	public function post_webhook_callback( \WP_REST_Request $request ): \WP_REST_Response {
 
-		// 'get_headers'         => $request->get_headers(),
-		// 'get_header'          => $request->get_header('requestId'),
+		$is_valid    = $this->is_valid( $request );
+		$body_params = $request->get_params();
 
 		// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-		\J7\WpUtils\Classes\WC::logger(
-			'get_params',
-			'debug',
-			[
-				'params' => $request->get_params(),
+		\J7\WpUtils\Classes\WC::logger('body_params', 'info', $body_params);
+		// TEST ---------- END ---------- //
 
-			]
-			);
+		$webhook_dto = Body::create( $body_params );
+
 
 		return new \WP_REST_Response(
 			[
 				'message' => 'WebHooks received',
-				// 'params'  => $request->get_params(),
-				'body'    => $request->get_body(),
+				'params'  => $body_params,
 			],
 			200
 			);
