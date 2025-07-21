@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\RequestParams;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\RequestParams;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Model\Settings;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\Settings;
 
 /** Service */
 final class Service {

@@ -4,7 +4,7 @@ declare (strict_types = 1);
 
 namespace J7\PowerCheckout\Domains\Payment\Shared;
 
-use J7\PowerCheckout\Domains\WC_Settings_API\Model\FormField;
+use J7\PowerCheckout\Domains\WC_Settings_API\DTOs\FormField;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 use J7\WpUtils\Classes\WP;
 

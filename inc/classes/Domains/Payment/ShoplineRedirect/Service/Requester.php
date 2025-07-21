@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
 
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Settings;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Session\Create\RequestHeader;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Model\Session\Create\ResponseParams;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Settings;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Session\Create\RequestHeader;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Session\Create\ResponseParams;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
 
