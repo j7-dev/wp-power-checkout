@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs;
 
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Utils\Helper;
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Service;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Services;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Params;
@@ -277,6 +277,6 @@ final class RequestParams extends DTO {
 	protected function add_check_value( string $hash_algo ): void {
 		/** @var array<string, string|int> $args */
 		$args                = $this->to_array();
-		$this->CheckMacValue = Service::get_check_value( $args, $hash_algo );
+		$this->CheckMacValue = Services::get_check_value( $args, $hash_algo );
 	}
 }

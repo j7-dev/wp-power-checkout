@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service;
+namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Services;
 
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Settings;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service\Requester;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Services\Requester;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Session\Create\RequestParams;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\DTOs\Session\Create\ResponseParams;
@@ -18,7 +18,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\Params;
  *
  * @see https://docs.shoplinepayments.com/guide/session/
  *  */
-final class Service {
+final class Services {
 
 	/** @var Settings 設定 */
 	public Settings $settings;

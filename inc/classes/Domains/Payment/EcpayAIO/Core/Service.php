@@ -9,8 +9,8 @@ use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\Settings;
 
-/** Service */
-final class Service {
+/** Services */
+final class Services {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 服務 ID */

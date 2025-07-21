@@ -41,7 +41,7 @@ final class Api extends ApiBase {
 	public function post_ecpay_aio_callback( $request ) { // phpcs:ignore
 		$params = $request->get_body_params();
 		$params = \wp_unslash( $params ); // 去除轉譯斜線
-		// $service              = Service::instance();
+		// $service              = Services::instance();
 		$is_check_value_valid = false;
 
 		try {

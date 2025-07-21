@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core;
 
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Core\Init;
 use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Shared\PaymentGateway;
-use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Service\Service;
+use J7\PowerCheckout\Domains\Payment\ShoplineRedirect\Services\Services;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 
 /**
@@ -53,7 +53,7 @@ final class GeneralGateway extends PaymentGateway {
 			parent::process_payment( $order_id );
 			$order       = \wc_get_order( $order_id );
 			$this->order = $order;
-			$service     = new Service( $this, $order );
+			$service     = new Services( $this, $order );
 			// 取得要跳轉的 url
 			$redirect = $service->create_session();
 			return ProcessResult::SUCCESS->to_array( $redirect );

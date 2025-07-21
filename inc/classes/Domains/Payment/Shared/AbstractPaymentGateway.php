@@ -9,8 +9,9 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 use J7\WpUtils\Classes\WP;
 
 /**
- * 付款閘道抽象類別 單例模式，一進 WC 就會被實例化
- *  */
+ * 付款閘道抽象類別 單例模式，一進 WC ，很早的階段就會被實例化
+ * 應該是單例，會被儲存在容器內
+ * */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) */

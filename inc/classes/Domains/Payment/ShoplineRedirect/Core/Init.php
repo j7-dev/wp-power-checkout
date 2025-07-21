@@ -16,6 +16,8 @@ final class Init {
 	/** Constructor */
 	public function __construct() {
 		\add_filter( 'woocommerce_payment_gateways', [ $this, 'add_method' ] );
+
+		WebHooks::instance();
 	}
 
 	/** 添加付款方式 @param array<string> $methods 付款方式 @return array<string> */

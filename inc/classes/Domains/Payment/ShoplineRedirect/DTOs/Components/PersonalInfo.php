@@ -11,7 +11,7 @@ use J7\PowerCheckout\Utils\Helper;
  * PersonalInfo 收貨人資訊
  * 請求會帶
  *  */
-final class PersonalInfo extends DTO {
+class PersonalInfo extends DTO {
 
 	/** @var string (128) *顧客名字，firstName 和 lastName 加總長度不可超過 128 */
 	public string $firstName;

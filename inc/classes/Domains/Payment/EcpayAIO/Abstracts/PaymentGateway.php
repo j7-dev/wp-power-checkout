@@ -6,7 +6,7 @@ namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts;
 
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Service;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Services;
 
 
 /** EcPay 用付款閘道抽象類別 */
@@ -24,7 +24,7 @@ abstract class PaymentGateway extends AbstractPaymentGateway {
 	 * @param \WC_Order $order 訂單
 	 */
 	protected function submit( \WC_Order $order ): void {
-		$service = Service::instance($this, $order);
+		$service = Services::instance($this, $order);
 		/** @var \WC_Order $order */
 		$params = $service->get_params( $order, $this );
 

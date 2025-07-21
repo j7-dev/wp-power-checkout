@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Service;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Services;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
@@ -131,7 +131,7 @@ final class ResponseParams extends DTO {
 	 * @return bool 是否驗證成功
 	 */
 	public function is_check_value_valid(): bool {
-		$check_value = Service::get_check_value( $this->dto_data, 'sha256' );
+		$check_value = Services::get_check_value( $this->dto_data, 'sha256' );
 		return $this->CheckMacValue === $check_value;
 	}
 

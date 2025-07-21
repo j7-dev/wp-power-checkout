@@ -33,6 +33,9 @@ final class Settings extends DTO {
 	/** @var string 端點 */
 	public string $apiUrl = 'https://api.shoplinepayments.com';
 
+	/** @var string 簽名密鑰，需要設定完 webhook 後，由 shopline 窗口提供 @see https://docs.shoplinepayments.com/api/event/model/#簽章演算法 */
+	public string $signKey = '';
+
 	/** @var array<Enums\PaymentMethod::value> 允許的付款方式 */
 	public array $allowPaymentMethodList = [
 		'CreditCard',
@@ -59,6 +62,12 @@ final class Settings extends DTO {
 			$args['apiKey']     = 'sk_sandbox_fc8d1884a9064b6ba4b2cc16d124663c';
 			$args['clinetKey']  = 'pk_sandbox_f03ae82192c946888fbf0901b8d2053a';
 			$args['apiUrl']     = 'https://api-sandbox.shoplinepayments.com';
+			// TODO 這 signKey 是 partnerdemo 的 signKey，需要改成實際的 signKey
+			$args['signKey'] = 'fea6681d4e8f4889ac06f944450e43b7';
+		}
+
+		if ( isset( $args['signKey'] ) ) {
+			$args['signKey'] = mb_convert_encoding($args['signKey'], 'UTF-8', 'auto');
 		}
 
 		self::$dto_instance = new self( $args);
