@@ -82,9 +82,9 @@ final class WebHooks extends ApiBase {
 		}
 
 		$api_version = $request->get_header('apiVersion');
-		if ( $api_version !== 'V1.2') {
+		if ( $api_version !== 'V1') {
 			\J7\WpUtils\Classes\WC::logger(
-				"Shopline Payment WebHooks 版本與預期 V1.2 不符，回傳 {$api_version}",
+				"Shopline Payment WebHooks 版本與預期 V1 不符，回傳 {$api_version}",
 				'warning'
 				);
 		}
