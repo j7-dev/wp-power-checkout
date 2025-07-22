@@ -1,6 +1,6 @@
 {
 	"name": "j7-dev/power-checkout",
-	"description": "This is a boilerplate for creating a WordPress plugin with React, Tailwind, Ant Design, TypeScript, Zod, MSW, React Router v6, React Query v4, SCSS and Vite.",
+	"description": "串接金流、物流、電子發票，全面優化WooCommerce購物車、結帳頁、我的帳號等頁面，讓結帳轉換率一飛沖天",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-only",
 	"authors": [
@@ -11,21 +11,10 @@
 			"role": "Developer"
 		}
 	],
-	"repositories": [
-		{
-			"type": "composer",
-			"url": "https://wpackagist.org"
-		}
-	],
 	"autoload": {
 		"psr-4": {
-			"J7\\PowerCheckout\\": "inc/classes/"
-		}
-	},
-	"config": {
-		"allow-plugins": {
-			"dealerdirect/phpcodesniffer-composer-installer": true,
-			"phpstan/extension-installer": true
+			"J7\\PowerCheckout\\": "inc/classes/",
+			"J7\\PowerCheckoutTests\\": "inc/tests/"
 		}
 	},
 	"require": {
@@ -41,9 +30,26 @@
 		"phpstan/phpstan": "@stable",
 		"php-stubs/woocommerce-stubs": "@stable",
 		"php-stubs/wordpress-stubs": "@stable",
-		"phpstan/extension-installer": "@stable"
+		"phpstan/extension-installer": "@stable",
+		"roots/wordpress": "^6.0",
+		"yoast/phpunit-polyfills": "^4.0",
+		"pestphp/pest": "^3.8",
+		"wp-phpunit/wp-phpunit": "^6.0"
+	},
+	"config": {
+		"platform": {
+			"php": "8.2"
+		},
+		"sort-packages": true,
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true,
+			"phpstan/extension-installer": true,
+			"roots/wordpress-core-installer": true,
+			"pestphp/pest-plugin": true
+		}
 	},
 	"scripts": {
-		"lint": "phpcs"
+		"lint": "phpcs",
+		"test": "pest"
 	}
 }
