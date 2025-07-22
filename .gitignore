@@ -36,3 +36,4 @@ release/*
 
 vendor/
 wordpress
+.phpunit.cache
