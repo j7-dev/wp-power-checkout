@@ -13,7 +13,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
  *
  * @see https://docs.shoplinepayments.com/api/event/model/session/
  */
-final class WebHooks extends ApiBase {
+final class WebHook extends ApiBase {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string Namespace power-checkout/{payment_gateway} */
@@ -50,7 +50,13 @@ final class WebHooks extends ApiBase {
 		$body_params = $request->get_params();
 
 		// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-		\J7\WpUtils\Classes\WC::logger('body_params', 'info', $body_params);
+		\J7\WpUtils\Classes\WC::logger(
+			'body_params',
+			'info',
+			[
+				'body_params' => $body_params,
+			]
+			);
 		// TEST ---------- END ---------- //
 
 		$webhook_dto = Body::create( $body_params );
