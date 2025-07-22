@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Power Checkout | 極致順暢的 WooCommerce 結帳體驗
- * Plugin URI:        https://github.com/j7-dev/power-checkout
+ * Plugin URI:        https://github.com/j7-dev/wp-power-checkout
  * Description:       串接金流、物流、電子發票，全面優化WooCommerce購物車、結帳頁、我的帳號等頁面，讓結帳轉換率一飛沖天
  * Version:           0.0.1
  * Requires at least: 5.7
