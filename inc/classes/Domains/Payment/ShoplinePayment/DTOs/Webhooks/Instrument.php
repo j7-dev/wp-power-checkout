@@ -26,7 +26,13 @@ final class Instrument extends DTO {
 	/** @var string|null 附加資訊 選填*/
 	public string|null $additionalData;
 
-	/** @var string|null 透傳資訊 選填*/
+	/**
+	 * 透傳資訊 選填，JSON string
+	 *
+	 * @var string|null
+	 * @example
+	 * "{\"merchantId\":\"3252264968486264832\",\"linkOrderId\":\"se_14012507227094074668583494657\",\"linkPaymentId\":\"RL0325072203370940749975688450\",\"acquirerType\":\"Session\"}",
+	 *  */
 	public string|null $passthrough;
 
 	/** @var array 必填屬性 */

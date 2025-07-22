@@ -79,6 +79,7 @@ final class WebHook extends ApiBase {
 	 * @throws \Exception 如果驗證失敗
 	 */
 	private function is_valid( \WP_REST_Request $request ): bool {
+		// 容許的時間誤差
 		$diff_tolerance = 5 * 60 * 1000; // 300 seconds = 5 mins
 		$timestamp      = $request->get_header('timestamp');
 		$current_time   = time() * 1000;
