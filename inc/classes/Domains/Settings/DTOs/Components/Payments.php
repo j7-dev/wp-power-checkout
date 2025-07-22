@@ -25,10 +25,13 @@ final class Payments extends DTO {
 	/** @var Payment\ShoplinePayment\DTOs\Settings Shopline 跳轉支付 */
 	public Payment\ShoplinePayment\DTOs\Settings $ShoplinePayment;
 
+	/** @var self|null 實例 */
+	protected static self|null $settings_instance = null;
+
 	/** 創建實例，單例 */
 	public static function create( array $payments = [] ): self {
-		if (self::$dto_instance) {
-			return self::$dto_instance;
+		if (self::$settings_instance) {
+			return self::$settings_instance;
 		}
 
 		$payment_keys = [
@@ -42,8 +45,8 @@ final class Payments extends DTO {
 			$args[ $key ] = call_user_func( [ $class, 'create' ], $payments[ $key ] ?? [] );
 		}
 
-		self::$dto_instance = new self($args);
-		return self::$dto_instance;
+		self::$settings_instance = new self($args);
+		return self::$settings_instance;
 	}
 
 	/** 取得實例，單例 */

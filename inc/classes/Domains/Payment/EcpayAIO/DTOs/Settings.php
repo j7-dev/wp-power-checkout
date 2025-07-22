@@ -39,7 +39,7 @@ final class Settings extends DTO {
 	public string $sptoken_endpoint;
 
 	/** @var self|null 單例 */
-	protected static $dto_instance = null;
+	protected static $settings_instance = null;
 
 	/**
 	 * 創建實例，單例
@@ -48,11 +48,11 @@ final class Settings extends DTO {
 	 * @return self
 	 */
 	public static function create( array $args = [] ): self {
-		if (self::$dto_instance) {
-			return self::$dto_instance;
+		if (self::$settings_instance) {
+			return self::$settings_instance;
 		}
-		self::$dto_instance = new self($args);
-		return self::$dto_instance;
+		self::$settings_instance = new self($args);
+		return self::$settings_instance;
 	}
 
 	/**  @return self 取得實例，單例  */

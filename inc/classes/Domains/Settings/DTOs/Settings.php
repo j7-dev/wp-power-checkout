@@ -31,12 +31,12 @@ final class Settings extends DTO {
 	// public Components\Invoices $invoices;
 
 	/** @var self|null 實例 */
-	protected static self|null $dto_instance = null;
+	protected static self|null $settings_instance = null;
 
 	/** 取得實例，單例 */
 	public static function instance(): self {
-		if (self::$dto_instance) {
-			return self::$dto_instance;
+		if (self::$settings_instance) {
+			return self::$settings_instance;
 		}
 		$settings = \get_option(self::OPTION_NAME, []);
 		$settings = is_array($settings) ? $settings : [];
@@ -45,7 +45,7 @@ final class Settings extends DTO {
 			// 'shippings' => Components\Shippings::create($settings['shippings'] ?? []),
 			// 'invoices'  => Components\Invoices::create($settings['invoices'] ?? []),
 		];
-		self::$dto_instance = new self($args);
-		return self::$dto_instance;
+		self::$settings_instance = new self($args);
+		return self::$settings_instance;
 	}
 }
