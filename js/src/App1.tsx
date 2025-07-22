@@ -10,9 +10,9 @@ import '@refinedev/antd/dist/reset.css'
 import routerBindings, {
 	DocumentTitleHandler,
 	UnsavedChangesNotifier,
-} from '@refinedev/react-router-v6'
+} from '@refinedev/react-router'
 import { dataProvider } from './rest-data-provider'
-import { HashRouter, Outlet, Route, Routes } from 'react-router-dom'
+import { HashRouter, Outlet, Route, Routes } from 'react-router'
 import { apiUrl, kebab } from '@/utils'
 import { resources } from '@/resources'
 

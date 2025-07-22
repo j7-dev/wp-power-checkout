@@ -11,7 +11,7 @@
  * @see https://github.com/release-it/release-it/blob/main/docs/configuration.md
  */
 
-const releasedPluginName = 'power-payment'
+const releasedPluginName = 'power-checkout'
 
 const args = process.argv.slice(2) // remove 2 default args
 
@@ -19,6 +19,16 @@ const release = !args.includes('--build-only') // Build release only or build re
 
 module.exports = {
 	releasedPluginName,
+	plugins: {
+		'release-it-pnpm': {
+			disableRelease: !release,
+			publishCommand: 'exit 0', // 發佈到 npm 上的命令
+		},
+		'@release-it/bumper': {
+			in: 'package.json',
+			out: 'package.json',
+		},
+	},
 	git: {
 		commit: release,
 		commitMessage: 'chore: release v${version}',
@@ -26,12 +36,14 @@ module.exports = {
 		tagName: 'v${version}',
 		commitArgs: ['-n'],
 		push: release,
+		requireCleanWorkingDir: release,
 	},
 	hooks: {
-		// 'before:init': [], // run before initialization
+		'before:init': [
+			'pnpm build && echo ✅ build success',
+		], // run before initialization
 		// 'after:[my-plugin]:bump': './bin/my-script.sh', // run after bumping version of my-plugin
 		'after:bump': [
-			'pnpm build && echo ✅ build success',
 			release
 				? 'pnpm sync:version && echo ✅ sync version success'
 				: 'echo 🚫 skip sync version',
