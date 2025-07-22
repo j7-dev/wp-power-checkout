@@ -10,6 +10,6 @@ final class Loader {
 
 	/** Constructor */
 	public function __construct() {
-		ShoplineRedirect\Core\Init::instance();
+		ShoplinePayment\Core\Init::instance();
 	}
 }
