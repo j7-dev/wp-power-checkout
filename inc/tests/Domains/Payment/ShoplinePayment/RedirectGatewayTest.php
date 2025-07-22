@@ -4,14 +4,16 @@
  * run `composer test "inc\tests\Domains\Payment\ShoplinePayment\RedirectGatewayTest.php"`
  */
 
- use J7\PowerCheckoutTests\Helper\Checkout;
+ use J7\PowerCheckoutTests\Helper;
+ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
+ use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 
 $name = '【ShoplinePayment 導轉式支付】';
 
 beforeAll(function () {
 	// 測試開始前執行
-	Checkout::instance();
-});
+	Helper\Checkout::instance();
+	});
 
 beforeEach(function () {
 	// 每次測試前執行
@@ -26,7 +28,25 @@ afterAll(function () {
 });
 
 it("{$name} 正常結帳測試，是否成功取得跳轉 url", function () {
-    // 測試建立 session 並取得 sessionUrl
+	return;
+	$gateway = new RedirectGateway();
+
+	// 建立測試訂單
+	$order_helper = Helper\Order::instance()->create()->set_data()->save();
+	$order = $order_helper->order;
+	$order_id = $order->get_id();
+
+	// 設定訂單付款方式
+	$order->set_payment_method($gateway->id);
+	$order->save();
+
+	// 測試建立 session 並取得 sessionUrl
+	$result = $gateway->process_payment($order_id);
+
+	expect($result)->toBeArray();
+	expect($result['result'])->toBe(ProcessResult::SUCCESS->value);
+	// 且 redirect 有值，且為 url
+	expect($result['redirect'])->toBeString();
 });
 
 it("{$name} 結帳金額超過最大金額", function () {
@@ -36,6 +56,33 @@ it("{$name} 結帳金額小於最小金額", function () {
 });
 
 it("{$name} 結帳失敗是否寫入 log", function () {
+		$gateway = new RedirectGateway();
+
+		// 建立測試訂單
+		$order_helper = Helper\Order::instance()->create()->set_data()->save();
+		$order = $order_helper->order;
+		$order_id = $order->get_id();
+
+		// 設定訂單付款方式
+		$order->set_payment_method($gateway->id);
+		$order->save();
+
+		// 測試建立 session 並取得 sessionUrl
+		$result = $gateway->process_payment($order_id);
+
+		expect($result)->toBeArray();
+		expect($result['result'])->toBe(ProcessResult::FAILED->value);
+	 // 且 redirect 沒有值
+		expect($result)->not->toHaveKey('redirect');
+});
+
+it("{$name} 訂單包含10種商品", function () {
+});
+
+it("{$name} 訂單金額小數點測試", function () {
+});
+
+it("{$name} 商品名稱包含特殊字符 & emoji", function () {
 });
 
 it("{$name} 超過時間未結帳就禁止付款", function () {

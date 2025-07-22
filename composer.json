@@ -50,7 +50,8 @@
 	},
 	"scripts": {
 		"lint": "phpcs",
-		"test": "./vendor/bin/pest",
-		"test:coverage": "./vendor/bin/pest --coverage"
+		"test": "./vendor/bin/pest -v",
+		"test:coverage": "./vendor/bin/pest --coverage",
+		"test:warning": "./vendor/bin/pest --display-warnings"
 	}
 }

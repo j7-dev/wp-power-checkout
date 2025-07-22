@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckoutTests\Helper;
 
 use J7\PowerCheckoutTests\Utils\WC_UnitTestCase;
+use J7\PowerCheckoutTests\Utils\STDOUT;
 
 /**
  * User class
@@ -31,6 +32,10 @@ class Product extends WC_UnitTestCase
 			'variable_subscription' => $this->create_variable_subscription(),
 			default => $this->create_simple(),
 		};
+
+		foreach ($this->products as $product) {
+			STDOUT::ok('商品創建成功: #' . $product->get_id());
+		}
 
 		return $this;
 	}

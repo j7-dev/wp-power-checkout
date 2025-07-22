@@ -20,4 +20,7 @@ class Checkout extends WC_UnitTestCase
 		'power-checkout/plugin.php'
 	];
 
+	/** 測試結束後 刪除資料 */
+	public function tear_down(){}
+
 }

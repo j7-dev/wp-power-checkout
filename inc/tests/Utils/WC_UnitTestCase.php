@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckoutTests\Utils;
 
 /** WC_UnitTestCase */
-abstract class WC_UnitTestCase extends \WP_UnitTestCase{
+abstract class WC_UnitTestCase{
 
 	/** @var string[] */
 	public $required_plugins = [
@@ -15,6 +15,7 @@ abstract class WC_UnitTestCase extends \WP_UnitTestCase{
 	/** Constructor */
 	public function __construct()
 	{
+
 		\add_action('plugins_loaded', [$this, 'required_plugins'], -1);
 		\do_action('plugins_loaded');
 		\do_action('after_setup_theme');
@@ -24,14 +25,15 @@ abstract class WC_UnitTestCase extends \WP_UnitTestCase{
 		\do_action('send_headers');
 	}
 
-	/**
-	 * 載入 WooCommerce 插件
-	 */
+	/** 載入 WooCommerce 插件  */
 	public function required_plugins()
 	{
 		foreach ($this->required_plugins as $plugin) {
 			require_once PLUGIN_DIR . $plugin;
 		}
 	}
+
+	/** 測試結束後 刪除資料 */
+	abstract public function tear_down();
 
 }
