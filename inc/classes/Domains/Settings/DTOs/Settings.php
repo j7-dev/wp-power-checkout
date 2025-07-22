@@ -30,6 +30,9 @@ final class Settings extends DTO {
 	/** @var Components\Invoices 電子發票 */
 	// public Components\Invoices $invoices;
 
+	/** @var self|null 實例 */
+	protected static self|null $dto_instance = null;
+
 	/** 取得實例，單例 */
 	public static function instance(): self {
 		if (self::$dto_instance) {
