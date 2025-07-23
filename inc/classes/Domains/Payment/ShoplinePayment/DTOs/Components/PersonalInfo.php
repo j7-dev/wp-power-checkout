@@ -35,16 +35,18 @@ class PersonalInfo extends DTO {
 	 * @return self 創建實例
 	 */
 	public static function create( \WC_Order $order ): self {
-		$billing_phone = $order->get_billing_phone();
-		$phone_util    = \libphonenumber\PhoneNumberUtil::getInstance();
-		$phone_proto   = $phone_util->parse($billing_phone, $order->get_billing_country());
-		$phone_number  = $phone_util->format($phone_proto, \libphonenumber\PhoneNumberFormat::E164);
 		$args          = [
 			'firstName' => ( new Helper($order->get_billing_first_name(), 'firstName', 128) )->filter()->substr()->value,
 			'lastName'  => ( new Helper($order->get_billing_last_name(), 'lastName', 128) )->filter()->substr()->value,
 			'email'     => ( new Helper($order->get_billing_email(), 'email', 128) )->substr()->value,
-			'phone'     => ( new Helper($phone_number, 'phone', 64) )->substr()->value,
 		];
+		$billing_phone = $order->get_billing_phone();
+		if ($billing_phone) {
+			$phone_util    = \libphonenumber\PhoneNumberUtil::getInstance();
+			$phone_proto   = $phone_util->parse($billing_phone, $order->get_billing_country());
+			$phone_number  = $phone_util->format($phone_proto, \libphonenumber\PhoneNumberFormat::E164);
+			$args['phone'] = ( new Helper($phone_number, 'phone', 64) )->substr()->value;
+		}
 		return new self($args);
 	}
 
