@@ -25,16 +25,14 @@ final class RedirectGateway extends PaymentGateway {
 	}
 
 	/**
-	 * [前台] 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
-	 * RY 在這邊做表單提交
-	 * 已經確認過 order 存在，且是當前的付款方式，所以不用再驗證
+	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
+	 * 前執行
+	 *
+	 * 不需要清空購物車， order-received 本來就會清
+	 *
+	 * @param \WC_Order $order 訂單
 	 * */
-	public function render_at_receipt( int $order_id ): void {
-		// 清空購物車
-		\WC()->cart->empty_cart();
-		/** @var \WC_Order $order */
-		$order = \wc_get_order( $order_id );
-
+	protected function before_order_received( \WC_Order $order ): void {
 		// 狀態轉為保留，因為 SLP 的付款成功狀態是非同步，所以待確認
 		$order->update_status( 'wc-on-hold' );
 		$order->add_order_note( \__( 'Shopline Payment 付款狀態確認中', 'power_checkout' ) );

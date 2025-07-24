@@ -19,11 +19,12 @@ abstract class PaymentGateway extends AbstractPaymentGateway {
 	/**
 	 * 提交表單
 	 * 需透過前端網頁導轉(Submit)到綠界付款API網址
+	 * 因為 auto-form 會中斷後續頁面渲染，就不會清空購物車，這邊要手動清空
 	 *
 	 * @see https://developers.ecpay.com.tw/?p=2872
 	 * @param \WC_Order $order 訂單
 	 */
-	protected function submit( \WC_Order $order ): void {
+	protected function before_order_received( \WC_Order $order ): void {
 		$service = Services::instance($this, $order);
 		/** @var \WC_Order $order */
 		$params = $service->get_params( $order, $this );

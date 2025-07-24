@@ -147,10 +147,8 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		// [Admin] 在後台 order detail 頁地址下方顯示資訊
 		\add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_after_billing_address' ] );
 
-		// 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
-		\add_action( "woocommerce_receipt_{$this->id}", [ $this, 'render_at_receipt' ] );
-		// 在 /checkout/order-received/ 頁渲染 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
-		\add_action( "woocommerce_thankyou_{$this->id}", [ $this, 'render_at_receipt' ] );
+		// 在 checkout/order-pay checkout/order-received 前執行
+		\add_action( 'wp', [ $this, 'before_page_render' ] );
 
 		$this->validate_properties();
 
@@ -241,14 +239,26 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/**
-	 * [前台] 在 /checkout/order-pay/ 頁渲染 /checkout/order-pay/{$order_id}/?key=wc_order_{$order_key}
-	 * RY 在這邊做表單提交
-	 * 已經確認過 order 存在，且是當前的付款方式，所以不用再驗證
+	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
+	 * 前執行
+	 *
+	 * @see WC_Shortcode_Checkout::output
 	 * */
-	public function render_at_receipt( int $order_id ): void {
+	public function before_page_render(): void {
+		global $wp;
+		$order_id = null;
+		if ( isset( $wp->query_vars['order-received'] ) ) {
+			$order_id = $wp->query_vars['order-received'];
+		}
+		if ( ! $order_id ) {
+			return;
+		}
 		$order = \wc_get_order( $order_id );
+		if ( ! $order ) {
+			return;
+		}
 		/** @var \WC_Order $order */
-		$this->submit( $order );
+		$this->before_order_received( $order );
 	}
 
 	/**
@@ -300,13 +310,14 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	}
 
 	/**
-	 * 提交表單
+	 * 在 /checkout/order-received/{$order_id}/?key=wc_order_{$order_key}
+	 * 前執行
+	 *
 	 * 例如綠界需透過前端網頁導轉(Submit)到綠界付款API網址
 	 *
-	 * @see https://developers.ecpay.com.tw/?p=2872
 	 * @param \WC_Order $order 訂單
 	 */
-	protected function submit( \WC_Order $order ): void {
+	protected function before_order_received( \WC_Order $order ): void {
 	}
 
 	/**

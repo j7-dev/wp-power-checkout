@@ -16,7 +16,6 @@ final class Init {
 	/** Constructor */
 	public function __construct() {
 		\add_filter( 'woocommerce_payment_gateways', [ $this, 'add_method' ] );
-
 		WebHook::instance();
 	}
 
