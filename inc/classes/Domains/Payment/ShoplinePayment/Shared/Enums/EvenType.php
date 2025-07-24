@@ -11,7 +11,7 @@ use J7\WpUtils\Classes\DTO;
  * Shopline Payment Event Type
  * 通知電文 webhook 類型
  */
-enum EvenType: string {
+enum EventType: string {
 	// 結帳交易
 	case SESSION_CREATED   = 'session.created';      // 結帳交易已創建
 	case SESSION_EXPIRED   = 'session.expired';      // 結帳交易已過期
