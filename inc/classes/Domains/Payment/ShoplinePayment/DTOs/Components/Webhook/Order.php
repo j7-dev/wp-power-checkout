@@ -29,6 +29,9 @@ final class Order extends DTO {
 	/** @var Customer *顧客資訊*/
 	public Customer $customer;
 
+	/** @var int|null *訂單過期時間， 文件上沒有這個屬性 2025/07/22 SLP 回覆固定會帶 null*/
+	public int|null $expireTime;
+
 	/** @var array<string> 必填屬性 */
 	protected $required_properties = [
 		'merchantId',
