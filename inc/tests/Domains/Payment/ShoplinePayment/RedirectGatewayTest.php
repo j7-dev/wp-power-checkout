@@ -88,17 +88,9 @@ class RedirectGatewayTest extends WC_UnitTestCase {
 		it(
 		"{$this->name} 結帳失敗是否寫入 log",
 		function () {
-			$order_id = $this->order->get_id();
 
-			// 設定訂單付款方式
-			$this->order->set_payment_method($this->gateway->id);
-			$this->order->save();
-			// TEST
-			expect(true)->toBeTrue();
-			return;
-
-			// 測試建立 session 並取得 sessionUrl
-			$result = $this->gateway->process_payment($order_id);
+			// 測試建立 session 並取得 sessionUrl 故意找不到訂單
+			$result = $this->gateway->process_payment(0);
 
 			expect($result)->toBeArray();
 			expect($result['result'])->toBe(ProcessResult::FAILED->value);

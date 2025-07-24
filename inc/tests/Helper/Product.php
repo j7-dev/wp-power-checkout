@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckoutTests\Helper;
 
 use J7\PowerCheckoutTests\Utils\STDOUT;
+use J7\WpUtils\Classes\WP;
 
 /**
  * User class
@@ -44,6 +45,29 @@ class Product {
 	}
 
 	/**
+	 * 保存商品
+	 *
+	 * @param \WC_Product $product 商品
+	 * @param array       $args 商品資料
+	 * @return \WC_Product
+	 */
+	protected function save( \WC_Product $product, array $args = [] ) {
+		[
+			'data' => $data,
+			'meta_data' => $meta_data,
+		] = WP::separator($args, 'product');
+
+		foreach ($data as $key => $value) {
+			$product->{"set_{$key}"}($value);
+		}
+		foreach ($meta_data as $key => $value) {
+			$product->update_meta_data($key, $value);
+		}
+		$product->save();
+		return $product;
+	}
+
+	/**
 	 * 創建簡單產品
 	 *
 	 * @param array $args 商品資料
@@ -64,11 +88,7 @@ class Product {
 			$args['name'] = $args['name'] . " #{$i}";
 			$product      = new \WC_Product_Simple();
 
-			foreach ($args as $key => $value) {
-				$product->update_meta_data($key, $value);
-			}
-			$product->save();
-			$this->products[] = $product;
+			$this->products[] = $this->save($product, $args);
 		}
 	}
 
@@ -92,10 +112,7 @@ class Product {
 			$args['name'] = $args['name'] . " #{$i}";
 			// 創建可變商品
 			$product = new \WC_Product_Variable();
-			foreach ($args as $key => $value) {
-				$product->update_meta_data($key, $value);
-			}
-			$product->save();
+			$this->save($product, $args);
 
 			// 創建商品屬性
 			$attribute = new \WC_Product_Attribute();
@@ -170,14 +187,8 @@ class Product {
 			$args         = \wp_parse_args($args, $default_args);
 			$args['name'] = $args['name'] . " #{$i}";
 			$product      = new \WC_Product_Subscription();
-			foreach ($args as $key => $value) {
-				$product->update_meta_data($key, $value);
-			}
 
-			// 還沒設定 meta data 扣款週期
-
-			$product->save();
-			$this->products[] = $product;
+			$this->products[] = $this->save($product, $args);
 		}
 	}
 
@@ -190,8 +201,7 @@ class Product {
 			$product->set_name("可變訂閱商品 #{$i}");
 			$product->set_description('這是一個測試用的可變訂閱商品');
 			$product->set_status('publish');
-			$product->save();
-			$this->products[] = $product;
+			$this->products[] = $this->save($product, $args);
 		}
 	}
 

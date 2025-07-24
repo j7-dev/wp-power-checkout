@@ -7,6 +7,7 @@ namespace J7\PowerCheckoutTests\Helper;
 use J7\PowerCheckoutTests\Helper\Product;
 use J7\PowerCheckoutTests\Helper\User;
 use J7\PowerCheckoutTests\Utils\STDOUT;
+use J7\WpUtils\Classes\WP;
 
 /**
  * Order class
@@ -38,7 +39,6 @@ class Order {
 			$default_args = [
 				'status'             => 'pending', // 等待付款中
 				'created_via'        => 'admin', // default values are "admin", "checkout", "store-api"
-				'order_id'           => 0, // 新建立訂單
 				'customer_id'        => $user->ID, // 客戶ID
 
 			// billing 資料
@@ -72,18 +72,24 @@ class Order {
 			$args = \wp_parse_args($args, $default_args);
 
 			$order = \wc_create_order();
-			foreach ($args as $key => $value) {
+
+			[
+				'data' => $data,
+				'meta_data' => $meta_data,
+			] = WP::separator($args, 'order');
+
+			foreach ($data as $key => $value) {
+				$order->{"set_{$key}"}($value);
+			}
+
+			foreach ($meta_data as $key => $value) {
 				$order->update_meta_data($key, $value);
 			}
+
 			$order->add_product($product, 1);
 			$order->calculate_totals();
 			$order->save();
 			$this->orders[] = $order;
-
-			$billing_phone = $order->get_billing_phone();
-			// TEST ----- ▼ 印出 WC Logger 記得移除 ----- //
-			\J7\WpUtils\Classes\WC::logger('create billing_phone: ' . $billing_phone, 'info' );
-			// TEST ---------- END ---------- //
 		}
 
 		$ids = array_map(fn( $order ) => "#{$order->get_id()}", $this->orders);

@@ -51,6 +51,7 @@
 	"scripts": {
 		"lint": "phpcs",
 		"test": "./vendor/bin/pest -v",
+		"test:debug": "set DEBUG=true && composer test",
 		"test:coverage": "./vendor/bin/pest --coverage",
 		"test:warning": "./vendor/bin/pest --display-warnings"
 	}
