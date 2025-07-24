@@ -55,7 +55,7 @@ class RedirectGatewayTest extends WC_UnitTestCase {
 		afterAll(function () {});
 
 		it(
-		"{$this->name} 正常結帳測試，是否成功取得跳轉 url",
+		"{$this->name} 發起結帳請求，成功是否取得跳轉 url",
 		function () {
 			$order_id = $this->order->get_id();
 
@@ -74,6 +74,38 @@ class RedirectGatewayTest extends WC_UnitTestCase {
 		);
 
 		it(
+			"{$this->name} 發起結帳請求，失敗是否印出錯誤",
+			function () {
+
+				// 測試建立 session 並取得 sessionUrl 故意找不到訂單
+				$result = $this->gateway->process_payment(0);
+
+				expect($result)->toBeArray();
+				expect($result['result'])->toBe(ProcessResult::FAILED->value);
+				// 且 redirect 沒有值
+				expect($result)->not->toHaveKey('redirect');
+
+				// 結帳頁印出錯誤
+				$notices = WC()->session->get('wc_notices');
+				expect($notices)->toBeArray();
+			}
+		);
+
+		it(
+				"{$this->name} 接收 SLP webhook 通知用戶付款成功後，修改訂單到正確狀態",
+				function () {
+					// 會先通知 trade.succeeded
+					// 然後通知 trade.customer_action
+				}
+		);
+
+		it(
+			"{$this->name} 接收 SLP webhook 通知用戶付款失敗後，修改訂單到正確狀態",
+			function () {
+			}
+		);
+
+		it(
 		"{$this->name} 結帳金額超過最大金額",
 		function () {
 		}
@@ -82,20 +114,6 @@ class RedirectGatewayTest extends WC_UnitTestCase {
 		it(
 		"{$this->name} 結帳金額小於最小金額",
 		function () {
-		}
-		);
-
-		it(
-		"{$this->name} 結帳失敗是否寫入 log",
-		function () {
-
-			// 測試建立 session 並取得 sessionUrl 故意找不到訂單
-			$result = $this->gateway->process_payment(0);
-
-			expect($result)->toBeArray();
-			expect($result['result'])->toBe(ProcessResult::FAILED->value);
-			// 且 redirect 沒有值
-			expect($result)->not->toHaveKey('redirect');
 		}
 		);
 
@@ -119,12 +137,6 @@ class RedirectGatewayTest extends WC_UnitTestCase {
 
 		it(
 		"{$this->name} 超過時間未結帳就禁止付款",
-		function () {
-		}
-		);
-
-		it(
-		"{$this->name} 接收 webhook 通知後，修改訂單到正確狀態",
 		function () {
 		}
 		);

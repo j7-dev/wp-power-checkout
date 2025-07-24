@@ -48,7 +48,7 @@ class DebugTest extends WC_UnitTestCase {
 		it(
 		"{$this->name}",
 		function () {
-
+			\wc_add_notice( '處理結帳時發生錯誤，請查閱 123 的 log 紀錄了解詳情', 'error' );
 			$notice = WC()->session->get('wc_notices');
 			STDOUT::debug($notice);
 		}
