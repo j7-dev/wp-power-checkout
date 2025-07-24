@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components\Webhook;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Components;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 
@@ -43,6 +42,18 @@ final class Payment extends DTO {
 	/** @var string SHOPLINE Payments 付款會員 ID，快捷付款、定期扣款場景必填 (32) 選填 */
 	public string|null $paymentCustomerId;
 
+	/** @var Components\CreditCard|null 信用卡資訊 (32) 選填 */
+	public Components\CreditCard|null $creditCard;
+
+	/** @var Components\VirtualAccount|null 虛擬帳號資訊 (32) 選填 */
+	public Components\VirtualAccount|null $virtualAccount;
+
+	/** @var Components\PaymentInstrument|null 付款工具資訊 (32) 選填 */
+	public Components\PaymentInstrument|null $paymentInstrument;
+
+	/** @var Components\PaymentMethodOptions|null 付款方式選項 (32) 選填 */
+	public Components\PaymentMethodOptions|null $paymentMethodOptions;
+
 	/** @var array 必填屬性 */
 	protected array $require_properties = [ 'paymentMethod', 'paymentBehavior', 'paidAmount' ];
 
@@ -54,17 +65,17 @@ final class Payment extends DTO {
 	 */
 	public static function create( array $args ): self {
 		$args['paidAmount'] = Components\Amount::parse( $args['paidAmount'] );
-		if ( isset( $args['CreditCard'] ) ) {
-			$args['CreditCard'] = Components\CreditCard::parse( $args['CreditCard'] );
+		if ( isset( $args['creditCard'] ) ) {
+			$args['creditCard'] = Components\CreditCard::parse( $args['creditCard'] );
 		}
-		if ( isset( $args['VirtualAccount'] ) ) {
-			$args['VirtualAccount'] = Components\VirtualAccount::parse( $args['VirtualAccount'] );
+		if ( isset( $args['virtualAccount'] ) ) {
+			$args['virtualAccount'] = Components\VirtualAccount::parse( $args['virtualAccount'] );
 		}
-		if ( isset( $args['PaymentInstrument'] ) ) {
-			$args['PaymentInstrument'] = Components\PaymentInstrument::parse( $args['PaymentInstrument'] );
+		if ( isset( $args['paymentInstrument'] ) ) {
+			$args['paymentInstrument'] = Components\PaymentInstrument::parse( $args['paymentInstrument'] );
 		}
-		if ( isset( $args['PaymentMethodOptions'] ) ) {
-			$args['PaymentMethodOptions'] = PaymentMethodOptions::create( $args['PaymentMethodOptions'] );
+		if ( isset( $args['paymentMethodOptions'] ) ) {
+			$args['paymentMethodOptions'] = PaymentMethodOptions::create( $args['paymentMethodOptions'] );
 		}
 		return new self( $args );
 	}
