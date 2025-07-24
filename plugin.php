@@ -58,6 +58,18 @@ final class Plugin {
 			]
 		);
 	}
+
+	/**
+	 * 印出 WC Logger
+	 *
+	 * @param string $message 訊息
+	 * @param string $level 等級
+	 * @param array  $args 參數
+	 * @param int    $trace_limit 堆疊深度
+	 */
+	public static function logger( string $message, string $level, array $args = [], $trace_limit = 0 ): void {
+		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, self::$kebab, $trace_limit );
+	}
 }
 
 Plugin::instance();
