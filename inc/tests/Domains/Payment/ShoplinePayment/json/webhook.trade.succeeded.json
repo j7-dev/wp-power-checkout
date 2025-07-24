@@ -1,0 +1,52 @@
+{
+	"data": {
+		"actionType": "SDK",
+		"order": {
+			"amount": {
+				"currency": "TWD",
+				"value": 18000
+			},
+			"createTime": 1753167941,
+			"customer": {
+				"referenceCustomerId": "12"
+			},
+			"merchantId": "3252264968486264832",
+			"referenceOrderId": "RL0325072203370940749975688450"
+		},
+		"passthrough": "{\"merchantId\":\"3252264968486264832\",\"linkOrderId\":\"se_14012507227094074668583494657\",\"linkPaymentId\":\"RL0325072203370940749975688450\",\"acquirerType\":\"Session\"}",
+		"payment": {
+			"autoCapture": true,
+			"autoConfirm": false,
+			"channelDealId": "250722157094075052446197284065",
+			"creditCard": {
+				"bin": "41476337",
+				"brand": "Visa",
+				"category": "SIGNATURE",
+				"issuer": "TAISHIN INTERNATIONAL BANK",
+				"issuerCountry": "TW",
+				"last4": "8405",
+				"type": "CREDIT"
+			},
+			"paidAmount": {
+				"currency": "TWD",
+				"value": 18000
+			},
+			"paymentBehavior": "Regular",
+			"paymentInstrument": {
+				"savePaymentInstrument": false
+			},
+			"paymentMethod": "CreditCard",
+			"paymentSuccessTime": "1753167932668"
+		},
+		"paymentMsg": {
+			"code": "",
+			"msg": ""
+		},
+		"referenceOrderId": "RL0325072203370940749975688450",
+		"status": "SUCCEEDED",
+		"tradeOrderId": "10012507227094075000118060034"
+	},
+	"id": "00012507227094075196411651540202507",
+	"type": "trade.succeeded",
+	"created": 1753167941000
+}
