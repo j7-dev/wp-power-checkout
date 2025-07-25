@@ -6,11 +6,13 @@ namespace J7\PowerCheckout\Domains\Payment\Shared;
 
 use J7\PowerCheckout\Domains\WC_Settings_API\DTOs\FormField;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\GatewaySupport;
 use J7\WpUtils\Classes\WP;
 
 /**
  * 付款閘道抽象類別 單例模式，一進 WC ，很早的階段就會被實例化
- * 應該是單例，會被儲存在容器內
+ * 單例，會被儲存在容器內
+ * 區塊結帳 @see https://developer.woocommerce.com/docs/block-development/cart-and-checkout-blocks/checkout-payment-methods/payment-method-integration/
  * */
 abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
@@ -55,6 +57,9 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 
 	/** @var int 付款方式最大金額 */
 	public $max_amount;
+
+	/** @var array<GatewaySupport::value> 支援的特性預設支援退款、tokenization、區塊結帳 */
+	public $supports = [ 'products', 'refunds', 'tokenization', 'checkout-blocks' ];
 
 	/** @var \WC_Order|null 訂單 */
 	public \WC_Order|null $order = null;
@@ -214,6 +219,20 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 		return ProcessResult::SUCCESS->to_array( $redirect );
 	}
 
+	/**
+	 * 處理退款
+	 *
+	 * @see WC_Payment_Gateway::process_refund
+	 * @param  int        $order_id 訂單 ID
+	 * @param  float|null $amount 退款金額
+	 * @param  string     $reason 退款原因
+	 * @return bool|\WP_Error True or false based on success, or a WP_Error object.
+	 */
+	public function process_refund( $order_id, $amount = null, $reason = '' ) {
+		return false;
+	}
+
+
 	/** @param \WC_Order $order 訂單 在 process_payment 之前執行 */
 	protected function before_process_payment( \WC_Order $order ): void {
 	}
@@ -355,5 +374,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 				throw new \Exception(  static::class . "必須設定 {$property} 屬性" );
 			}
 		}
+
+		\array_map(fn( $support ) => GatewaySupport::from( $support ), $this->supports);
 	}
 }
