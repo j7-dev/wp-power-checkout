@@ -6,9 +6,11 @@ namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
 
 /** Credit 綠界信用卡分期付款 */
 final class CreditInstallment extends Credit {
+	/** @var string 付款方式 ID */
+	const ID = Init::PREFIX . 'credit_installment';
 
 	/** @var string 付款方式 ID */
-	public $id = 'pc_ecpayaio_credit_installment';
+	public $id = self::ID;
 
 	/** @var array<int> 分期期數 */
 	public array $number_of_periods = [ 3, 6, 12, 18, 24 ];
@@ -18,12 +20,12 @@ final class CreditInstallment extends Credit {
 
 	/** Constructor */
 	public function __construct() {
-		$this->payment_label = __( 'ECPayAIO Credit(installment)', 'power_checkout' );
 
 		/** @var mixed $saved_number_of_periods */
 		$saved_number_of_periods = $this->get_option( 'number_of_periods', [] );
 		$this->number_of_periods = is_array( $saved_number_of_periods ) ? $saved_number_of_periods : [];
 		parent::__construct();
+		$this->payment_label = __( 'ECPayAIO Credit (installment)', 'power_checkout' );
 	}
 
 	/**

@@ -8,9 +8,11 @@ use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentGateway;
 
 /** Credit */
 class Credit extends PaymentGateway {
+	/** @var string 付款方式 ID */
+	const ID = Init::PREFIX . 'credit';
 
 	/** @var string 付款方式 ID */
-	public $id = 'pc_ecpayaio_credit';
+	public $id = self::ID;
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
 	public string $payment_type = 'Credit';

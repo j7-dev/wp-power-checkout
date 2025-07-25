@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Core;
+namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\Services;
 
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\RequestParams;
 use J7\PowerCheckout\Domains\Payment\Shared\AbstractPaymentGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\Settings;
 
-/** Services */
+/**
+ * EcpayAIO 跳轉式支付服務類 工廠模式
+ * 方法
+ * 1. 建立交易
+ *  */
 final class Services {
-	use \J7\WpUtils\Traits\SingletonTrait;
-
-	/** @var string 服務 ID */
-	public string $id = Settings::KEY;
 
 	/** @var Settings 設定 */
 	public Settings $settings;
@@ -30,9 +30,6 @@ final class Services {
 		$this->settings = Settings::instance();
 		$this->set_properties();
 	}
-
-
-
 
 	/**
 	 * 取得參數

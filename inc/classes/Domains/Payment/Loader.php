@@ -11,5 +11,6 @@ final class Loader {
 	/** Constructor */
 	public function __construct() {
 		ShoplinePayment\Core\Init::instance();
+		EcpayAIO\Core\Init::instance();
 	}
 }

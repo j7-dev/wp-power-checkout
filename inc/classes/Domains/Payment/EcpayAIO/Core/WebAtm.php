@@ -8,9 +8,11 @@ use J7\PowerCheckout\Domains\Payment\EcpayAIO\Abstracts\PaymentGateway;
 
 /** WebAtm 插卡網路ATM */
 final class WebAtm extends PaymentGateway {
+	/** @var string 付款方式 ID */
+	const ID = Init::PREFIX . 'webatm';
 
 	/** @var string 付款方式 ID */
-	public $id = 'pc_ecpayaio_webatm';
+	public $id = self::ID;
 
 	/** @var string 付款方式類型 (自訂，用來區分付款方式類型) ChoosePayment 參數 */
 	public string $payment_type = 'WebATM';

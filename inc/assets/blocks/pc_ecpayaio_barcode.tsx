@@ -3,7 +3,7 @@ import { __ } from '@wordpress/i18n'
 import { decodeEntities } from '@wordpress/html-entities'
 import { getSetting } from '@woocommerce/settings'
 
-const id = 'pc_slp_redirect'
+const id = 'pc_ecpayaio_barcode'
 const settings = getSetting(`${id}_data`, {})
 const { name, order_button_text, supports: features } = settings
 const label = decodeEntities(settings.title)
@@ -33,7 +33,7 @@ const options = {
 	supports: {
 		features,
 		showSavedCards: true,
-		showSaveOption: false,
+		showSaveOption: true,
 	},
 }
 

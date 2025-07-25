@@ -4,8 +4,6 @@ declare (strict_types = 1);
 
 namespace J7\PowerCheckout\Domains\Payment\Shared;
 
-use J7\WpUtils\Classes\WP;
-
 /**
  * 請求、回應參數
  * 每次付款請求，不論是哪種付款方式，都將請求參數、回應參數 raw data 儲存在 order meta 中

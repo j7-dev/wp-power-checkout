@@ -8,7 +8,6 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\Init;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\Service;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
 
 /**
  * RedirectGateway 跳轉支付
@@ -17,7 +16,10 @@ use Automattic\WooCommerce\Blocks\Payments\PaymentMethodRegistry;
 final class RedirectGateway extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	public $id = Init::PREFIX . 'redirect';
+	const ID = Init::PREFIX . 'redirect';
+
+	/** @var string 付款方式 ID */
+	public $id = self::ID;
 
 	/** Constructor */
 	public function __construct() {

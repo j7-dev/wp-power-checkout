@@ -177,6 +177,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 * @return bool
 	 */
 	public function is_available() {
+
 		$is_available = ( 'yes' === $this->enabled );
 		if ( ! $is_available ) {
 			return false;

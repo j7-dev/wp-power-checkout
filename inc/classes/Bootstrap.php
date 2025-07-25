@@ -20,8 +20,9 @@ final class Bootstrap {
 		Admin\CPT::instance();
 		Domains\Payment\Loader::instance();
 
-		\add_action( 'admin_enqueue_scripts', [ __CLASS__, 'admin_enqueue_script' ] );
-		\add_action( 'wp_enqueue_scripts', [ __CLASS__, 'frontend_enqueue_script' ]);
+		\add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue_script' ] );
+		\add_action( 'wp_enqueue_scripts', [ $this, 'frontend_enqueue_script' ]);
+		\add_action( 'before_woocommerce_init', [ $this, 'declare_compatibility' ] );
 	}
 
 	/**
@@ -32,8 +33,8 @@ final class Bootstrap {
 	 *
 	 * @return void
 	 */
-	public static function admin_enqueue_script( $hook ): void {
-		self::enqueue_script();
+	public function admin_enqueue_script( $hook ): void {
+		$this->enqueue_script();
 	}
 
 
@@ -43,8 +44,8 @@ final class Bootstrap {
 	 *
 	 * @return void
 	 */
-	public static function frontend_enqueue_script(): void {
-		self::enqueue_script();
+	public function frontend_enqueue_script(): void {
+		$this->enqueue_script();
 	}
 
 	/**
@@ -53,7 +54,7 @@ final class Bootstrap {
 	 *
 	 * @return void
 	 */
-	public static function enqueue_script(): void {
+	public function enqueue_script(): void {
 
 		Vite\enqueue_asset(
 			Plugin::$dir . '/js/dist',
@@ -96,6 +97,22 @@ final class Bootstrap {
 				'root'  => \untrailingslashit( \esc_url_raw( rest_url() ) ),
 				'nonce' => \wp_create_nonce( 'wp_rest' ),
 			]
+		);
+	}
+
+	/**
+	 * 宣告區塊結帳相容性
+	 *
+	 * @return void
+	 */
+	public function declare_compatibility(): void {
+		if ( !class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
+			return;
+		}
+
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility(
+			'cart_checkout_blocks',
+			'power-checkout\plugin.php'
 		);
 	}
 }

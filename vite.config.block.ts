@@ -24,7 +24,7 @@ export default defineConfig({
 		minify: true,
 		outDir: path.resolve(__dirname, 'inc/assets/dist/blocks'),
 		watch: {
-		  include: 'inc/assets/blocks/*.tsx',
+			include: 'inc/assets/blocks/*.tsx',
 		},
 		rollupOptions: {
 			input: Object.fromEntries(
@@ -36,9 +36,11 @@ export default defineConfig({
 				])
 			),
 			output: {
+				// format: 'iife', // 使用 IIFE 格式，適合 WordPress 環境
 				assetFileNames: '[ext]/[name].[ext]',
 				entryFileNames: '[name].js', // 保持原檔名，但副檔名改為 .js
 			},
+			external: [], // 確保所有依賴都被打包進去
 		},
 	},
 	plugins: [

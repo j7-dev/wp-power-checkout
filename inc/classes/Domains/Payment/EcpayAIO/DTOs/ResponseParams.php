@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs;
 
 use J7\WpUtils\Classes\DTO;
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Core\Services;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\Services;
 
 /**
  * 綠界全方位金流 API 必填參數 DTO
