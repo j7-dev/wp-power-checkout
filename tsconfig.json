@@ -2,6 +2,8 @@
 	"extends": "@power/typescript-config/vite.json",
 	"include": [
 		"js/src",
+		"inc/assets/blocks",
+		"inc/assets/blocks/types/types.d.ts"
 	],
 	"compilerOptions": {
 		"paths": {

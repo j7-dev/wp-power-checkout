@@ -17,6 +17,7 @@ if (!class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\Abstract
  * @see https://developer.woocommerce.com/docs/block-development/cart-and-checkout-blocks/checkout-payment-methods/payment-method-integration/
  * */
 final class Integration extends \Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType {
+	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 付款方式 id， 只是 AbstractPaymentMethodType 把它定義為 name */
 	protected $name;
@@ -41,7 +42,7 @@ final class Integration extends \Automattic\WooCommerce\Blocks\Payments\Integrat
 		$handle = "wc-{$this->name}-blocks-integration";
 		\wp_register_script(
 					$handle,
-					Plugin::$url . '/inc/classes/Domains/Payment/ShoplinePayment/Core/Blocks/checkout.js',
+					Plugin::$url . "/inc/assets/dist/blocks/{$this->name}.js",
 					[
 						'react',
 						'wc-blocks-registry',

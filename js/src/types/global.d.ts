@@ -22,7 +22,26 @@ declare global {
   }
   var wp: {
     blocks: any
+    element: any
+    htmlEntities: any
+    i18n: any
   }
+  var wc: {
+    wcBlocksRegistry: any
+    wcSettings: any
+  }
+}
+
+// WooCommerce 和 WordPress 模組型別定義
+declare module '@woocommerce/settings' {
+  export function getSetting(name: string, defaultValue?: any): any
+  export const wcSettings: any
+  export default wcSettings
+}
+
+declare module '@woocommerce/blocks-registry' {
+  export const wcBlocksRegistry: any
+  export default wcBlocksRegistry
 }
 
 export {}

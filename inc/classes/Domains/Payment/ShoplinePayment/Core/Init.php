@@ -35,6 +35,6 @@ final class Init {
 		if (!class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
 			return;
 		}
-		$payment_method_registry->register(new Blocks\Integration());
+		$payment_method_registry->register(Blocks\Integration::instance());
 	}
 }
