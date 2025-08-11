@@ -1,58 +1,59 @@
 {
-	"name": "j7-dev/power-checkout",
-	"description": "串接金流、物流、電子發票，全面優化WooCommerce購物車、結帳頁、我的帳號等頁面，讓結帳轉換率一飛沖天",
-	"type": "wordpress-plugin",
-	"license": "GPL-2.0-only",
-	"authors": [
-		{
-			"name": "JerryLiu",
-			"email": "j7.dev.gg@gmail.com",
-			"homepage": "https://github.com/j7-dev",
-			"role": "Developer"
-		}
-	],
-	"autoload": {
-		"psr-4": {
-			"J7\\PowerCheckout\\": "inc/classes/",
-			"J7\\PowerCheckoutTests\\": "inc/tests/"
-		}
-	},
-	"require": {
-		"kucrut/vite-for-wp": "^0.11.6",
-		"j7-dev/wp-utils": "0.3.65",
-		"giggsey/libphonenumber-for-php-lite": "^9.0"
-	},
-	"require-dev": {
-		"squizlabs/php_codesniffer": "@stable",
-		"wp-coding-standards/wpcs": "@stable",
-		"dealerdirect/phpcodesniffer-composer-installer": "@stable",
-		"phpcompatibility/php-compatibility": "@stable",
-		"phpstan/phpstan": "@stable",
-		"php-stubs/woocommerce-stubs": "@stable",
-		"php-stubs/wordpress-stubs": "@stable",
-		"phpstan/extension-installer": "@stable",
-		"roots/wordpress": "^6.0",
-		"yoast/phpunit-polyfills": "^4.0",
-		"pestphp/pest": "^3.8",
-		"wp-phpunit/wp-phpunit": "^6.0"
-	},
-	"config": {
-		"platform": {
-			"php": "8.2"
-		},
-		"sort-packages": true,
-		"allow-plugins": {
-			"dealerdirect/phpcodesniffer-composer-installer": true,
-			"phpstan/extension-installer": true,
-			"roots/wordpress-core-installer": true,
-			"pestphp/pest-plugin": true
-		}
-	},
-	"scripts": {
-		"lint": "phpcs",
-		"test": "./vendor/bin/pest -v",
-		"test:debug": "set DEBUG=true && composer test",
-		"test:coverage": "./vendor/bin/pest --coverage",
-		"test:warning": "./vendor/bin/pest --display-warnings"
-	}
+  "name": "j7-dev/power-checkout",
+  "description": "串接金流、物流、電子發票，全面優化WooCommerce購物車、結帳頁、我的帳號等頁面，讓結帳轉換率一飛沖天",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-only",
+  "authors": [
+    {
+      "name": "JerryLiu",
+      "email": "j7.dev.gg@gmail.com",
+      "homepage": "https://github.com/j7-dev",
+      "role": "Developer"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "J7\\PowerCheckout\\": "inc/classes/",
+      "J7\\PowerCheckoutTests\\": "inc/tests/"
+    }
+  },
+  "require": {
+    "kucrut/vite-for-wp": "^0.11.6",
+    "j7-dev/wp-utils": "0.3.65",
+    "giggsey/libphonenumber-for-php-lite": "^9.0"
+  },
+  "require-dev": {
+    "roave/security-advisories": "dev-latest",
+    "squizlabs/php_codesniffer": "@stable",
+    "wp-coding-standards/wpcs": "@stable",
+    "dealerdirect/phpcodesniffer-composer-installer": "@stable",
+    "phpcompatibility/php-compatibility": "@stable",
+    "phpstan/phpstan": "@stable",
+    "php-stubs/woocommerce-stubs": "@stable",
+    "php-stubs/wordpress-stubs": "@stable",
+    "phpstan/extension-installer": "@stable",
+    "roots/wordpress": "^6.0",
+    "yoast/phpunit-polyfills": "^4.0",
+    "pestphp/pest": "^3.8",
+    "wp-phpunit/wp-phpunit": "^6.0"
+  },
+  "config": {
+    "platform": {
+      "php": "8.2"
+    },
+    "sort-packages": true,
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpstan/extension-installer": true,
+      "roots/wordpress-core-installer": true,
+      "pestphp/pest-plugin": true
+    }
+  },
+  "scripts": {
+    "lint": "phpcs",
+    "test": "./vendor/bin/pest -v",
+    "test:debug": "set DEBUG=true && composer test",
+    "test:coverage": "./vendor/bin/pest --coverage",
+    "test:warning": "./vendor/bin/pest --display-warnings"
+  }
 }
