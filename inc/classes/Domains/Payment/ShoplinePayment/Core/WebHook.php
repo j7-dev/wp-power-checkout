@@ -8,8 +8,8 @@ use J7\PowerCheckout\Plugin;
 use J7\WpUtils\Classes\ApiBase;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Settings;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Session;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\EventType;
-use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 
 /**
  * WebHooks 用來接收 Shopline 的 WebHooks 通知
@@ -66,11 +66,14 @@ final class WebHook extends ApiBase {
 		// TEST ---------- END ---------- //
 		try {
 			$webhook_dto = Body::create( $body_params );
-			$event_type  = EventType::tryFrom($webhook_dto->type);
+			$event_type  = EventType::from($webhook_dto->type);
 
-			// 如果已到期，將訂單轉為已過期
 			match ($event_type) {
-				EventType::SESSION_EXPIRED => $this->handle_session_expired($webhook_dto),
+				EventType::SESSION_CREATED,
+				EventType::SESSION_EXPIRED,
+				EventType::SESSION_PENDING,
+				EventType::SESSION_SUCCEEDED => $this->handle_session($webhook_dto),
+
 			};
 
 			// 收到通知就始終回 200 ，不用讓 SLP 重試
@@ -91,22 +94,22 @@ final class WebHook extends ApiBase {
 	}
 
 	/**
-	 * 處理結帳交易已過期
+	 * 處理結帳交易
 	 *
 	 * @param Body $webhook_dto 網路請求的 body 資料
 	 * @return void
 	 * @throws \Exception 如果訂單不存在
 	 */
-	private function handle_session_expired( Body $webhook_dto ): void {
-		/** @var Webhooks\Session $data */
+	private function handle_session( Body $webhook_dto ): void {
+		/** @var Session $data */
 		$data     = $webhook_dto->data;
 		$order_id = $data->referenceId;
 		$order    = \wc_get_order($order_id);
 		if ( ! $order ) {
 			throw new \Exception("Order not found: {$order_id}");
 		}
-		$order->add_order_note('訂單逾時未付款(6小時)，已取消');
-		$order->update_status(OrderStatus::CANCELLED->value);
+		$event_type = EventType::from($webhook_dto->type);
+		$event_type->update_order_status($order);
 	}
 
 
