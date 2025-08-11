@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks;
+use J7\PowerCheckout\Domains\Payment\Shared\Enums\OrderStatus;
 use J7\WpUtils\Classes\DTO;
 
 /**
@@ -64,6 +65,30 @@ enum EventType: string {
 			self::CUSTOMER_INSTRUMENT_UPDATED => '會員更新付款工具',
 			self::CUSTOMER_INSTRUMENT_UNBINDED => '會員解綁付款工具',
 		};
+	}
+
+	/**
+	 * 依照事件類型不同的轉換不同的訂單狀態
+	 * 付款失敗  => 等待付款中
+	 * 逾時未付  => 取消
+	 *
+	 * @param \WC_Order $order 訂單
+	 *
+	 * @return void
+	 */
+	public function update_order_status( \WC_Order $order ): void {
+		$order_status = match ( $this ) {
+			self::SESSION_CREATED,
+			self::SESSION_PENDING => OrderStatus::PENDING,
+			self::SESSION_EXPIRED => OrderStatus::CANCELLED,
+			self::SESSION_SUCCEEDED => OrderStatus::PROCESSING,
+			default => null,
+		};
+		if ( !$order_status ) {
+			return;
+		}
+		$order->add_order_note($this->label());
+		$order->update_status(OrderStatus::CANCELLED->value);
 	}
 
 	/**
