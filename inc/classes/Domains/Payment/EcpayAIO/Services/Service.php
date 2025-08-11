@@ -10,15 +10,14 @@ use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs\Settings;
 
 /**
- * EcpayAIO 跳轉式支付服務類 工廠模式
+ * EcpayAIO 跳轉式支付服務類
  * 方法
  * 1. 建立交易
  *  */
-final class Services {
+final class Service {
 
 	/** @var Settings 設定 */
 	public Settings $settings;
-
 
 	/** Constructor */
 	public function __construct(
