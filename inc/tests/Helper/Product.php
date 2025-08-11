@@ -201,7 +201,7 @@ class Product {
 			$product->set_name("可變訂閱商品 #{$i}");
 			$product->set_description('這是一個測試用的可變訂閱商品');
 			$product->set_status('publish');
-			$this->products[] = $this->save($product, $args);
+			$this->products[] = $this->save($product, []);
 		}
 	}
 
