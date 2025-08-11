@@ -24,6 +24,7 @@ define('WP_DEFAULT_THEME', 'default');
 define('WP_DEBUG', false);
 define('WP_DEBUG_LOG', false);
 define('WP_DEBUG_DISPLAY', false);
+define('DISABLE_WP_CRON', true);
 
 // ** MySQL settings ** //
 
