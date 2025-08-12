@@ -16,7 +16,7 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 final class RedirectGateway extends PaymentGateway {
 
 	/** @var string 付款方式 ID */
-	const ID = Init::PREFIX . 'redirect';
+	public const ID = Init::PREFIX . 'redirect';
 
 	/** @var string 付款方式 ID */
 	public $id = self::ID;

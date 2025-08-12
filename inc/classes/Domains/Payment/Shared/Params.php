@@ -11,14 +11,14 @@ namespace J7\PowerCheckout\Domains\Payment\Shared;
 class Params {
 
 	/** @var string 請求參數 meta_key */
-	const REQUEST_KEY = 'pc_payment_req_params';
+	public const REQUEST_KEY = 'pc_payment_req_params';
 
 	/** @var string 回應參數 meta_key */
-	const RESPONSE_KEY = 'pc_payment_res_params';
+	public const RESPONSE_KEY = 'pc_payment_res_params';
 
 	/** @var \WC_Order 訂單 */
 	public function __construct(
-		private \WC_Order $order,
+		private readonly \WC_Order $order,
 	) {}
 
 	/**
