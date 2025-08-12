@@ -1,4 +1,3 @@
-<?php
 <?php /** @noinspection PhpMissingReturnTypeInspection */
 
 
@@ -222,8 +221,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
             throw new \Exception( __( 'Order not found.', 'power_checkout' ) );
         }
         
-
-        
         $this->before_process_payment( $order );
         $order->add_order_note( \sprintf( __( 'Pay via %s', 'power_checkout' ), $this->method_title ) );
         \wc_maybe_reduce_stock_levels( $order_id );
@@ -290,8 +287,11 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
         if( !$order ) {
             return;
         }
-        /** @var \WC_Order $order */
-        $this->before_order_received( $order );
+        
+        if($this->id === $order->get_payment_method() ) {
+            /** @var \WC_Order $order */
+            $this->before_order_received( $order );
+        }
     }
     
     /**
