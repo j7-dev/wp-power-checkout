@@ -15,7 +15,7 @@ final class Init {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string 付款方式 callback 的 action 前綴 */
-	const PREFIX = 'pc_slp_';
+	public const PREFIX = 'pc_slp_';
 
 	/** Constructor */
 	public function __construct() {
@@ -34,16 +34,17 @@ final class Init {
 
 	/** 註冊區塊結帳支援 */
 	public function register_checkout_blocks( PaymentMethodRegistry $payment_method_registry ): void {
-		if (!class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
+        if (!class_exists('\Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
 			return;
 		}
 
 		$gateways = \WC()->payment_gateways()->payment_gateways;
 
-		$gateway = General::array_find($gateways, fn( $gateway ) => $gateway->id === RedirectGateway::ID);
+		$gateway = General::array_find($gateways, static fn( $gateway ) => $gateway->id === RedirectGateway::ID);
 		if (!$gateway) {
 			return;
 		}
+  
 		$payment_method_registry->register(new BlocksIntegration($gateway));
 	}
 }

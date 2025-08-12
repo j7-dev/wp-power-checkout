@@ -39,8 +39,7 @@ final class Service {
 	 * @throws \Exception 如果參數不符合規定
 	 *  */
 	public function get_params( \WC_Order $order, AbstractPaymentGateway $gateway ): array {
-		$params_dto = RequestParams::instance( $order, $gateway );
-		return $params_dto->to_array();
+        return RequestParams::instance( $order, $gateway )->to_array();
 	}
 
 	/**
