@@ -4,7 +4,6 @@ declare (strict_types = 1);
 
 namespace J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core;
 
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\Init;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\Service;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
