@@ -11,7 +11,7 @@ define('PLUGIN_DIR', "C:\\Users\\User\\LocalSites\\turbo\\app\\public\\wp-conten
 
 
 // 設定自訂錯誤處理器，忽略警告
-set_error_handler(function($severity, $message, $file, $line) {
+set_error_handler( static function( $severity, $message, $file, $line) {
 	if ($severity === E_WARNING) {
 			return true; // 忽略警告，不讓它往上傳遞
 	}
@@ -19,7 +19,7 @@ set_error_handler(function($severity, $message, $file, $line) {
 });
 
 // Composer autoloader must be loaded before WP_PHPUNIT__DIR will be available
-require_once dirname(dirname(dirname(__FILE__))) . '/vendor/autoload.php';
+require_once dirname( __FILE__, 3 ) . '/vendor/autoload.php';
 
 // Give access to tests_add_filter() function.
 require_once getenv('WP_PHPUNIT__DIR') . '/includes/functions.php';
