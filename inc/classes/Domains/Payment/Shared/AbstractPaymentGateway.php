@@ -276,10 +276,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
      * */
     public function before_page_render(): void {
         global $wp;
-        $order_id = null;
-        if( isset( $wp->query_vars['order-received'] ) ) {
-            $order_id = $wp->query_vars['order-received'];
-        }
+        $order_id = $wp->query_vars['order-received'] ?? null;
         if( !$order_id ) {
             return;
         }
@@ -386,6 +383,6 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
             }
         }
         
-        \array_map( fn( $support ) => GatewaySupport::from( $support ), $this->supports );
+        \array_map( static fn( $support ) => GatewaySupport::from( $support ), $this->supports );
     }
 }
