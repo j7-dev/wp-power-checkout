@@ -7,7 +7,7 @@
 namespace J7\PowerCheckoutTests;
 
 use J7\PowerCheckoutTests\Shared\Plugin;
-use J7\PowerCheckoutTests\Utils\WC_UnitTestCase;
+use J7\PowerCheckoutTests\Shared\WC_UnitTestCase;
 use J7\PowerCheckoutTests\Utils\STDOUT;
 
 /** Debug Test */

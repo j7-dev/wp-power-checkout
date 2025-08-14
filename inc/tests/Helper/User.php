@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckoutTests\Helper;
 
+use J7\PowerCheckoutTests\Shared\Resource;
 use J7\PowerCheckoutTests\Utils\STDOUT;
+
 
 /**
  * User class
  */
-class User {
+class User extends Resource{
 	use \J7\WpUtils\Traits\SingletonTrait;
+    
+    /** @var string 資源標籤 */
+    protected string $label = '用戶';
 
 	/** @var \WP_User[] 測試用戶 */
-	public array $users = [];
+	public array $items = [];
 
 	/**
 	 * 創建 test 用戶
@@ -27,50 +32,35 @@ class User {
 			$default_args = [
 				'first_name' => '明輝',
 				'last_name'  => '陳',
-				'user_login' => 'pest',
+				'user_login' => 'phpunit',
 				'user_pass'  => '123456',
 				'role'       => 'customer',
 			];
 			$args         = \wp_parse_args($args, $default_args);
-
-			$args['first_name'] = $args['first_name'] . "_{$i}";
-			$args['user_login'] = $args['user_login'] . "_{$i}";
+            
+            $args['first_name'] .= "_{$i}";
+            $args['user_login'] .= "_{$i}";
 			$args['user_email'] = $args['user_login'] . '@example.com';
 
 			$user_id       = \wp_insert_user($args);
-			$this->users[] = new \WP_User($user_id);
+			$this->items[] = new \WP_User($user_id);
 		}
 
-		$ids = array_map(fn( $user ) => "#{$user->ID}", $this->users);
+		$ids = array_map( static fn( $user ) => "#{$user->ID}", $this->items);
 		STDOUT::ok("創建 {$qty} 個用戶成功: " . implode(', ', $ids));
 
 		return $this;
 	}
-
-	/**
-	 * 取得用戶，預設隨機
-	 *
-	 * @param string|int $index_or_type 用戶類型或索引
-	 * @return \WP_User
-	 */
-	public function get_user( string|int $index_or_type = 'random' ): \WP_User {
-		if (\is_numeric($index_or_type)) {
-			return $this->users[ $index_or_type ];
-		}
-
-		// if ('random' === $type_or_index) {
-		return $this->users[ array_rand($this->users) ];
-		// }
-	}
+ 
 
 	/** 測試結束後 刪除 test 用戶 */
 	public function tear_down(): void {
-		$count = count($this->users);
-		$ids   = array_map(fn( $user ) => "#{$user->ID}", $this->users);
-		foreach ($this->users as $user) {
+		$count = count($this->items);
+		$ids   = array_map(fn( $user ) => "#{$user->ID}", $this->items);
+		foreach ($this->items as $user) {
 			\wp_delete_user($user->ID);
 		}
 		STDOUT::ok("刪除 {$count} 個用戶成功: " . implode(', ', $ids));
-		$this->users = [];
+		$this->items = [];
 	}
 }

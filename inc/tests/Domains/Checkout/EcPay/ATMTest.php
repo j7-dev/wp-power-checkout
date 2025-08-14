@@ -11,7 +11,7 @@ use J7\PowerCheckoutTests\Shared\Plugin;
 use J7\PowerCheckoutTests\Shared\Api;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use J7\PowerCheckoutTests\Utils\WC_UnitTestCase;
+use J7\PowerCheckoutTests\Shared\WC_UnitTestCase;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
 
 
@@ -39,7 +39,7 @@ class ATMTest extends WC_UnitTestCase {
     /** 每個測試方法執行前執行一次 */
     public function set_up(): void {
         // 建立測試訂單
-        $this->order = Helper\Order::instance()->create()->get_order();
+        $this->order = Helper\Order::instance()->create()->get_item();
         $this->gateway = new RedirectGateway();
         // 設定訂單付款方式
         $this->order->set_payment_method( $this->gateway->id );

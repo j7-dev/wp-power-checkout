@@ -6,15 +6,15 @@
 
 namespace J7\PowerCheckoutTests\Domains\Payment\ShoplinePayment;
 
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\Service;
-use J7\PowerCheckoutTests\Helper;
-use J7\PowerCheckoutTests\Shared\Plugin;
-use J7\PowerCheckoutTests\Shared\Api;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use J7\PowerCheckoutTests\Utils\WC_UnitTestCase;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\Service;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
-
+use J7\PowerCheckoutTests\Attributes\Create;
+use J7\PowerCheckoutTests\Helper\Order;
+use J7\PowerCheckoutTests\Shared\Api;
+use J7\PowerCheckoutTests\Shared\Plugin;
+use J7\PowerCheckoutTests\Shared\WC_UnitTestCase;
 
 /**
  * ShoplinePayment 導轉式支付
@@ -22,6 +22,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
  * @group slp
  * @group payment
  */
+#[Create( Order::class )]
 class RedirectGatewayTest extends WC_UnitTestCase {
     
     /** @var Plugin[] 測試前需要安裝的插件 */
@@ -31,27 +32,26 @@ class RedirectGatewayTest extends WC_UnitTestCase {
         Plugin::POWER_CHECKOUT,
     ];
     
-    /** @var \WC_Order|null 測試訂單 */
-    private \WC_Order|null $order = null;
-    
     /** @var PaymentGateway|null 測試支付網關 */
     private PaymentGateway|null $gateway = null;
     
     /** 每個測試方法執行前執行一次 */
     public function set_up(): void {
-        // 建立測試訂單
-        $this->order = Helper\Order::instance()->create()->get_order();
+        parent::set_up();
         $this->gateway = new RedirectGateway();
+        $order = $this->get_order();
         // 設定訂單付款方式
-        $this->order->set_payment_method( $this->gateway->id );
-        $this->order->save();
+        $order->set_payment_method( $this->gateway->id );
+        $order->save();
     }
     
-    /** 每個測試方法執行後執行一次 */
-    public function tear_down(): void {
-        Helper\Order::instance()->tear_down();
-        $this->order = null;
-        $this->gateway = null;
+    /**
+     * 取得訂單
+     *
+     * @return \WC_Order
+     */
+    protected function get_order(): \WC_Order {
+        return $this->get_container( Order::class )->get_item();
     }
     
     /**
@@ -63,7 +63,7 @@ class RedirectGatewayTest extends WC_UnitTestCase {
         $result = null;
         // 模擬 API 環境 - 不發請求
         if( Api::MOCK === $this->api ) {                // 這邊實例化 $service 看會不會報錯
-            $service = new Service( $this->gateway, $this->order );
+            $service = new Service( $this->gateway, $this->get_order() );
             $redirect = "https://pay-sandbox.shoplinepayments.com/checkout/session?sessionToken=BGPGC6M6A4A27OILWBY54WP4J5UDTY3BPE5SSMHPTTORKOPFRM2OWNYQ6C6KM4TFUYFQGWF3EMCDMRP7QHAZ2R3HADADXGYEQUEWJWDCZ32SLPR5EBKBMYGOCOOGZW4FIDKNHXQWAIS7US66XEBCBGZ5FM======--v1";
             $result = ProcessResult::SUCCESS->to_array( $redirect );
         }
@@ -71,7 +71,7 @@ class RedirectGatewayTest extends WC_UnitTestCase {
         // 對金流測試環境發請求
         if( Api::SANDBOX === $this->api ) {
             // 測試建立 session 並取得 sessionUrl
-            $result = $this->gateway->process_payment( $this->order->get_id() );
+            $result = $this->gateway->process_payment( $this->get_order()->get_id() );
         }
         
         // 對金流正式環境發請求
@@ -123,7 +123,6 @@ class RedirectGatewayTest extends WC_UnitTestCase {
     public function test_exceed_max_allowed_amount(): void {
         $this->fail();
     }
-    
     
     /**
      * @testdox 結帳金額小於最小金額
