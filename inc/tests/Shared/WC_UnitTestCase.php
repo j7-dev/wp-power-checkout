@@ -20,46 +20,62 @@ use J7\PowerCheckoutTests\Utils\STDOUT;
 abstract class WC_UnitTestCase extends \WP_UnitTestCase {
     
     /** @var Plugin[] 每個測試都要載入的外掛 */
-    protected static array $required_plugins = [
+    protected array $required_plugins = [
         Plugin::WOOCOMMERCE
     ];
     /** @var \ReflectionClass 反射類別 */
-    protected static \ReflectionClass $reflection;
+    protected \ReflectionClass $reflection;
     /** @var \ReflectionAttribute[] 建立測試時需要的屬性 */
-    protected static array $create_attributes;
+    protected array $create_attributes;
     /** @var Api API 模式 */
     protected Api $api = Api::MOCK;
     /** @var array<string, IResource> 測試需要的資源 Helper 實例類別 */
     protected array $containers = [];
     
     /** 此類所有測試方法執行前執行一次 */
-    public static function set_up_before_class(): void {
-        // 載入必要外掛，做完主要的幾個生命週期
-        \add_action( 'plugins_loaded', [ __CLASS__, 'required_plugins' ], -1 );
-        \do_action( 'plugins_loaded' );
-        \do_action( 'after_setup_theme' );
-        \do_action( 'init' );
-        \do_action( 'wp_loaded' );
-        \do_action( 'parse_request' );
-        \do_action( 'send_headers' );
-        
-        self::$reflection = new \ReflectionClass( static::class );
-        self::$create_attributes = self::$reflection->getAttributes( Attributes\Create::class );
-    }
+    public static function set_up_before_class(): void {}
     
     /** 此類所有測試方法執行後執行一次 */
     public static function tear_down_after_class(): void {}
     
-    /** 載入 WooCommerce 插件  */
-    public static function required_plugins(): void {
-        foreach ( self::$required_plugins as $plugin ) {
+    /** 設定 required_plugins 為啟用 */
+    public function activate_plugins( $value, $option ): array {
+        $value = is_array( $value ) ? $value : [];
+        foreach ( $this->required_plugins as $plugin ) {
+            $value[] = $plugin->value;
+        }
+        return $value;
+    }
+    
+    /**
+     * @return void
+     */
+    public function require_plugins(): void {
+        foreach ( $this->required_plugins as $plugin ) {
             require_once PLUGIN_DIR . $plugin->value;
         }
     }
     
     /** 每個測試方法執行前執行一次 */
     public function set_up(): void {
-        foreach ( self::$create_attributes as $attribute ) {
+        // 載入必要外掛，做完主要的幾個生命週期
+        \tests_add_filter( 'option_active_plugins', [ $this, 'activate_plugins' ], 1000, 2 );
+        // 這邊 priority 必須 < -100 ，因為 WC 的 package 是 -100 時初始化
+        \add_action( 'plugins_loaded', [ $this, 'require_plugins' ], -1000 );
+        
+        \do_action( 'plugins_loaded' );
+        \do_action( 'after_setup_theme' );
+        \do_action( 'init' );
+        \do_action( 'wp_loaded' );
+        \do_action( 'parse_request' );
+        \do_action( 'rest_api_init' );
+        \do_action( 'send_headers' );
+        
+        $this->reflection = new \ReflectionClass( static::class );
+        $this->create_attributes = $this->reflection->getAttributes( Attributes\Create::class );
+        
+        
+        foreach ( $this->create_attributes as $attribute ) {
             $attribute_name = $attribute->getName();
             if( Attributes\Create::class === $attribute_name ) {
                 /** @var string[] $resource_classes 類別名稱 */
@@ -96,7 +112,7 @@ abstract class WC_UnitTestCase extends \WP_UnitTestCase {
      */
     public function get_container( string $class_name ): ?IResource {
         if( !isset( $this->containers[$class_name] ) ) {
-            STDOUT::error( "容器 {$class_name} 不存在" );
+            STDOUT::err( "容器 {$class_name} 不存在" );
             return null;
         }
         

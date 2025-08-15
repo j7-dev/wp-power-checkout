@@ -12,9 +12,11 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\Service;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
 use J7\PowerCheckoutTests\Attributes\Create;
 use J7\PowerCheckoutTests\Helper\Order;
+use J7\PowerCheckoutTests\Helper\Requester;
 use J7\PowerCheckoutTests\Shared\Api;
 use J7\PowerCheckoutTests\Shared\Plugin;
 use J7\PowerCheckoutTests\Shared\WC_UnitTestCase;
+use J7\Powerhouse\Domains\Order\Shared\Enums\Status as OrderStatus;
 
 /**
  * ShoplinePayment 導轉式支付
@@ -26,7 +28,7 @@ use J7\PowerCheckoutTests\Shared\WC_UnitTestCase;
 class RedirectGatewayTest extends WC_UnitTestCase {
     
     /** @var Plugin[] 測試前需要安裝的插件 */
-    protected static array $required_plugins = [
+    protected array $required_plugins = [
         Plugin::WOOCOMMERCE,
         Plugin::POWERHOUSE,
         Plugin::POWER_CHECKOUT,
@@ -81,11 +83,11 @@ class RedirectGatewayTest extends WC_UnitTestCase {
         }
         
         // 且 redirect 有值，且為 url
-        $this->assertIsArray( $result );
+        $this->assertIsArray( $result, '結果應該是陣列' );
         $this->assertEquals(
-            ProcessResult::SUCCESS->value, $result['result']
+            ProcessResult::SUCCESS->value, $result['result'], '結果應該是成功'
         );
-        $this->assertIsString( $result['redirect'] );
+        $this->assertIsString( $result['redirect'], '結果應該有 redirect 鍵' );
     }
     
     /**
@@ -98,22 +100,60 @@ class RedirectGatewayTest extends WC_UnitTestCase {
         // API 還沒發出去就會 throw error 了
         $result = $this->gateway->process_payment( 0 );
         
-        $this->assertIsArray( $result );
-        $this->assertEquals( ProcessResult::FAILED->value, $result['result'] );
+        $this->assertIsArray( $result, '結果應該是陣列' );
+        $this->assertEquals( ProcessResult::FAILED->value, $result['result'], '結果應該是失敗' );
         // 且沒有 redirect 鍵
-        $this->assertArrayNotHasKey( 'redirect', $result );
+        $this->assertArrayNotHasKey( 'redirect', $result, '結果應該沒有 redirect 鍵' );
         
         // 結帳頁印出錯誤
         $notices = WC()->session->get( 'wc_notices' );
-        $this->assertNotEmpty( $notices );
+        $this->assertNotEmpty( $notices, '結帳頁應該有錯誤訊息' );
+    }
+    
+    
+    /**
+     * @testdox SLP webhook 通知用戶【付款成功】後，訂單轉為【處理中】
+     * @return void
+     * @throws  \Exception
+     */
+    public function test_order_status_process_after_payment_success(): void {
+        $requester = new Requester( 'POST', '/power-checkout/slp/webhook' );
+        $res = $requester->set_body( __DIR__ . '/json/webhook.trade.succeeded.json' )->get_response();
+        $order = $this->get_order();
+        $order_status = $order->get_status();
+        $this->assertContains( $order_status, [ OrderStatus::PROCESSING->value, OrderStatus::COMPLETED->value ],
+                               "訂單狀態應為 " . OrderStatus::PROCESSING->label(
+                               ) . " 或 " . OrderStatus::COMPLETED->label() );
     }
     
     /**
-     * @testdox 接收 SLP webhook 通知用戶付款失敗後，修改訂單到正確狀態
+     * @testdox SLP webhook 通知用戶【付款失敗】後，訂單轉為【等待付款中】
      * @return void
      */
-    public function test_update_order_status_after_payment_failed(): void {
-        $this->fail();
+    public function test_order_status_pending_after_payment_failed(): void {
+        $requester = new Requester( 'POST', '/power-checkout/slp/webhook' );
+        $requester->set_body( __DIR__ . '/json/webhook.session.expired.json' )->get_response();
+        $order = $this->get_order();
+        $order_status = $order->get_status();
+        $this->assertEquals(
+            OrderStatus::PENDING->value, $order_status, "訂單狀態應為 " . OrderStatus::PENDING->label()
+        );
+    }
+    
+    /**
+     * @testdox SLP webhook 通知用戶【逾時未付】後，訂單轉為【取消】
+     * @return void
+     * @throws \Exception
+     */
+    public function test_order_status_cancelled_after_payment_expired(): void {
+        
+        $requester = new Requester( 'POST', '/power-checkout/slp/webhook' );
+        $requester->set_body( __DIR__ . '/json/webhook.session.expired.json' )->get_response();
+        $order = $this->get_order();
+        $order_status = $order->get_status();
+        $this->assertEquals(
+            OrderStatus::CANCELLED->value, $order_status, '訂單狀態應為 ' . OrderStatus::CANCELLED->label()
+        );
     }
     
     /**

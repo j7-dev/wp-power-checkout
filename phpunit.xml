@@ -1,16 +1,22 @@
 <?xml version="1.0"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd" bootstrap="inc/tests/bootstrap.php" backupGlobals="false" colors="true">
-  <testsuites>
-    <testsuite name="測試">
-      <directory suffix="Test.php">./inc/tests/</directory>
-    </testsuite>
-  </testsuites>
-  <php>
-    <env name="WP_PHPUNIT__DIR" value="vendor/wp-phpunit/wp-phpunit"/>
-    <env name="WP_PHPUNIT__TESTS_CONFIG" value="inc/tests/wp-config.php"/>
-    <env name="WP_DB_NAME" value="test"/>
-    <env name="WP_DB_USER" value="root"/>
-    <env name="WP_DB_PASS" value="root"/>
-    <env name="WP_DB_HOST" value="localhost:10071"/>
-  </php>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd" bootstrap="inc/tests/bootstrap.php"
+         backupGlobals="false" colors="true">
+    <testsuites>
+        <testsuite name="測試">
+            <directory suffix="Test.php">./inc/tests/</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="WP_PHPUNIT__DIR" value="vendor/wp-phpunit/wp-phpunit"/>
+        <env name="WP_PHPUNIT__TESTS_CONFIG" value="inc/tests/wp-config.php"/>
+        <env name="WP_DB_NAME" value="test"/>
+        <env name="WP_DB_USER" value="root"/>
+        <env name="WP_DB_PASS" value="root"/>
+        <env name="WP_DB_HOST" value="localhost:10071"/>
+        <env name="WP_ABSPATH"
+             value="C:\Users\User\LocalSites\turbo\app\public\wp-content\plugins\power-checkout\wordpress\"/>
+        <env name="WP_PLUGIN_DIR"
+             value="C:\Users\User\LocalSites\turbo\app\public\wp-content\plugins\power-checkout\wordpress\wp-content\plugins\"/>
+    </php>
 </phpunit>

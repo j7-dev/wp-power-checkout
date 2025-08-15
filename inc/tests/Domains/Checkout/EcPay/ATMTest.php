@@ -6,25 +6,26 @@
 
 namespace J7\PowerCheckoutTests\Domains\Payment\ShoplinePayment;
 
-use J7\PowerCheckoutTests\Helper;
-use J7\PowerCheckoutTests\Shared\Plugin;
-use J7\PowerCheckoutTests\Shared\Api;
-use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
-use J7\PowerCheckoutTests\Shared\WC_UnitTestCase;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Core\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\PaymentGateway;
+use J7\PowerCheckoutTests\Helper;
+use J7\PowerCheckoutTests\Shared\Api;
+use J7\PowerCheckoutTests\Shared\Plugin;
+use J7\PowerCheckoutTests\Shared\WC_UnitTestCase;
 
 
 /**
  * EC pay all in one 跳轉式支付 ATM
  * TODO 都還沒開始寫
+ *
  * @group ecpay-aio
  * @group payment
  */
 class ATMTest extends WC_UnitTestCase {
     
     /** @var Plugin[] 測試前需要安裝的插件 */
-    protected static array $required_plugins = [
+    protected array $required_plugins = [
         Plugin::WOOCOMMERCE,
         Plugin::POWERHOUSE,
         Plugin::POWER_CHECKOUT,
