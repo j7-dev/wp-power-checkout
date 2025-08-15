@@ -15,61 +15,61 @@
  * Tags: your tags
  */
 
-declare (strict_types = 1);
+declare ( strict_types = 1 );
 
 namespace J7\PowerCheckout;
 
-if (!defined('ABSPATH')) {
-	exit; // Exit if accessed directly
+if( !defined( 'ABSPATH' ) ) {
+    exit; // Exit if accessed directly
 }
 
-if ( \class_exists( 'J7\PowerCheckout\Plugin' ) ) {
-	return;
+if( \class_exists( 'J7\PowerCheckout\Plugin' ) ) {
+    return;
 }
 require_once __DIR__ . '/vendor/autoload.php';
 
 /** Class Plugin */
 final class Plugin {
-	use \J7\WpUtils\Traits\PluginTrait;
-	use \J7\WpUtils\Traits\SingletonTrait;
-
-	/**
-	 * Constructor
-	 */
-	public function __construct() {
-
-		self::$template_page_names = [ 'auto-form' ];
-
-		$this->required_plugins = [
-			[
-				'name'     => 'WooCommerce',
-				'slug'     => 'woocommerce',
-				'required' => true,
-				'version'  => '8.3.0',
-			],
-		];
-
-		$this->init(
-			[
-				'app_name'    => 'Power Checkout',
-				'github_repo' => 'https://github.com/j7-dev/wp-power-checkout',
-				'callback'    => [ Bootstrap::class, 'instance' ],
-				'lc'          => 'ZmFsc2',
-			]
-		);
-	}
-
-	/**
-	 * 印出 WC Logger
-	 *
-	 * @param string $message 訊息
-	 * @param string $level 等級
-	 * @param array  $args 參數
-	 * @param int    $trace_limit 堆疊深度
-	 */
-	public static function logger( string $message, string $level, array $args = [], $trace_limit = 0 ): void {
-		\J7\WpUtils\Classes\WC::logger( $message, $level, $args, self::$kebab, $trace_limit );
-	}
+    use \J7\WpUtils\Traits\PluginTrait;
+    use \J7\WpUtils\Traits\SingletonTrait;
+    
+    /**
+     * Constructor
+     */
+    public function __construct() {
+        
+        self::$template_page_names = [ 'auto-form' ];
+        
+        $this->required_plugins = [
+            [
+                'name'     => 'WooCommerce',
+                'slug'     => 'woocommerce',
+                'required' => true,
+                'version'  => '8.3.0',
+            ],
+        ];
+        
+        $this->init(
+            [
+                'app_name'    => 'Power Checkout',
+                'github_repo' => 'https://github.com/j7-dev/wp-power-checkout',
+                'callback'    => [ Bootstrap::class, 'instance' ],
+                'lc'          => 'ZmFsc2',
+            ]
+        );
+    }
+    
+    /**
+     * 印出 WC Logger
+     *
+     * @param string $message     訊息
+     * @param string $level       等級
+     * @param array  $args        參數
+     * @param int    $trace_limit 堆疊深度
+     */
+    public static function logger( string $message, string $level, array $args = [], $trace_limit = 0 ): void {
+        \J7\WpUtils\Classes\WC::logger( $message, $level, $args, self::$kebab, $trace_limit );
+    }
 }
 
 Plugin::instance();
