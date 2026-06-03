@@ -41,7 +41,7 @@ final class PaymentMethodOptions extends DTO {
 			}
 			/** @var array<string, mixed> $field_data */
 			$field_data     = $args[ $field ];
-			$args[ $field ] = Option::create( $field_data, $field );
+			$args[ $field ] = Option::create( $field_data, "{$field}Option" );
 		}
 
 		return new self( $args );
