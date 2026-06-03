@@ -82,17 +82,16 @@ const handleRefundViaGateway: () => Promise<void> = async () => {
 }
 
 onMounted(() => {
-	const form = document.querySelector('form#order')
+	// form#order = HPOS、form#post = 傳統訂單頁，兩者都要監聽
+	const form = document.querySelector('form#order, form#post')
 	if (form) {
 		form.addEventListener('submit', handleSubmit)
 	}
 })
 
 onUnmounted(() => {
-	const externalElement = document.getElementById('external-button')
-	if (externalElement) {
-		externalElement.removeEventListener('submit', handleSubmit)
-	}
+	const form = document.querySelector('form#order, form#post')
+	form?.removeEventListener('submit', handleSubmit)
 })
 </script>
 

@@ -13,8 +13,10 @@ import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
  */
 const Module = () => {
 	const CONTAINER_ID = 'power_checkout_refund_dialog'
-	const node = document.getElementById(CONTAINER_ID)
-	if (!node) {
+	// 只在訂單詳情頁掛載：form#order = HPOS、form#post = 傳統訂單頁
+	// 第二個條件作為重複掛載的防護（節點已存在就不再建立）
+	const orderForm = document.querySelector('form#order, form#post')
+	if (!orderForm || document.getElementById(CONTAINER_ID)) {
 		return
 	}
 	const body = document.querySelector('body')
