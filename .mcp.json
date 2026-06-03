@@ -1,6 +1,6 @@
 {
 	"mcpServers": {
-		"slpayment-mcp": {
+		"shopline-payments-mcp": {
 			"command": "npx",
 			"args": [
 				"-y",

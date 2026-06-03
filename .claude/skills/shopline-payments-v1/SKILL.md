@@ -20,6 +20,14 @@ description: >
 
 SHOPLINE Payments (SLP) is a Taiwan-focused payment gateway. Redirect mode creates a checkout Session via Server-API, obtains a `sessionUrl`, redirects the customer to Shopline's hosted payment page, and receives results via Webhook Event notifications.
 
+## Companion Tool: `shopline-payments-mcp` MCP
+
+When this SKILL does not cover a detail (newly released endpoint, edge case in official documentation, or up-to-date integration guide content), use the **`shopline-payments-mcp`** MCP server to fetch the official documentation site directly.
+
+- Tool: `mcp__shopline-payments-mcp__get_slpayment_docs()` -- returns the official docs landing page (HTML)
+- Use cases: confirm latest API changes, fetch official integration flow descriptions, cross-check against this SKILL when in doubt
+- This SKILL takes precedence for everything documented below (parameters, code samples, error codes, sandbox data, pitfalls). The MCP is a fallback for what is not yet captured here.
+
 ## Environment
 
 | Environment | Base URL |
@@ -244,11 +252,15 @@ interface WebhookPayload {
 - **Non-3D failure**: TWD digit (ignoring cents 00) is even = failure
 - Example: NT$401 (value=40100) -> non-3D, success. NT$400 (value=40000) -> non-3D, failure.
 
-### Sandbox Account
+### Sandbox Account (primary general merchant)
 
 | Email | Merchant ID | Password |
 |---|---|---|
 | `slpsandbox2@shopline.com` | `2652289079513847808` | `shoplinePayments123.` |
+
+> Full list of 9 sandbox accounts (general / platform / sub-merchant), ApplePay test Apple ID, dashboard URL, amount-based simulation rules, and `.env` mapping: see `references/sandbox-resources.md`.
+>
+> The primary credentials above are also wired into the project `.env` as `SHOPLINE_SANDBOX_ADMIN_*` so AI agents can sign into the dashboard via `playwright-cli` to inspect orders.
 
 ## Pitfalls and Warnings
 
@@ -270,3 +282,4 @@ interface WebhookPayload {
 | All API endpoints with full parameter tables | `references/api-reference.md` |
 | 100+ error codes by category | `references/error-codes.md` |
 | All webhook event types with payload structures | `references/webhook-events.md` |
+| Full sandbox login accounts, ApplePay test ID, amount-based simulation rules, `.env` mapping | `references/sandbox-resources.md` |
