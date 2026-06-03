@@ -7,6 +7,7 @@ import type { FormRules } from 'element-plus'
 import { pick, merge } from 'lodash-es'
 import { TFormData } from '@/pages/Invoices/Amego/Shared/types'
 import Checkbox from '@/components/Checkbox/index.vue'
+import TrimmedInput from '@/components/TrimmedInput.vue'
 import { env } from '@/index'
 
 const gatewayId = 'amego'
@@ -197,11 +198,11 @@ const rules = reactive<FormRules<TFormData>>({
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="invoice" label="統一編號">
-			<el-input v-model="form.invoice" :disabled="isTestMode" clearable />
+			<TrimmedInput v-model="form.invoice" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="app_key" label="App Key">
-			<el-input v-model="form.app_key" :disabled="isTestMode" clearable />
+			<TrimmedInput v-model="form.app_key" :disabled="isTestMode" clearable />
 		</el-form-item>
 
 		<el-form-item class="[&_.el-form-item\_\_content]:justify-center">

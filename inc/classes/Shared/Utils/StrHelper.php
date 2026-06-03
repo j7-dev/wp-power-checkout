@@ -143,4 +143,66 @@ final class StrHelper {
 			throw new \Exception("{$value} 自然人憑證格式不符");
 		}
 	}
+
+	/**
+	 * 修剪字串前後「肉眼看不見」的字元
+	 *
+	 * 涵蓋字元集（與前端 js/src/utils/trim.ts 同步，若調整任一邊請務必同步另一邊）：
+	 *  - U+0009 Tab
+	 *  - U+000A LF / U+000D CR
+	 *  - U+000B 垂直 Tab / U+000C Form Feed（對齊 PHP trim() 預設字元集）
+	 *  - U+0020 半形空白
+	 *  - U+00A0 不換行空白（NBSP）
+	 *  - U+3000 全形空白
+	 *  - U+200B 零寬空白 / U+200C 零寬非連接 / U+200D 零寬連接
+	 *  - U+FEFF BOM
+	 *
+	 * 設計原則：
+	 *  - 僅處理「前後」，欄位中間的不可見字元保留（可能是合法的金鑰內容）
+	 *  - 純不可見字元的字串會回傳空字串（給前端 form validator 接手提示）
+	 *  - 不影響合法 UTF-8 字元（中文 / Emoji 等）
+	 *
+	 * @param string $value 要修剪的字串
+	 * @return string 修剪後的字串
+	 *
+	 * @see https://github.com/zenbuapps/wp-power-checkout/issues/16
+	 */
+	public static function trim_invisible( string $value ): string {
+		// regex 集合：以 \x{HHHH} 表示 Unicode codepoint，需 PCRE u flag
+		$pattern = '/^[\x{0009}\x{000A}\x{000B}\x{000C}\x{000D}\x{0020}\x{00A0}\x{3000}\x{200B}\x{200C}\x{200D}\x{FEFF}]+|[\x{0009}\x{000A}\x{000B}\x{000C}\x{000D}\x{0020}\x{00A0}\x{3000}\x{200B}\x{200C}\x{200D}\x{FEFF}]+$/u';
+		$result  = \preg_replace( $pattern, '', $value );
+		return \is_string( $result ) ? $result : $value;
+	}
+
+	/**
+	 * 遞迴修剪 mixed 值前後不可見字元
+	 *
+	 * 行為對照表：
+	 *  - string  → 套用 trim_invisible
+	 *  - array   → 遞迴每個元素（key 不動，value 套用本函式）
+	 *  - 其他    → 原值返回（int / float / bool / null / object 不動）
+	 *
+	 * 用於 ProviderUtils::update_option，讓 wp_options 寫入前所有 string
+	 * 與陣列內 string 元素都自動清理，數值 / enum / 巢狀物件不受影響。
+	 *
+	 * @param mixed $value 要遞迴修剪的值
+	 * @return mixed 處理後的值（型別與輸入相同）
+	 *
+	 * @phpstan-return ($value is string ? string : ($value is array<string, mixed> ? array<string, mixed> : ($value is array ? array<int|string, mixed> : mixed)))
+	 */
+	public static function trim_invisible_deep( mixed $value ): mixed {
+		if (\is_string( $value )) {
+			return self::trim_invisible( $value );
+		}
+
+		if (\is_array( $value )) {
+			$result = [];
+			foreach ($value as $key => $item) {
+				$result[ $key ] = self::trim_invisible_deep( $item );
+			}
+			return $result;
+		}
+
+		return $value;
+	}
 }

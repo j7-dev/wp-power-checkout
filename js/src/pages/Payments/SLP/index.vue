@@ -8,6 +8,7 @@ import { merge, pick } from 'lodash-es'
 import { PAYMENT_METHODS, TFormData } from '@/pages/Payments/SLP/Shared/types'
 import { EPaymentMethods } from '@/pages/Payments/SLP/Shared/enums'
 import Checkbox from '@/components/Checkbox/index.vue'
+import TrimmedInput from '@/components/TrimmedInput.vue'
 import { env } from '@/index'
 
 const gatewayId = 'shopline_payment_redirect'
@@ -343,7 +344,7 @@ const webhookEvents = [
         <!--					</el-tooltip>-->
         <!--				</span>-->
         <!--			</template>-->
-        <!--			<el-input v-model="form.platformId" :disabled="isTestMode" clearable />-->
+        <!--			<TrimmedInput v-model="form.platformId" :disabled="isTestMode" clearable />-->
         <!--		</el-form-item>-->
 
         <el-form-item :required="!isTestMode" prop="merchantId">
@@ -358,15 +359,15 @@ const webhookEvents = [
 					</el-tooltip>
 				</span>
             </template>
-            <el-input v-model="form.merchantId" :disabled="isTestMode" clearable />
+            <TrimmedInput v-model="form.merchantId" :disabled="isTestMode" clearable />
         </el-form-item>
 
         <el-form-item :required="!isTestMode" prop="apiKey" label="Api Key">
-            <el-input v-model="form.apiKey" :disabled="isTestMode" clearable />
+            <TrimmedInput v-model="form.apiKey" :disabled="isTestMode" clearable />
         </el-form-item>
 
         <el-form-item :required="!isTestMode" prop="clientKey" label="Client Key">
-            <el-input v-model="form.clientKey" :disabled="isTestMode" clearable />
+            <TrimmedInput v-model="form.clientKey" :disabled="isTestMode" clearable />
         </el-form-item>
 
         <el-form-item
@@ -375,7 +376,7 @@ const webhookEvents = [
                 label="Sign Key"
                 class="[&_p]:text-sm [&_p]:text-gray-500 [&_p]:mb-2 [&_p]:mt-0"
         >
-            <el-input class="mb-4" v-model="form.signKey" clearable />
+            <TrimmedInput class="mb-4" v-model="form.signKey" clearable />
             <p>提供以下資訊給 Shopline 窗口後取得 Sign Key</p>
             <p>
                 Webhook URL: <code>{{ apiUrl }}/power-checkout/slp/webhook</code>

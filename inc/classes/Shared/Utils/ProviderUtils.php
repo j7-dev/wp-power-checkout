@@ -78,6 +78,10 @@ abstract class ProviderUtils {
 	/**
 	 * 更新設定
 	 *
+	 * 寫入前會自動 trim 所有 string 與陣列內 string 元素的前後不可見字元，
+	 * 確保 wp_options 不殘留複製貼上時夾帶的隱形字元（Issue #16）。
+	 * 數值、布林、enum、物件型別不受影響。
+	 *
 	 * @param string                      $provider_id   Payment Gateway ID
 	 * @param string|array<string, mixed> $key_or_values 設定 key 或 values
 	 * @param mixed                       $value         值
@@ -89,12 +93,13 @@ abstract class ProviderUtils {
 		$settings_array = \is_array( $settings_array) ? $settings_array : [];
 
 		if (\is_array( $key_or_values )) {
-			$values = $key_or_values;
+			/** @var array<string, mixed> $values */
+			$values = StrHelper::trim_invisible_deep( $key_or_values );
 			return \update_option( self::get_option_name( $provider_id ), \wp_parse_args( $values, $settings_array) );
 		}
 
 		$key                    = $key_or_values;
-		$settings_array[ $key ] = $value;
+		$settings_array[ $key ] = StrHelper::trim_invisible_deep( $value );
 		return \update_option( self::get_option_name( $provider_id ), $settings_array );
 	}
 

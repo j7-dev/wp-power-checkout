@@ -7,6 +7,7 @@ namespace J7\PowerCheckout\Shared\DTOs;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Traits\EnableTrait;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
+use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 /**
@@ -62,11 +63,19 @@ class BaseSettingsDTO extends DTO {
 	}
 
 	/**
-	 * 實例化後，如果是 測試模式就修改屬性
+	 * 實例化前的處理
+	 *
+	 * 1. 對 dto_data 中所有 string 與 array 內 string 元素進行 trim_invisible_deep
+	 *    （Issue #16 — 既有 wp_options 殘留前後不可見字元時，DTO 讀取要無感修復）
+	 * 2. 將 mode 字串轉為 Mode enum
 	 *
 	 * @return void
 	 */
 	protected function before_init(): void {
+		if (\is_array( $this->dto_data )) {
+			$this->dto_data = StrHelper::trim_invisible_deep( $this->dto_data );
+		}
+
 		if (isset($this->dto_data['mode']) && \is_string($this->dto_data['mode'])) {
 			$this->dto_data['mode'] = Mode::from($this->dto_data['mode']);
 		}

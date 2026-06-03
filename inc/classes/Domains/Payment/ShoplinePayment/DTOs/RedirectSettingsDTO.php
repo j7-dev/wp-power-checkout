@@ -9,6 +9,7 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Traits\EnableTrait;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
+use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums;
 
@@ -89,6 +90,11 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 
 	/**  @return void 型別轉換 */
 	protected function before_init(): void {
+		// Issue #16：先 trim 所有 string 與陣列內 string 元素，避免 wp_options 殘留的前後不可見字元污染屬性
+		if (\is_array( $this->dto_data )) {
+			$this->dto_data = StrHelper::trim_invisible_deep( $this->dto_data );
+		}
+
 		$int_keys = [
 			'expire_min',
 			'min_amount',
@@ -125,6 +131,8 @@ final class RedirectSettingsDTO extends DTO implements IGatewaySettings {
 		if ( !empty( $this->signKey ) ) {
 			$converted     = \mb_convert_encoding($this->signKey, 'UTF-8', 'auto');
 			$this->signKey = \is_string($converted) ? $converted : $this->signKey;
+			// Issue #16：mb_convert_encoding 可能引入頭尾不可見字元，再 trim 一次作為兜底
+			$this->signKey = StrHelper::trim_invisible( $this->signKey );
 		}
 	}
 
