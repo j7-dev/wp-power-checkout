@@ -79,7 +79,7 @@ The sandbox uses the **TWD amount** to deterministically pick the flow and outco
 
 ApplePay sandbox flow requires the buyer device to sign into the above Apple ID and have at least one Apple-issued sandbox test card added to Wallet.
 
-## Other Payment Methods (LINE Pay / JKOPay / VirtualAccount / ChaileaseBNPL / StreetPay)
+## Other Payment Methods (LINE Pay / JKOPay / VirtualAccount / ChaileaseBNPL)
 
 In **production**, these methods redirect the customer to the third-party payment channel (LINE, JKO, bank ATM, etc.).
 

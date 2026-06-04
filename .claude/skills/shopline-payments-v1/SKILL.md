@@ -3,7 +3,7 @@ name: shopline-payments-v1
 description: >
   SHOPLINE Payments v1 API complete technical reference for redirect/regular mode payment integration.
   Covers Create Session API, Session Query, webhook (Event) verification with HMAC-SHA256,
-  all payment methods (CreditCard, LinePay, VirtualAccount, ApplePay, JKOPay, ChaileaseBNPL, StreetPay),
+  all payment methods (CreditCard, LinePay, VirtualAccount, ApplePay, JKOPay, ChaileaseBNPL),
   error codes, status codes, and sandbox test data.
   Use this skill whenever the task involves: import or code referencing shopline, ShoplineService,
   ShoplineController, shoplinepayments.com, SHOPLINE Payments, SLP API, trade/sessions/create,
@@ -77,7 +77,6 @@ const amount = { value: Math.round(priceInDollars * 100), currency: 'TWD' };
 | `VirtualAccount` | ATM Bank Transfer | Virtual bank account; `paymentExpireTime` 1440-86400 min |
 | `JKOPay` | JKO Pay | Default expire 60 min |
 | `ChaileaseBNPL` | Chailease zingla BNPL | Buy-now-pay-later; supports installments |
-| `StreetPay` | Street Pay | Convenience store payment |
 
 Set `allowPaymentMethodList` array to control which methods appear on the payment page. Array order = display order.
 
