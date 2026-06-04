@@ -16,12 +16,13 @@ final class ProviderRegister {
 	/** @var array<string, string> $gateway_services [id, class] */
 	private static array $gateway_services = [
 		ShoplinePayment\Services\RedirectGateway::ID => ShoplinePayment\Services\RedirectGateway::class,
+		EcpayAIO\Services\AioRedirectGateway::ID     => EcpayAIO\Services\AioRedirectGateway::class,
+		Ecpg\Services\EcpgGateway::ID                => Ecpg\Services\EcpgGateway::class,
 	];
 
 	/** Register hooks */
 	public static function register_hooks(): void {
 		Shared\Services\PaymentApiService::register_hooks();
-		// EcpayAIO\Core\Init::register_hooks();
 
 		\add_filter( 'woocommerce_payment_gateways', [ __CLASS__, 'add_method' ] );
 		\add_action( 'woocommerce_refund_created', [ __CLASS__, 'default_refund_reason' ], 10, 2 );

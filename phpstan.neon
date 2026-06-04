@@ -4,11 +4,8 @@ parameters:
 		- plugin.php
 		- inc/
 	ignoreErrors:
-		- '#Function .* not found#'
 		- '#Cannot cast mixed to .*#'
 		- '#Using nullsafe method call on non-nullable type .*#'
-		- '#Call to static method .* on an unknown class J7\\PowerCheckout\\Domains\\Payment\\EcpayAIO\\Services\\Services#'
-		- '#Call to static method instance\(\) on an unknown class J7\\PowerCheckout\\Domains\\Settings\\DTOs\\SettingsDTO#'
 	excludePaths:
 		- js/*
 		- vendor/*

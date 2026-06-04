@@ -6,9 +6,9 @@ globs:
 
 # Vue 3 Frontend Rules
 
-## Architecture: 3 Vue App Instances from 1 Bundle
+## Architecture: 4 App Instances from 1 Bundle
 
-Entry point `js/src/index.ts` creates three independent Vue app instances:
+Entry point `js/src/index.ts` creates four independent instances:
 
 1. **Settings SPA** -- mounted on `#power-checkout-wc-setting-app` (injected into WC `#mainform`)
    - Full router + Element Plus + TanStack Vue Query
@@ -21,6 +21,11 @@ Entry point `js/src/index.ts` creates three independent Vue app instances:
 3. **InvoiceApp** -- `MountInvoiceApp()` from `external/InvoiceApp/`
    - Mounts on order detail pages (admin MetaBox) AND checkout page (frontend invoice form)
    - Renders on multiple DOM elements identified by `render_ids` from PHP
+
+4. **EcpgPayment** -- `MountEcpgPayment()` from `external/EcpgPayment/`
+   - Mounts on order-received page for ECPay ECPG embedded payment
+   - Loads ECPay JS SDK, renders card form (`#ECPayPayment`), sends PayToken to `ecpg/create-payment`, handles 3DS redirect
+   - Not a Vue app — plain TypeScript module called from `index.ts`
 
 ## Composition API Only
 
@@ -97,9 +102,12 @@ Hash mode router (`createWebHashHistory`):
 ```
 /payments                               → Payments list
 /payments/shopline_payment_redirect     → SLP settings
+/payments/ecpay_aio                     → ECPay AIO settings
+/payments/ecpay_ecpg                    → ECPay ECPG settings
 /logistics                              → Logistics (placeholder)
 /invoices                               → Invoice list
 /invoices/amego                         → Amego settings
+/invoices/ecpay                         → ECPay Invoice settings
 /settings                               → Global settings (placeholder)
 ```
 

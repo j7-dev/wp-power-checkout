@@ -120,3 +120,40 @@
     場景: 顧客填寫發票資訊
       當 顧客在結帳頁填寫發票類型和載具資訊並完成結帳
       那麼 發票資訊儲存至 _pc_issue_invoice_params
+
+  規則: 綠界發票 provider 開立（B2C/B2B）
+
+    場景: 以綠界 provider 開立 B2C 個人發票成功
+      假設 "ecpay" 已啟用
+      而且 ECPay 發票設定如下：
+        | key         | value            |
+        | merchant_id | 2000132          |
+        | hash_key    | ejCk326UnaZWKisg |
+        | hash_iv     | q9jcZX8Ib9LM8wYk |
+        | mode        | test             |
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 綠界發票 API 開立發票回傳成功
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，參數為：
+        | key         | value      |
+        | provider    | ecpay      |
+        | invoiceType | individual |
+        | individual  | cloud      |
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_issued_invoice_data 有值
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ecpay"
+
+    場景: 以綠界 provider 開立 B2B 公司發票成功
+      假設 "ecpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 綠界發票 API 開立發票回傳成功
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，參數為：
+        | key         | value    |
+        | provider    | ecpay    |
+        | invoiceType | company  |
+        | companyName | 測試公司 |
+        | companyId   | 87654321 |
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_issued_invoice_data 有值
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ecpay"

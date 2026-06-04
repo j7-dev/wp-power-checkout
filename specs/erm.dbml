@@ -1,5 +1,7 @@
 // Power Checkout — Entity Relationship Model
-// Version: 1.0.28 | Date: 2026-03-11
+// Version: 1.2.0 | Date: 2026-06-04
+// 1.2.0: 新增綠界 ECPay 金流（AIO ecpay_aio / ECPG ecpay_ecpg）+ 綠界電子發票（ecpay）相關
+//        order meta、付款方式 enum、整合模式 enum、invoice provider enum、wp_options 設定表
 // 本外掛不建立自訂資料表，使用 WooCommerce 訂單 (HPOS / wp_posts) 和 wp_options 儲存資料
 // 所有 meta 透過 WC_Order::update_meta_data / get_meta 存取
 
@@ -12,6 +14,38 @@ Enum payment_method {
   ApplePay [note: 'Apple Pay']
   LinePay [note: 'LINE Pay']
   ChaileaseBNPL [note: '中租 zingla 零卡分期']
+}
+
+// 綠界 ECPay ChoosePayment 付款方式（對齊 EcpayPaymentMethod enum value）
+// CreditInstallment / Period 對綠界皆屬 ChoosePayment=Credit，僅作業務語意層區分
+Enum ecpay_payment_method {
+  Credit [note: '信用卡一次付清（ChoosePayment=Credit）']
+  CreditInstallment [note: '信用卡分期（ChoosePayment=Credit + CreditInstallment=3,6,12,18,24,30）']
+  Period [note: '定期定額（ChoosePayment=Credit + PeriodAmount/PeriodType/Frequency/ExecTimes）']
+  WebATM [note: '網路 ATM']
+  ATM [note: '自動櫃員機（ATM 虛擬帳號，取號後繳費）']
+  CVS [note: '超商代碼（取號後繳費）']
+  BARCODE [note: '超商條碼（取號後繳費）']
+  ApplePay [note: 'Apple Pay']
+}
+
+// 綠界 ECPay 整合模式（每模式一個 WC gateway）
+Enum ecpay_integration_mode {
+  aio [note: '全方位金流（導轉式 Cashier V5，CheckMacValue SHA256）gateway id=ecpay_aio']
+  ecpg [note: '站內付 2.0（內嵌式，AES-128-CBC + 3DS ThreeDURL）gateway id=ecpay_ecpg']
+}
+
+// 綠界 AIO 付款 / 取號回應碼 RtnCode（CMV 類服務一律「字串」比對）
+Enum ecpay_aio_rtn_code {
+  "1" [note: '付款成功（信用卡/ATM/CVS/BARCODE 付款完成最終通知）→ processing']
+  "2" [note: 'ATM 取號成功（取得虛擬帳號，尚未付款）→ 不改狀態']
+  "10100073" [note: 'CVS/BARCODE 取號成功（取得繳費代碼/條碼，尚未付款）→ 不改狀態']
+}
+
+// 電子發票 Provider 值域（Amego + 綠界發票兩者並存，後台可切換）
+Enum invoice_provider {
+  amego [note: '光貿電子發票（gateway id=amego，md5 簽章）']
+  ecpay [note: '綠界電子發票 B2C/B2B（gateway id=ecpay，AES-128-CBC）']
 }
 
 Enum slp_response_status {
@@ -128,6 +162,79 @@ Table wp_options_amego_settings {
   '''
 }
 
+Table wp_options_ecpay_aio_settings {
+  option_name varchar [pk, note: 'woocommerce_ecpay_aio_settings']
+  enabled varchar [note: 'yes / no']
+  title varchar [note: '前台顯示標題（預設「綠界 ECPay 全方位金流」）']
+  description text [note: '前台顯示描述']
+  icon varchar [note: '圖示 URL']
+  orderButtonText varchar [note: '付款按鈕文字（預設「前往綠界付款」）']
+  mode provider_mode [note: 'test / prod']
+  merchantId varchar [note: '綠界特店編號 MerchantID（憑證存 DB，禁寫死正式憑證）']
+  hashKey varchar [note: '綠界 HashKey（憑證存 DB）']
+  hashIv varchar [note: '綠界 HashIV（憑證存 DB）']
+  allowedPayments json [note: '允許的付款方式 array（ecpay_payment_method 子集；組裝固定送 ChoosePayment=ALL 再反推 IgnorePayment）']
+  installmentPeriods json [note: '信用卡分期期數 array（預設 [3,6,12,18,24,30]）']
+  periodConfig json [note: '定期定額設定（PeriodAmount/PeriodType/Frequency/ExecTimes；空陣列=不啟用）']
+  minAmount int [note: '最小金額（0 表示不限制）']
+  maxAmount int [note: '最大金額（0 表示不限制）']
+  expireDate int [note: 'ATM 繳費天數（範圍 1-60，預設 3）']
+
+  Note: '''
+    綠界 ECPay 全方位金流（AIO 導轉式）設定
+    儲存在 wp_options，option_name = woocommerce_ecpay_aio_settings，值為 PHP serialized array
+    test 模式未填憑證時套用綠界 AIO 公開測試帳號（MerchantID 3002607 / SHA256）
+    對應 .feature: payment/ecpay-aio-checkout（AioSettingsDTO）
+  '''
+}
+
+Table wp_options_ecpay_ecpg_settings {
+  option_name varchar [pk, note: 'woocommerce_ecpay_ecpg_settings']
+  enabled varchar [note: 'yes / no']
+  title varchar [note: '前台顯示標題（預設「綠界 ECPay 站內付」）']
+  description text [note: '前台顯示描述']
+  icon varchar [note: '圖示 URL']
+  method_title varchar [note: '後台標題']
+  method_description varchar [note: '後台描述']
+  orderButtonText varchar [note: '付款按鈕文字（預設「確認付款」）']
+  mode provider_mode [note: 'test / prod']
+  merchantId varchar [note: '綠界特店編號 MerchantID（憑證存 DB）']
+  hashKey varchar [note: '綠界 HashKey（憑證存 DB）']
+  hashIv varchar [note: '綠界 HashIV（憑證存 DB）']
+  allowedPayments json [note: '允許的付款方式 array（站內付 2.0 本階段預設僅 Credit）']
+  minAmount int [note: '最小金額（0 表示不限制）']
+  maxAmount int [note: '最大金額（0 表示不限制）']
+
+  Note: '''
+    綠界 ECPay 站內付 2.0（ECPG 內嵌式）設定
+    儲存在 wp_options，option_name = woocommerce_ecpay_ecpg_settings，值為 PHP serialized array
+    test 模式未填憑證時套用綠界 ECPG 線上金流公開測試帳號（MerchantID 3002607 / AES-128-CBC）
+    雙 Domain：Token/CreatePayment 走 ecpg；查詢/退款走 ecpayment（混用會 404）
+    對應 .feature: payment/ecpay-ecpg-checkout（EcpgSettingsDTO）
+  '''
+}
+
+Table wp_options_ecpay_invoice_settings {
+  option_name varchar [pk, note: 'woocommerce_ecpay_settings']
+  enabled varchar [note: 'yes / no']
+  title varchar [note: '前台顯示標題（預設「綠界電子發票」）']
+  description text [note: '前台顯示描述']
+  icon varchar [note: '圖示 URL']
+  method_title varchar [note: '標題']
+  method_description varchar [note: '描述']
+  mode provider_mode [note: 'test / prod']
+  merchant_id varchar [note: '綠界特店編號 MerchantID（憑證存 DB）']
+  hash_key varchar [note: '綠界 HashKey（憑證存 DB）']
+  hash_iv varchar [note: '綠界 HashIV（憑證存 DB）']
+
+  Note: '''
+    綠界 ECPay 電子發票（B2C/B2B）設定，與 Amego 並列為 Invoice Provider
+    儲存在 wp_options，option_name = woocommerce_ecpay_settings（注意：發票 provider id = ecpay，非 ecpay_invoice）
+    test 模式未填憑證時套用綠界電子發票公開測試帳號（MerchantID 2000132 / AES-128-CBC）
+    對應 .feature: invoice/invoice-issue、invoice/invoice-cancel（綠界 provider 情境）
+  '''
+}
+
 Table wp_options_global_settings {
   option_name varchar [pk, note: 'power_checkout_settings']
   value json [note: '全域設定（目前保留未使用）']
@@ -156,6 +263,26 @@ Table wc_order_meta_payment {
   '''
 }
 
+// ==================== WC_Order Meta: 金流（綠界 ECPay）====================
+
+Table wc_order_meta_ecpay_payment {
+  order_id bigint [ref: > wc_orders.id, note: '訂單 ID']
+  _pc_ecpay_trade_no varchar [note: '綠界 MerchantTradeNo（冪等鍵，建單時寫入；ReturnURL/PaymentInfoURL 以此反查訂單）']
+  _pc_ecpay_payment_detail json [note: '付款結果明細（ReturnURL 幕後通知寫入；AIO=已驗章參數陣列 / ECPG=AES 解密後的 Data）']
+  _pc_ecpay_payment_info json [note: '取號繳費資訊（PaymentInfoURL 通知寫入：BankCode/vAccount/PaymentNo/Barcode1-3/ExpireDate 等）']
+  _pc_ecpay_credit_variant varchar [note: "信用卡付款變體（''｜'installment'｜'period'，checkout 顧客選擇寫入）"]
+  _pc_ecpay_installment varchar [note: "信用卡分期期數（顧客選擇的單一期數，如 '6'，checkout 寫入）"]
+
+  Note: '''
+    綠界 ECPay 金流相關的 Order Meta（AIO + ECPG 共用同一組 meta key）
+    對應 .feature: payment/ecpay-aio-checkout、ecpay-aio-callback、ecpay-aio-payment-info、
+                   ecpay-ecpg-checkout、ecpay-ecpg-callback、ecpay-credit-variants、ecpay-refund
+    透過 Payment\\EcpayAIO\\Shared\\Helpers\\EcpayMetaKeys 類別存取（HPOS 相容，禁用 get_post_meta）
+    _pc_ecpay_trade_no 為冪等鍵：幕後通知（ReturnURL/PaymentInfoURL）以 MerchantTradeNo 反查訂單，
+    已 processing 則 skip（重送風暴防護）
+  '''
+}
+
 // ==================== WC_Order Meta: 發票 ====================
 
 Table wc_order_meta_invoice {
@@ -163,12 +290,13 @@ Table wc_order_meta_invoice {
   _pc_issue_invoice_params json [note: '結帳頁填寫的發票資訊（invoiceType, individual, carrier, companyId 等）']
   _pc_issued_invoice_data json [note: '發票開立回傳資料 array（含 invoice_number 等）']
   _pc_cancelled_invoice_data json [note: '發票作廢回傳資料 array']
-  _pc_invoice_provider_id varchar [note: '使用的發票 Provider ID（如 amego）']
+  _pc_invoice_provider_id invoice_provider [note: '使用的發票 Provider ID（amego ｜ ecpay）']
 
   Note: '''
-    電子發票相關的 Order Meta
+    電子發票相關的 Order Meta（Amego 與綠界 ECPay 發票共用同一組 meta key）
     對應 .feature: invoice/invoice-issue、invoice/invoice-cancel
     透過 Invoice\Shared\Helpers\MetaKeys 類別存取
+    _pc_invoice_provider_id 值域對應 Enum invoice_provider（amego ｜ ecpay）
     作廢成功時清除 _pc_issue_invoice_params、_pc_issued_invoice_data、_pc_invoice_provider_id
   '''
 }
@@ -189,4 +317,5 @@ Table wc_order_item_meta {
 // ==================== References ====================
 
 Ref: wc_order_meta_payment.order_id > wc_orders.id
+Ref: wc_order_meta_ecpay_payment.order_id > wc_orders.id
 Ref: wc_order_meta_invoice.order_id > wc_orders.id

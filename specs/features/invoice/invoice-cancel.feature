@@ -77,3 +77,17 @@
       當 管理員點擊 "作廢發票"
       那麼 系統呼叫 cancel API
       而且 發票作廢成功
+
+  規則: 綠界發票 provider 作廢
+
+    場景: 以綠界 provider 作廢發票成功
+      假設 "ecpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ecpay"
+      而且 訂單 #100 已開立綠界發票且尚未作廢
+      而且 綠界發票 API 作廢發票回傳成功
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/cancel/100
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_cancelled_invoice_data 有值
+      而且 訂單 #100 的 _pc_issued_invoice_data 已被清除
+      而且 訂單 #100 的 _pc_invoice_provider_id 已被清除

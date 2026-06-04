@@ -17,9 +17,8 @@ Each `.tsx` file in `inc/assets/blocks/` is a separate Vite entry point that reg
 ```
 inc/assets/blocks/
   shopline_payment_redirect.tsx    # Active -- SLP redirect gateway
-  pc_ecpayaio_atm.tsx             # ECPay AIO variants (exist but ECPay is commented out)
-  pc_ecpayaio_credit.tsx
-  ...
+  ecpay_aio.tsx                    # Active -- ECPay AIO redirect gateway
+  ecpay_ecpg.tsx                   # Active -- ECPay ECPG embedded gateway
   types/types.d.ts                 # Shared type declarations
 ```
 

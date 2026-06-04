@@ -3,7 +3,10 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 
 export const ROUTER_MAPPER = {
 	shopline_payment_redirect: '/payments/shopline_payment_redirect',
+	ecpay_aio: '/payments/ecpay_aio',
+	ecpay_ecpg: '/payments/ecpay_ecpg',
 	amego: '/invoices/amego',
+	ecpay: '/invoices/ecpay',
 }
 
 const routes = [
@@ -13,11 +16,23 @@ const routes = [
 		path: '/payments/shopline_payment_redirect',
 		component: () => import('@/pages/Payments/SLP/index.vue'),
 	}, // 請根據實際路徑調整
+	{
+		path: '/payments/ecpay_aio',
+		component: () => import('@/pages/Payments/EcpayAio/index.vue'),
+	},
+	{
+		path: '/payments/ecpay_ecpg',
+		component: () => import('@/pages/Payments/EcpayEcpg/index.vue'),
+	},
 	{ path: '/logistics', component: () => import('@/pages/Logistics.vue') },
 	{ path: '/invoices', component: () => import('@/pages/Invoices/index.vue') },
 	{
 		path: '/invoices/amego',
 		component: () => import('@/pages/Invoices/Amego/index.vue'),
+	},
+	{
+		path: '/invoices/ecpay',
+		component: () => import('@/pages/Invoices/Ecpay/index.vue'),
 	},
 	{ path: '/settings', component: () => import('@/pages/Settings.vue') },
 ]

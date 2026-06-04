@@ -4,267 +4,415 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs;
 
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\Services;
-use J7\PowerCheckout\Domains\Payment\EcpayAIO\Utils\Base as EcpayUtils;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Enums\EcpayPaymentMethod;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\CheckMacValueService;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayMetaKeys;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\ItemName;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\TradeNo;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Http\AioCallback;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
-use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
 use J7\WpUtils\Classes\DTO;
 
 /**
- * 綠界全方位金流 API 必填參數 DTO
+ * 綠界 AIO AioCheckOut/V5 建單請求參數
+ *
+ * 屬性命名一律 camelCase 對齊綠界 API（MerchantID 等綠界以首字大寫，
+ * 為符合 DTO ↔ to_array() 直送綠界的需求，屬性名即綠界欄位名）。
+ *
+ * ChoosePayment 策略：固定送 ChoosePayment='ALL'，再由 AioSettingsDTO::allowedPayments
+ * 白名單「反推」IgnorePayment（未勾選的付款方式以 # 連接）。
  *
  * @see https://developers.ecpay.com.tw/?p=2862
  */
 final class RequestParams extends DTO {
 
-	use ParamsTrait; // 共用屬性
+	/**
+	 * @var array<string> 綠界 AIO 可被 IgnorePayment 排除的付款方式全集
+	 *
+	 * 注意：DigitalPayment 雖可作 ChoosePayment 值，但不可用於 IgnorePayment，故不納入全集。
+	 */
+	private const IGNORABLE_PAYMENTS = [ 'Credit', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay' ];
 
-	/** @var string *特店交易時間 (20) yyyy/MM/dd HH:mm:ss */
-	public string $MerchantTradeDate;
+	// region 綠界 AIO 必填參數（屬性名 = 綠界欄位名）
 
-	/** @var string *交易類型 (20) 請固定填入 aio */
+	/** @var string 特店編號 */
+	public string $MerchantID = '';
+
+	/** @var string 特店交易編號（≤ 20 碼，英數字） */
+	public string $MerchantTradeNo = '';
+
+	/** @var string 交易時間 yyyy/MM/dd HH:mm:ss（UTC+8） */
+	public string $MerchantTradeDate = '';
+
+	/** @var string 固定值 aio */
 	public string $PaymentType = 'aio';
 
-	/** @var int *交易金額，整數，不可有小數點，僅限新台幣 */
-	public int $TotalAmount;
+	/** @var int 交易金額（新台幣整數，ceil 進位） */
+	public int $TotalAmount = 0;
 
-	/** @var string *交易描述 (200) 請勿帶入特殊字元 */
-	public string $TradeDesc;
+	/** @var string 交易描述（≤ 200，禁特殊字元） */
+	public string $TradeDesc = '';
 
-	/**
-	 * @var string *商品名稱 (400)
-	 * 如果商品名稱有多筆，需在金流選擇頁一行一行顯示商品名稱的話，商品名稱請以符號#分隔。
-	 * 超過 400 字綠界將自動截斷
-	 * */
-	public string $ItemName;
+	/** @var string 商品名稱（多筆以 # 連接，≤ 400） */
+	public string $ItemName = '';
 
-	/**
-	 * @var string *付款完成通知回傳網址 (200) [POST]
-	 * @see https://developers.ecpay.com.tw/?p=2878
-	 *  */
-	public string $ReturnURL;
+	/** @var string 付款結果通知 URL（Server-to-Server） */
+	public string $ReturnURL = '';
 
-	/**
-	 * @var string *付款方式 (20)
-	 *
-	 * Credit：信用卡及銀聯卡(需申請開通)
-	 * TWQR ：歐付寶TWQR行動支付(需申請開通)
-	 * WebATM：網路ATM
-	 * ATM：自動櫃員機
-	 * CVS：超商代碼
-	 * BARCODE：超商條碼
-	 * ApplePay: Apple Pay(僅支援手機支付)
-	 * BNPL：裕富無卡分期(需申請開通)
-	 * ALL：不指定付款方式，由綠界顯示付款方式選擇頁面。
-	 * */
-	public string $ChoosePayment;
+	/** @var string 付款方式（固定送 ALL，再以 IgnorePayment 反推） */
+	public string $ChoosePayment = 'ALL';
 
-	/**
-	 * @var string *檢查碼
-	 * @see https://developers.ecpay.com.tw/?p=2902
-	 *  */
-	public string $CheckMacValue;
-
-	/** @var int *CheckMacValue加密類型 請固定填入1，使用SHA256加密。 */
+	/** @var int 固定值 1（SHA256） */
 	public int $EncryptType = 1;
 
+	/** @var string 檢查碼（於 after_init 計算） */
+	public string $CheckMacValue = '';
 
+	// endregion
 
-	/**
-	 * @var string Client端返回特店的按鈕連結 (200)
-	 * 消費者點選此按鈕後，會將頁面導回到此設定的網址
-	 * 注意事項
-	 * 1. 導回時不會帶付款結果到此網址，只是將頁面導回而已。
-	 * 2. 設定此參數，綠界會在付款完成或取號完成頁面上顯示[返回商店]的按鈕。
-	 * 3. 設定此參數，發生簡訊OTP驗證失敗時，頁面上會顯示[返回商店]的按鈕。
-	 * 4. 若未設定此參數，則綠界付款完成頁或取號完成頁面，不會顯示[返回商店]的按鈕。
-	 * 5. 若導回網址未使用https時，部份瀏覽器可能會出現警告訊息。
-	 * 6. 參數內容若有包含%26(&)及%3C(<) 這二個值時，請先進行urldecode() 避免呼叫API失敗。
-	 * */
-	public string $ClientBackURL;
+	// region 綠界 AIO 選填參數
 
-	/** @var string 商品銷售網址 (200) */
-	public string $ItemURL;
+	/** @var string 排除的付款方式（以 # 連接） */
+	public string $IgnorePayment = '';
 
-	/** @var string 備註 (100) */
-	public string $Remark;
+	/** @var string 取號結果通知 URL（ATM/CVS/BARCODE） */
+	public string $PaymentInfoURL = '';
 
-	/**
-	 * @var string 付款子項目 (20)
-	 * 若設定此參數，建立訂單將轉導至綠界訂單成立頁，依設定的付款方式及付款子項目帶入訂單，無法選擇其他付款子項目。請參考付款方式一覽表
-	 * @see https://developers.ecpay.com.tw/?p=5679
-	 * */
-	public string $ChooseSubPayment;
+	/** @var string 消費者付款完成後導回的網址（前端） */
+	public string $ClientBackURL = '';
+
+	/** @var string ATM 繳費天數（範圍 1-60，僅 ATM 使用） */
+	public string $ExpireDate = '';
+
+	/** @var string 語言（ENG/KOR/JPN/CHI；繁中送空字串使用綠界預設） */
+	public string $Language = '';
+
+	// endregion
+
+	// region 信用卡分期 / 定期定額（皆屬 ChoosePayment=Credit，互斥）
 
 	/**
-	 * @var string Client端回傳付款結果網址 (200) [POST]
-	 * 有別於ReturnURL (server端的網址)，OrderResultURL為商家前端的 URL，用於在消費者完成付款後，接收綠界系統回傳的付款結果參數。消費者付款完成後，綠界會將付款結果參數以POST方式回傳到到該網址。詳細說明請參考付款結果通知。
-	 * @see https://developers.ecpay.com.tw/?p=2878
+	 * @var string 信用卡分期期數（單一值，如 '6'）。空字串代表非分期。
 	 *
-	 * 注意事項：
-	 * 若與[ClientBackURL]同時設定，將會以此參數為主。
-	 * 銀聯卡及非即時交易( ATM、CVS、BARCODE )不支援此參數。
-	 * 付款結果通知請依ReturnURL (server端的網址)為主,避免因前端操作或網路問題未收到OrderResultURL 特店的client端(前端)的通知。
-	 * 參數內容若有包含%26(&)及%3C(<) 這二個值時，請先進行urldecode() 避免呼叫API失敗。
+	 * 分期與定期定額互斥；選分期時 ChoosePayment 固定為 Credit。
+	 * 期數須在 AioSettingsDTO::installmentPeriods 白名單內（於 build_credit_variant 驗證）。
 	 */
-	public string $OrderResultURL;
+	public string $CreditInstallment = '';
+
+	/** @var int 定期定額每期金額（須等於 TotalAmount）。0 代表非定期定額。 */
+	public int $PeriodAmount = 0;
+
+	/** @var string 定期定額週期種類 D=天/M=月/Y=年。空字串代表非定期定額。 */
+	public string $PeriodType = '';
+
+	/** @var int 定期定額執行頻率（D:1-365, M:1-12, Y:僅 1）。0 代表非定期定額。 */
+	public int $Frequency = 0;
+
+	/** @var int 定期定額執行次數（最少 2 次；D/M 最多 999, Y 最多 99）。0 代表非定期定額。 */
+	public int $ExecTimes = 0;
+
+	/** @var string 定期定額每期授權結果通知 URL（第 2 期起通知至此） */
+	public string $PeriodReturnURL = '';
+
+	// endregion
+
+	/** @var string 計算 CheckMacValue 用的 HashKey（不送往綠界，private 不在 to_array 內） */
+	private string $hashKey = '';
+
+	/** @var string 計算 CheckMacValue 用的 HashIV（不送往綠界） */
+	private string $hashIv = '';
 
 	/**
-	 * @var 'N' | 'Y' 是否需要額外付款資訊 (1)
-	 * 若不回傳額外的付款資訊時，參數值請傳：Ｎ
-	 * 若要回傳額外的付款資訊時，參數值請傳：Ｙ
-	 * 付款完成後綠界後端會以POST方式回傳額外付款資訊到特店的ReturnURL 與OrderResultURL。
-	 * @see https://developers.ecpay.com.tw/?p=5675
-	 */
-	public string $NeedExtraPaidInfo;
-
-	/**
-	 * @var string 隱藏付款方式
-	 * 當付款方式[ChoosePayment]為ALL時，可隱藏不需要的付款方式，多筆請以井號分隔 (#)。
-	 * 可用的參數值：
-	 * Credit：信用卡
-	 * WebATM：網路ATM
-	 * ATM：自動櫃員機
-	 * CVS：超商代碼
-	 * BARCODE：超商條碼
-	 * ApplePay: Apple Pay
-	 * TWQR ：歐付寶TWQR行動支付
-	 * BNPL：裕富無卡分期
-	 */
-	public string $IgnorePayment;
-
-	/** @var 'ENG' | 'KOR' | 'JPN' | 'CHI' | null 語系設定 */
-	public string|null $Language = null;
-
-	// ----- ▼ ATM 才有的屬性 ----- //
-
-	/** @var int 允許繳費有效天數 min:1 max:60 default:3 以天為單位，例如7/1號訂單成立，有效天數設為3天，則到期日為7/4 23:59截止 */
-	public int $ExpireDate;
-
-	/**
-	 * @var string Server端回傳付款相關資訊 (200)
-	 * 若有設定此參數，訂單建立完成後(非付款完成)
-	 * 綠界會Server端背景回傳消費者付款方式相關資訊(例：銀行代碼、繳費虛擬帳號繳費期限…等)
-	 * 請參考ATM、CVS或BARCODE的取號結果通知
-	 * 參數內容若有包含%26(&)及%3C(<) 這二個值時，請先進行urldecode() 避免呼叫API失敗。
-	 *  */
-	public string $PaymentInfoURL;
-
-	/**
-	 * @var string Client端回傳付款相關資訊 (200)
-	 * 若有設定此參數，訂單建立完成後(非付款完成)
-	 * 綠界會Client端回傳消費者付款方式相關資訊(例：銀行代碼、繳費虛擬帳號繳費期限…等)且將頁面轉到特店指定的頁面
-	 * 請參考ATM、CVS或BARCODE的取號結果通知
+	 * 由訂單與 gateway 組裝建單參數
 	 *
-	 * ⚠️ 若設定此參數，將會使設定的返回特店的按鈕連結[ClientBackURL]失效。
-	 * 若導回網址未使用https時，部份瀏覽器可能會出現警告訊息。
-	 * 參數內容若有包含%26(&)及%3C(<) 這二個值時，請先進行urldecode() 避免呼叫API失敗。
-	 *  */
-	public string $ClientRedirectURL;
-
-	/** @var array<string, mixed>|null 原始資料 */
-	protected array|null $dto_data = [];
-
-	/**
-	 * 組成變數的主要邏輯可以寫在裡面
+	 * @param \WC_Order              $order   訂單
+	 * @param AbstractPaymentGateway $gateway 付款閘道
 	 *
-	 *  @param \WC_Order              $order 訂單
-	 *  @param AbstractPaymentGateway $gateway 付款方式
+	 * @return self
 	 */
 	public static function instance( \WC_Order $order, AbstractPaymentGateway $gateway ): self {
-		$notify_url = urldecode(\site_url('wp-json/power-checkout/ecpay-aio', 'https'));
+		$settings = AioSettingsDTO::instance();
 
-		$return_url = urldecode($gateway->get_return_url($order));
-		$settings   = Settings::instance();
+		$language     = ItemName::get_language();
+		$return_url   = AioCallback::get_return_url();
+		$paymentinfo  = AioCallback::get_payment_info_url();
+		$total_amount = (int) \ceil( (float) $order->get_total() );
 
-		$default_args = [
-			'MerchantID'        => $settings->merchant_id,
-			'MerchantTradeNo'   => EcpayUtils::encode_trade_no( $order->get_id() ),
-			'MerchantTradeDate' => ( new \DateTime('now', new \DateTimeZone('Asia/Taipei')) )->format('Y/m/d H:i:s'),
-			'TotalAmount'       => (int) ceil( (float) $order->get_total()), // 無條件進位
-			'TradeDesc'         => \get_bloginfo('name'),
-			'ItemName'          => EcpayUtils::get_item_name($order),
-			'ReturnURL'         => $notify_url,
-			'ChoosePayment'     => $gateway->payment_type,
-			'ClientBackURL'     => $return_url,
-			'OrderResultURL'    => $return_url,
-			'PaymentInfoURL'    => $notify_url,
-			'ClientRedirectURL' => $return_url,
+		$data = [
+			'MerchantID'        => $settings->merchantId,
+			'MerchantTradeNo'   => TradeNo::encode( $order->get_id() ),
+			'MerchantTradeDate' => \wp_date( 'Y/m/d H:i:s' ) ?: \gmdate( 'Y/m/d H:i:s', \time() + 8 * 3600 ),
+			'PaymentType'       => 'aio',
+			// 綠界僅收新台幣整數，無條件進位避免少收
+			'TotalAmount'       => $total_amount,
+			'TradeDesc'         => "Order #{$order->get_id()}",
+			'ItemName'          => ItemName::get( $order ),
+			'ReturnURL'         => $return_url,
+			'ChoosePayment'     => 'ALL',
+			'EncryptType'       => 1,
+			'IgnorePayment'     => self::build_ignore_payment( $settings->allowedPayments ),
+			'PaymentInfoURL'    => $paymentinfo,
+			'ClientBackURL'     => $order->get_checkout_order_received_url(),
+			'ExpireDate'        => (string) $settings->expireDate,
+			'Language'          => $language ?? '',
+			// 內部用，不送綠界（private 屬性不會進 to_array）
+			'hashKey'           => $settings->hashKey,
+			'hashIv'            => $settings->hashIv,
 		];
 
-		// 加上語言
-		$language = EcpayUtils::get_language();
-		if ( $language ) {
-			$default_args['Language'] = $language;
-		}
+		// 信用卡分期 / 定期定額（皆屬 Credit，互斥）：依 checkout 顧客選擇（order meta）組裝
+		$data = self::build_credit_variant( $data, $order, $settings, $return_url, $total_amount );
 
-		$args = \wp_parse_args( $gateway->extra_request_params(), $default_args );
-
-		// 將 request params 存到訂單
-		// ( new MetaKeys($order) )->save_request( $args );
-
-		// $args = self::add_type_info( $args, $order, $gateway );
-
-		return new self($args);
+		return new self( $data );
 	}
 
-	/** 初始化後執行 */
+	/**
+	 * 依顧客於 checkout 的選擇（order meta）組裝信用卡分期 / 定期定額參數
+	 *
+	 * 變體決策機制（非前端直接控制送往綠界的 raw 參數，避免竄改）：
+	 *  - 顧客選擇存於 order meta `_pc_ecpay_credit_variant`（''｜'installment'｜'period'），
+	 *    分期期數存於 `_pc_ecpay_installment`，定期定額週期由後台 `AioSettingsDTO::periodConfig` 決定。
+	 *  - 選分期或定期定額時，ChoosePayment 固定為 'Credit'（兩者皆 Credit-only，不再用 ALL+IgnorePayment）。
+	 *  - 分期與定期定額互斥；變體為空字串則維持原 ALL 流程。
+	 *
+	 * @param array<string, mixed> $data         已組裝的基礎建單資料
+	 * @param \WC_Order            $order        訂單
+	 * @param AioSettingsDTO       $settings     設定
+	 * @param string               $return_url   ReturnURL（定期定額 PeriodReturnURL 沿用）
+	 * @param int                  $total_amount 訂單總額（整數，定期定額 PeriodAmount = 此值）
+	 *
+	 * @return array<string, mixed>
+	 * @throws \Exception 分期期數不在允許範圍 / 定期定額參數不完整
+	 */
+	private static function build_credit_variant(
+		array $data,
+		\WC_Order $order,
+		AioSettingsDTO $settings,
+		string $return_url,
+		int $total_amount
+	): array {
+		$meta_keys = new EcpayMetaKeys( $order );
+		$variant   = $meta_keys->get_credit_variant();
+
+		if ( 'installment' === $variant ) {
+			$installment = $meta_keys->get_installment();
+			// 期數須在後台白名單內，否則拒絕建單
+			if ( '' === $installment || ! \in_array( (int) $installment, $settings->installmentPeriods, true ) ) {
+				throw new \Exception( '分期期數不在允許範圍' );
+			}
+			$data['ChoosePayment']     = 'Credit'; // 分期屬 Credit
+			$data['IgnorePayment']     = '';       // Credit-only 不再用 IgnorePayment
+			$data['CreditInstallment'] = $installment;
+			return $data;
+		}
+
+		if ( 'period' === $variant ) {
+			$config      = $settings->periodConfig;
+			$period_type = isset( $config['PeriodType'] ) ? (string) $config['PeriodType'] : '';
+			$frequency   = isset( $config['Frequency'] ) ? (int) $config['Frequency'] : 0;
+			$exec_times  = isset( $config['ExecTimes'] ) ? (int) $config['ExecTimes'] : 0;
+
+			// 必填參數缺一不可（PeriodType / Frequency / ExecTimes）
+			if ( '' === $period_type || $frequency <= 0 || $exec_times <= 0 ) {
+				throw new \Exception( '定期定額參數不完整' );
+			}
+
+			$data['ChoosePayment']   = 'Credit'; // 定期定額屬 Credit
+			$data['IgnorePayment']   = '';       // Credit-only 不再用 IgnorePayment
+			$data['PeriodAmount']    = $total_amount; // 每期授權金額須等於 TotalAmount
+			$data['PeriodType']      = $period_type;
+			$data['Frequency']       = $frequency;
+			$data['ExecTimes']       = $exec_times;
+			$data['PeriodReturnURL'] = $return_url;
+			return $data;
+		}
+
+		return $data;
+	}
+
+	/**
+	 * 由白名單反推 IgnorePayment
+	 *
+	 * 全集（IGNORABLE_PAYMENTS）扣除白名單（allowedPayments）即為要排除的付款方式，
+	 * 以 # 連接。修正舊版以 in_array 單值驗證 IgnorePayment 的 bug。
+	 *
+	 * @param array<string> $allowed_payments 後台勾選允許的付款方式
+	 *
+	 * @return string 以 # 連接的 IgnorePayment 字串
+	 */
+	private static function build_ignore_payment( array $allowed_payments ): string {
+		$ignored = \array_values( \array_diff( self::IGNORABLE_PAYMENTS, $allowed_payments ) );
+		return \implode( '#', $ignored );
+	}
+
+	/** @return void 初始化前處理：搬出 hashKey / hashIv 到 private 屬性 */
+	protected function before_init(): void {
+		if ( ! \is_array( $this->dto_data ) ) {
+			return;
+		}
+		$this->dto_data = StrHelper::trim_invisible_deep( $this->dto_data );
+
+		if ( isset( $this->dto_data['hashKey'] ) && \is_string( $this->dto_data['hashKey'] ) ) {
+			$this->hashKey = $this->dto_data['hashKey'];
+			unset( $this->dto_data['hashKey'] );
+		}
+		if ( isset( $this->dto_data['hashIv'] ) && \is_string( $this->dto_data['hashIv'] ) ) {
+			$this->hashIv = $this->dto_data['hashIv'];
+			unset( $this->dto_data['hashIv'] );
+		}
+	}
+
+	/**
+	 * 初始化後：計算 CheckMacValue
+	 *
+	 * 以送往綠界的參數（to_array 結果，已含 ChoosePayment/IgnorePayment 等）計算，
+	 * 演算法委派 CheckMacValueService（ksort → HashKey 前綴 → HashIV 後綴 →
+	 * .NET urlencode → 小寫 → SHA256 → 大寫）。
+	 *
+	 * @return void
+	 */
 	protected function after_init(): void {
-		$this->add_check_value( 'sha256' );
+		$args = $this->to_check_value_args();
+		if ( '' === $this->hashKey || '' === $this->hashIv ) {
+			return;
+		}
+		$this->CheckMacValue = CheckMacValueService::get_check_value( $args, $this->hashKey, $this->hashIv, 'sha256' );
+	}
+
+	/**
+	 * 收集送往綠界的參數（明確型別 string|int，過濾空字串選填欄位）
+	 *
+	 * 直接讀取本 DTO 的綠界欄位屬性（皆為 string|int），不經 to_array() 的 mixed，
+	 * 確保回傳型別精確為 array<string, string|int>。
+	 *
+	 * @param bool $with_check_value 是否包含 CheckMacValue
+	 * @return array<string, string|int>
+	 */
+	private function collect_params( bool $with_check_value ): array {
+		/** @var array<string, string|int> $all */
+		$all = [
+			'MerchantID'        => $this->MerchantID,
+			'MerchantTradeNo'   => $this->MerchantTradeNo,
+			'MerchantTradeDate' => $this->MerchantTradeDate,
+			'PaymentType'       => $this->PaymentType,
+			'TotalAmount'       => $this->TotalAmount,
+			'TradeDesc'         => $this->TradeDesc,
+			'ItemName'          => $this->ItemName,
+			'ReturnURL'         => $this->ReturnURL,
+			'ChoosePayment'     => $this->ChoosePayment,
+			'EncryptType'       => $this->EncryptType,
+			'IgnorePayment'     => $this->IgnorePayment,
+			'PaymentInfoURL'    => $this->PaymentInfoURL,
+			'ClientBackURL'     => $this->ClientBackURL,
+			'ExpireDate'        => $this->ExpireDate,
+			'Language'          => $this->Language,
+			// 信用卡分期 / 定期定額（空字串 / 0 會於下方 array_filter 過濾）
+			'CreditInstallment' => $this->CreditInstallment,
+			'PeriodAmount'      => $this->PeriodAmount,
+			'PeriodType'        => $this->PeriodType,
+			'Frequency'         => $this->Frequency,
+			'ExecTimes'         => $this->ExecTimes,
+			'PeriodReturnURL'   => $this->PeriodReturnURL,
+		];
+
+		if ( $with_check_value ) {
+			$all['CheckMacValue'] = $this->CheckMacValue;
+		}
+
+		// 移除空字串 / 0 的選填欄位（綠界不傳的欄位不參與 CMV，亦不送 form）
+		return \array_filter(
+			$all,
+			static fn( string|int $value ) => '' !== $value && 0 !== $value
+		);
+	}
+
+	/**
+	 * 取得參與 CheckMacValue 計算的參數
+	 *
+	 * 排除 CheckMacValue 自身與空字串選填欄位（綠界不傳的欄位不參與計算）。
+	 *
+	 * @return array<string, string|int>
+	 */
+	private function to_check_value_args(): array {
+		return $this->collect_params( false );
+	}
+
+	/**
+	 * 取得實際送往綠界 form 的參數（含 CheckMacValue，去除空值選填欄位）
+	 *
+	 * @return array<string, string|int>
+	 */
+	public function to_form_params(): array {
+		return $this->collect_params( true );
 	}
 
 	/**
 	 * 自訂驗證邏輯
 	 *
+	 * @return void
 	 * @throws \Exception 如果驗證失敗
-	 *  */
+	 */
 	protected function validate(): void {
 		parent::validate();
 
-		if ('aio' !== $this->PaymentType) {
-			throw new \Exception("PaymentType 必須為 aio, 但目前為 {$this->PaymentType}");
+		// MerchantTradeNo ≤ 20
+		if ( '' !== $this->MerchantTradeNo && \strlen( $this->MerchantTradeNo ) > 20 ) {
+			throw new \Exception( 'MerchantTradeNo 長度不可超過 20' );
 		}
 
-		( new StrHelper( $this->MerchantTradeNo, 'MerchantTradeNo', 20) )->validate();
-		( new StrHelper( $this->TradeDesc, 'TradeDesc', 200) )->validate_strlen();
-
-		$payment_options = [ 'Credit', 'TWQR', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'BNPL' ];
-		if (!in_array($this->ChoosePayment, [ ...$payment_options, 'ALL' ], true)) {
-			throw new \Exception('ChoosePayment 必須為 ' . implode(', ', [ ...$payment_options, 'ALL' ]) . " 其中一個, 但目前為 {$this->ChoosePayment}");
+		// TradeDesc ≤ 200
+		if ( '' !== $this->TradeDesc && \mb_strlen( $this->TradeDesc ) > 200 ) {
+			throw new \Exception( 'TradeDesc 長度不可超過 200' );
 		}
 
-		if ($this->EncryptType !== 1) {
-			throw new \Exception("EncryptType 必須為 1, 但目前為 {$this->EncryptType}");
+		// EncryptType 必為 1
+		if ( 1 !== $this->EncryptType ) {
+			throw new \Exception( 'EncryptType 必須為 1' );
 		}
 
-		if (isset($this->NeedExtraPaidInfo)) {
-			if (!in_array($this->NeedExtraPaidInfo, [ 'N', 'Y' ])) {
-				throw new \Exception("NeedExtraPaidInfo 必須為 'N' | 'Y' 其中一個, 但目前為 {$this->NeedExtraPaidInfo}");
+		// ChoosePayment 白名單（本策略固定 ALL，但仍驗證以防外部覆寫）
+		$allowed_choose = [ 'ALL', ...self::IGNORABLE_PAYMENTS, 'TWQR', 'BNPL', 'WeiXin', 'DigitalPayment' ];
+		if ( '' !== $this->ChoosePayment && ! \in_array( $this->ChoosePayment, $allowed_choose, true ) ) {
+			throw new \Exception( 'ChoosePayment 必須為綠界允許值' );
+		}
+
+		// IgnorePayment 多值驗證（逐段驗證每個都在可排除全集內）
+		if ( '' !== $this->IgnorePayment ) {
+			$segments = \explode( '#', $this->IgnorePayment );
+			foreach ( $segments as $segment ) {
+				if ( '' === $segment ) {
+					continue;
+				}
+				if ( ! \in_array( $segment, self::IGNORABLE_PAYMENTS, true ) ) {
+					throw new \Exception( "IgnorePayment 含非法值：{$segment}" );
+				}
 			}
 		}
 
-		if (isset($this->IgnorePayment)) {
-			if (!in_array($this->IgnorePayment, $payment_options)) {
-				throw new \Exception('IgnorePayment 必須為 ' . implode(', ', $payment_options) . " 其中一個, 但目前為 {$this->IgnorePayment}");
+		// ExpireDate 1-60（ATM 繳費天數）
+		if ( '' !== $this->ExpireDate ) {
+			$expire = (int) $this->ExpireDate;
+			if ( $expire < 1 || $expire > 60 ) {
+				throw new \Exception( 'ExpireDate 必須介於 1 至 60' );
 			}
 		}
 
-		if (isset($this->Language)) {
-			if (!in_array($this->Language, [ 'ENG', 'KOR', 'JPN', 'CHI' ])) {
-				throw new \Exception("Language 必須為 'ENG' | 'KOR' | 'JPN' | 'CHI' 其中一個, 但目前為 {$this->Language}");
-			}
+		// 分期與定期定額互斥（皆屬 Credit，不可同時帶）
+		$has_installment = '' !== $this->CreditInstallment;
+		$has_period      = 0 !== $this->PeriodAmount || '' !== $this->PeriodType || 0 !== $this->Frequency || 0 !== $this->ExecTimes;
+		if ( $has_installment && $has_period ) {
+			throw new \Exception( '分期與定期定額不可同時使用' );
 		}
-	}
 
-	/**
-	 * 依照不同付款方式特性，加上額外參數
-	 *
-	 * @param string $hash_algo 'sha256' | 'md5' 雜湊演算法
-	 */
-	protected function add_check_value( string $hash_algo ): void {
-		/** @var array<string, string|int> $args */
-		$args                = $this->to_array();
-		$this->CheckMacValue = Services::get_check_value( $args, $hash_algo );
+		// 帶分期 / 定期定額時 ChoosePayment 必為 Credit
+		if ( ( $has_installment || $has_period ) && 'Credit' !== $this->ChoosePayment ) {
+			throw new \Exception( '分期 / 定期定額的 ChoosePayment 必須為 Credit' );
+		}
+
+		// 定期定額 PeriodType 僅 D/M/Y
+		if ( '' !== $this->PeriodType && ! \in_array( $this->PeriodType, [ 'D', 'M', 'Y' ], true ) ) {
+			throw new \Exception( 'PeriodType 必須為 D / M / Y' );
+		}
 	}
 }

@@ -33,6 +33,12 @@ export const EP = {
   // Webhook (namespace: power-checkout/slp)
   WEBHOOK: 'power-checkout/slp/webhook',
 
+  // 綠界 ECPay 幕後通知 / 前端 API（namespace: power-checkout/ecpay）
+  ECPAY_AIO_RETURN: 'power-checkout/ecpay/aio/return',
+  ECPAY_AIO_PAYMENT_INFO: 'power-checkout/ecpay/aio/payment-info',
+  ECPAY_ECPG_RETURN: 'power-checkout/ecpay/ecpg/return',
+  ECPAY_ECPG_CREATE_PAYMENT: 'power-checkout/ecpay/ecpg/create-payment',
+
   // WooCommerce 內建（建立/操作測試訂單）
   WC_ORDERS: 'wc/v3/orders',
   WC_ORDER: (id: number | string) => `wc/v3/orders/${id}`,
@@ -43,7 +49,33 @@ export const EP = {
 export const PROVIDERS = {
   SLP: 'shopline_payment_redirect',
   AMEGO: 'amego',
+  // 綠界 ECPay
+  ECPAY_AIO: 'ecpay_aio',     // 全方位金流（導轉式，CheckMacValue SHA256）
+  ECPAY_ECPG: 'ecpay_ecpg',   // 站內付 2.0（內嵌式，AES-128-CBC）
+  ECPAY_INVOICE: 'ecpay',     // 綠界電子發票（B2C/B2B，AES；option_name=woocommerce_ecpay_settings）
 } as const
+
+// ─── 綠界 ECPay 付款方式（ChoosePayment，依 erm.dbml Enum ecpay_payment_method）──
+export const ECPAY_PAYMENT_METHODS = {
+  CREDIT: 'Credit',
+  CREDIT_INSTALLMENT: 'CreditInstallment',
+  PERIOD: 'Period',
+  WEB_ATM: 'WebATM',
+  ATM: 'ATM',                 // 取號後繳費，無 API 退款
+  CVS: 'CVS',                 // 取號後繳費，無 API 退款
+  BARCODE: 'BARCODE',         // 取號後繳費，無 API 退款
+  APPLE_PAY: 'ApplePay',
+} as const
+
+// ─── 綠界 AIO RtnCode（CMV 類，一律字串）──────────────────────
+export const ECPAY_AIO_RTN_CODE = {
+  PAID_SUCCESS: '1',          // 付款成功 → processing
+  ATM_GET_CODE: '2',          // ATM 取號成功（尚未付款）→ 不改狀態
+  CVS_GET_CODE: '10100073',   // CVS/BARCODE 取號成功（尚未付款）→ 不改狀態
+} as const
+
+// ─── 綠界付款結果通知純文字回應 ──────────────────────────────
+export const ECPAY_OK_RESPONSE = '1|OK'
 
 // ─── Invoice Types（依 specs/features/invoice）──────────────
 export const INVOICE_TYPE = {
@@ -188,6 +220,12 @@ export interface TestIds {
   // LINE Pay 失敗付款測試訂單（pending 狀態）
   linePayFailedOrderId?: number
   linePayFailedTradeOrderId?: string
+  // 綠界 AIO 信用卡訂單（pending，含 _pc_ecpay_trade_no）— callback / 退款測試用
+  ecpayAioOrderId?: number
+  ecpayAioTradeNo?: string
+  // 綠界 ECPG 信用卡訂單（pending，含 _pc_ecpay_trade_no）
+  ecpgOrderId?: number
+  ecpgTradeNo?: string
   [key: string]: unknown
 }
 

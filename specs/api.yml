@@ -15,9 +15,17 @@ info:
     所有管理端 API 需要 WordPress 登入 Cookie 加上 `X-WP-Nonce` Header（`wp_create_nonce('wp_rest')`）。
     Webhook 端點使用 HMAC-SHA256 簽章驗證，不需要 WordPress 認證。
 
+    ## 綠界 ECPay 幕後通知端點（power-checkout/ecpay 命名空間）
+    綠界 ECPay 的 callback / 前端 API 不使用 WordPress 認證（`permission_callback` 一律 `__return_true`），
+    授權在 callback 內以協定機制把關：
+    - `aio/return`、`aio/payment-info`：以 **CheckMacValue（SHA256）** timing-safe 驗章；驗章失敗仍回 `1|OK`（避免綠界重送風暴）。
+    - `ecpg/return`：JSON POST，雙層檢查（傳輸層 `TransCode===1` → **AES-128-CBC 解密 Data** → 業務層 `RtnCode`）；解密失敗仍回 `1|OK`。
+    - `ecpg/create-payment`：前端 SDK 取得 PayToken 後送回，以 **WooCommerce `order_key`** 比對擁有權（非 nonce，因支援訪客結帳）。
+    - 三個 callback（`aio/*`、`ecpg/return`）回應一律為**純文字 `1|OK`、HTTP 200**（非 JSON）。
+
     ## 錯誤處理
     所有端點的錯誤以 Exception 形式拋出，WordPress REST API 框架統一捕獲後回傳 HTTP 500 + 錯誤訊息。
-  version: "1.0.28"
+  version: "1.2.0"
 
 servers:
   - url: /wp-json/power-checkout/v1
@@ -26,6 +34,8 @@ servers:
     description: 電子發票 API 命名空間
   - url: /wp-json/power-checkout/slp
     description: Shopline Payment Webhook 命名空間
+  - url: /wp-json/power-checkout/ecpay
+    description: 綠界 ECPay 幕後通知 / 前端 API 命名空間（AIO / ECPG）
 
 tags:
   - name: Settings
@@ -36,6 +46,8 @@ tags:
     description: 電子發票開立與作廢
   - name: Webhook
     description: Shopline Payment Webhook 接收
+  - name: ECPay
+    description: 綠界 ECPay 幕後通知（AIO ReturnURL / PaymentInfoURL、ECPG ReturnURL）與站內付前端 API
 
 components:
   securitySchemes:
@@ -206,7 +218,8 @@ components:
       properties:
         provider:
           type: string
-          description: 電子發票 Provider ID
+          enum: [amego, ecpay]
+          description: 電子發票 Provider ID（amego = 光貿；ecpay = 綠界電子發票）
           example: "amego"
         invoiceType:
           type: string
@@ -244,6 +257,156 @@ components:
         data:
           type: object
           description: 事件資料（結構依事件類型而異），包含 tradeOrderId、status 等欄位
+
+    # ===== 綠界 ECPay =====
+    EcpayAioReturnPayload:
+      type: object
+      description: |
+        綠界 AIO 付款結果通知（ReturnURL）— Form POST（application/x-www-form-urlencoded）。
+        所有欄位（除 CheckMacValue 自身）參與 CheckMacValue（SHA256）計算。RtnCode 為**字串**。
+      required: [MerchantID, MerchantTradeNo, RtnCode, CheckMacValue]
+      properties:
+        MerchantID:
+          type: string
+          example: "3002607"
+        MerchantTradeNo:
+          type: string
+          description: 商店交易編號（冪等鍵，對應 order meta _pc_ecpay_trade_no）
+          example: "EC100ABCDEF"
+        RtnCode:
+          type: string
+          description: 付款回應碼（字串）。"1"=付款成功；其他=失敗
+          example: "1"
+        RtnMsg:
+          type: string
+          example: "交易成功"
+        TradeNo:
+          type: string
+          description: 綠界交易編號
+        TradeAmt:
+          type: string
+        PaymentDate:
+          type: string
+          example: "2025/01/01 12:05:00"
+        PaymentType:
+          type: string
+          description: 實際付款方式（回傳值，如 Credit_CreditCard ≠ 送出的 Credit）
+          example: "Credit_CreditCard"
+        SimulatePaid:
+          type: string
+          enum: ["0", "1"]
+        CheckMacValue:
+          type: string
+          description: 檢查碼（SHA256，大寫 hex）。驗章演算法：ksort → HashKey 前綴/HashIV 後綴 → .NET urlencode → 小寫 → SHA256 → 大寫
+
+    EcpayAioPaymentInfoPayload:
+      type: object
+      description: |
+        綠界 AIO 取號結果通知（PaymentInfoURL）— Form POST。ATM/CVS/BARCODE 取號成功後送達（非同步，付款前）。
+        RtnCode："2"=ATM 取號成功；"10100073"=CVS/BARCODE 取號成功（**非錯誤**，消費者尚未付款）。
+      required: [MerchantID, MerchantTradeNo, RtnCode, CheckMacValue]
+      properties:
+        MerchantID:
+          type: string
+        MerchantTradeNo:
+          type: string
+          example: "EC100ABCDEF"
+        RtnCode:
+          type: string
+          description: 取號回應碼（字串）。"2"=ATM 取號成功；"10100073"=CVS/BARCODE 取號成功
+          example: "2"
+        PaymentType:
+          type: string
+          example: "ATM_TAISHIN"
+        BankCode:
+          type: string
+          description: ATM 銀行代碼（ATM 取號時）
+        vAccount:
+          type: string
+          description: ATM 虛擬帳號（ATM 取號時）
+        PaymentNo:
+          type: string
+          description: 超商繳費代碼（CVS 取號時）
+        Barcode1:
+          type: string
+          description: 超商條碼第一段（BARCODE 取號時）
+        Barcode2:
+          type: string
+        Barcode3:
+          type: string
+        ExpireDate:
+          type: string
+          description: 繳費期限
+        CheckMacValue:
+          type: string
+
+    EcpgReturnPayload:
+      type: object
+      description: |
+        綠界站內付 2.0（ECPG）付款結果通知（ReturnURL）— Server-to-Server JSON POST（application/json）。
+        外層三層結構，Data 為 AES-128-CBC 密文。雙層錯誤檢查：傳輸層 TransCode（整數）===1 → 解密 Data → 業務層 RtnCode（整數）。
+      required: [MerchantID, TransCode, Data]
+      properties:
+        MerchantID:
+          type: string
+          example: "3002607"
+        RpHeader:
+          type: object
+          description: 回應表頭（含 Timestamp）
+          properties:
+            Timestamp:
+              type: integer
+        TransCode:
+          type: integer
+          description: 傳輸層回應碼（整數）。1=傳輸成功才解密 Data
+          example: 1
+        TransMsg:
+          type: string
+        Data:
+          type: string
+          description: |
+            AES-128-CBC 密文（Base64 標準 alphabet）。解密流程：base64_decode → AES decrypt → urldecode → json_decode。
+            解密後含巢狀 OrderInfo.MerchantTradeNo 與業務層 RtnCode（整數 1=付款成功）。
+
+    EcpgCreatePaymentRequest:
+      type: object
+      description: 前端站內付 SDK 取得 PayToken 後送回，觸發後端 CreatePayment
+      required: [order_id, order_key, pay_token]
+      properties:
+        order_id:
+          type: integer
+          description: WooCommerce 訂單 ID
+          example: 100
+        order_key:
+          type: string
+          description: WooCommerce 訂單 order_key（擁有權憑證，比對 $order->get_order_key()）
+          example: "wc_order_abc123"
+        pay_token:
+          type: string
+          description: 站內付 SDK 收卡後取得的付款 Token
+
+    EcpgCreatePaymentResponse:
+      type: object
+      description: CreatePayment 結果（response format：{ code, message, data }）
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          enum: [success, error]
+          example: "success"
+        message:
+          type: string
+          example: "需完成 3D 驗證"
+        data:
+          type: object
+          nullable: true
+          properties:
+            three_d_url:
+              type: string
+              description: 3DS 驗證導向 URL（取自巢狀 ThreeDInfo.ThreeDURL；2025/8 起幾乎必出現）
+            need_3ds:
+              type: boolean
+              description: 是否需導向 3D 驗證
 
 security:
   - wpNonce: []
@@ -404,7 +567,7 @@ paths:
                         example: "success"
                       message:
                         type: string
-                        description: "{provider_id} 啟用成功" 或 "{provider_id} 禁用成功"
+                        description: '"{provider_id} 啟用成功" 或 "{provider_id} 禁用成功"'
                       data:
                         type: string
                         description: provider_id
@@ -532,6 +695,7 @@ paths:
         為指定訂單開立電子發票。若已開立過則直接回傳已有資料，不重複呼叫 API。
         開立前會先將發票參數儲存至 order meta（_pc_issue_invoice_params）。
         支援三種發票類型：個人（雲端/條碼/自然人/紙本）、公司、捐贈。
+        provider 可為 `amego`（光貿）或 `ecpay`（綠界電子發票，AES-128-CBC）；兩者沿用同一端點與 meta key。
       operationId: issueInvoice
       security:
         - wpNonce: []
@@ -556,7 +720,7 @@ paths:
             開立成功（或已開立過，回傳已有資料）。
             成功時訂單新增以下 meta：
             - _pc_issued_invoice_data: 發票開立回傳資料
-            - _pc_invoice_provider_id: 使用的 provider（如 "amego"）
+            - _pc_invoice_provider_id: 使用的 provider（"amego" 或 "ecpay"）
             - _pc_issue_invoice_params: 結帳頁填寫的發票參數
           content:
             application/json:
@@ -686,3 +850,174 @@ paths:
                     properties:
                       code:
                         example: "mapping_order_failed"
+
+  # ==================== 綠界 ECPay ====================
+  # 注意：以下端點的 base URL 為 /wp-json/power-checkout/ecpay
+  #       三個 callback（aio/return、aio/payment-info、ecpg/return）回應一律純文字 "1|OK" + HTTP 200（非 JSON）
+
+  /aio/return:
+    post:
+      tags: [ECPay]
+      summary: 綠界 AIO 付款結果通知（ReturnURL）
+      description: |
+        接收綠界 AIO 全方位金流的付款結果幕後通知（Server-to-Server，Form POST）。
+        不需要 WordPress 認證，以 CheckMacValue（SHA256）timing-safe 驗章。
+
+        處理規則：
+        1. 驗章（hash_equals 比對重新計算的 CheckMacValue）。失敗 → log warning、不更新明細、維持狀態（仍回 1|OK）。
+        2. 以 MerchantTradeNo 反查訂單（_pc_ecpay_trade_no）。找不到 → 拋例外但仍回 1|OK。
+        3. 冪等：訂單已是 processing → skip。
+        4. RtnCode（字串）="1" → 訂單轉 processing，寫入 _pc_ecpay_payment_detail + order note；
+           非 "1" → 維持 pending，記錄失敗 RtnCode/RtnMsg。
+
+        原則：無論成敗始終回應純文字 `1|OK`、HTTP 200，避免綠界最多 4 次重送風暴。
+      operationId: ecpayAioReturn
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/ecpay
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/EcpayAioReturnPayload"
+      responses:
+        "200":
+          description: 始終回傳純文字 `1|OK`（HTTP 200，Content-Type text/plain）
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "1|OK"
+
+  /aio/payment-info:
+    post:
+      tags: [ECPay]
+      summary: 綠界 AIO 取號結果通知（PaymentInfoURL）
+      description: |
+        接收綠界 AIO 的 ATM/CVS/BARCODE 取號結果幕後通知（Form POST，非同步、付款前送達）。
+        不需要 WordPress 認證，以 CheckMacValue（SHA256）驗章。
+
+        處理規則：
+        1. 驗章失敗 → 不寫入取號資訊、不改狀態。
+        2. 僅處理取號成功碼（RtnCode "2"=ATM、"10100073"=CVS/BARCODE）；其餘忽略。
+        3. 以 MerchantTradeNo 反查訂單；冪等：已寫入 _pc_ecpay_payment_info 則 skip。
+        4. 取號成功 → 寫入 _pc_ecpay_payment_info（虛擬帳號/超商代碼/條碼/繳費期限）+ order note，
+           **不改訂單狀態**（維持等待付款）。
+
+        ⚠️ RtnCode "2" / "10100073" 為取號成功（非錯誤），不可視為失敗取消訂單。
+      operationId: ecpayAioPaymentInfo
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/ecpay
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/EcpayAioPaymentInfoPayload"
+      responses:
+        "200":
+          description: 始終回傳純文字 `1|OK`（HTTP 200，Content-Type text/plain）
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "1|OK"
+
+  /ecpg/return:
+    post:
+      tags: [ECPay]
+      summary: 綠界站內付 2.0（ECPG）付款結果通知（ReturnURL）
+      description: |
+        接收綠界站內付 2.0 的付款結果幕後通知（Server-to-Server，JSON POST）。
+        不需要 WordPress 認證。雙層錯誤檢查 + AES-128-CBC 解密：
+
+        1. 傳輸層 TransCode（整數）=== 1 才繼續；非 1 → 記錄傳輸層失敗 order note、維持狀態。
+        2. AES-128-CBC 解密 Data（key/iv 取 HashKey/HashIV 前 16 bytes）。
+           解密失敗 → 維持 pending、不更新明細、log warning（仍回 1|OK）。
+        3. 由解密後 OrderInfo.MerchantTradeNo 反查訂單；找不到 → 拋例外（仍回 1|OK）。
+        4. 冪等：訂單已 processing → skip。
+        5. 業務層 RtnCode（**整數**）=== 1 → 訂單轉 processing，寫入 _pc_ecpay_payment_detail + order note；
+           非 1 → 維持 pending，記錄失敗 RtnCode/RtnMsg。
+
+        ⚠️ 與 AIO 差異：AIO RtnCode 為字串 "1"；ECPG 解密後 RtnCode 為整數 1（型別比對不同）。
+        原則：始終回應純文字 `1|OK`、HTTP 200。
+      operationId: ecpgReturn
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/ecpay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EcpgReturnPayload"
+      responses:
+        "200":
+          description: 始終回傳純文字 `1|OK`（HTTP 200，Content-Type text/plain）
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "1|OK"
+
+  /ecpg/create-payment:
+    post:
+      tags: [ECPay]
+      summary: 綠界站內付 2.0（ECPG）建立付款（前端 SDK 觸發）
+      description: |
+        站內付 2.0 前端 JS SDK 收卡取得 PayToken 後，將 { order_id, order_key, pay_token } POST 至此端點，
+        後端呼叫綠界 CreatePayment（ecpg domain），解析巢狀 ThreeDInfo.ThreeDURL 後回傳，前端據此導向 3DS。
+
+        驗證機制：**order_key**（非 nonce）。因站內付支援訪客結帳，WP REST nonce 綁定登入 session 不穩定，
+        改以 WooCommerce 原生「持有訂單即授權」憑證比對 $order->get_order_key()（timing-safe）。
+
+        授權與驗證流程：
+        1. order_id 取訂單；不存在 → 404。
+        2. order_key 比對失敗或為空 → 403「訂單驗證失敗」。
+        3. 訂單付款方式非 ecpay_ecpg → 400「此訂單非綠界站內付」。
+        4. pay_token 為空 → 400「pay_token 必填」。
+        5. 取訂單 MerchantTradeNo（GetTokenbyTrade 階段寫入）；缺少 → 拋例外 → 400。
+        6. 呼叫 CreatePayment → 回 { code, message, data:{ three_d_url, need_3ds } }。
+
+        例外一律 catch，回 { code:"error" } + HTTP 400，不外洩內部細節。
+      operationId: ecpgCreatePayment
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/ecpay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EcpgCreatePaymentRequest"
+      responses:
+        "200":
+          description: 建立付款成功（含是否需 3DS）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcpgCreatePaymentResponse"
+        "400":
+          description: |
+            建立失敗，錯誤訊息依情境：
+            - "此訂單非綠界站內付"（付款方式不符）
+            - "pay_token 必填"
+            - "建立付款失敗，請稍後再試或聯繫商家"（綠界傳輸層/業務層失敗，細節已寫 order note/log）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcpgCreatePaymentResponse"
+        "403":
+          description: 訂單驗證失敗（order_key 不符）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcpgCreatePaymentResponse"
+        "404":
+          description: 找不到訂單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EcpgCreatePaymentResponse"
