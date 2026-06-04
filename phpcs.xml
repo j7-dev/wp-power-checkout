@@ -111,6 +111,8 @@
     <rule ref="Squiz.Commenting.FunctionComment">
         <exclude name="Squiz.Commenting.FunctionComment.ParamCommentFullStop"/>
         <exclude name="Squiz.Commenting.InlineComment.InvalidEndChar"/>
+        <!-- 介面契約要求型別化回傳（如 : array），但「尚未實作」stub 一律 throw、永不正常返回，此為已知誤報 -->
+        <exclude name="Squiz.Commenting.FunctionComment.InvalidNoReturn"/>
     </rule>
 
     <!-- Allow short syntax arrays. -->

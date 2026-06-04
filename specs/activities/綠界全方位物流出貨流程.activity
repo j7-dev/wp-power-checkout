@@ -1,0 +1,54 @@
+[ACTIVITY] 綠界全方位物流 v2 出貨流程（統一抽象 ILogisticsProvider）
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] 綠界ECPay -> {specs/actors/綠界ECPay.md}
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+
+[INITIAL]
+
+[STEP:1] @顧客 結帳頁選擇綠界物流運送方式並觸發選店 {specs/features/logistics/logistics-store-selection.feature}
+  %% 顧客在 classic checkout 結帳頁選擇綠界全方位物流的 WC_Shipping_Method（超商取貨 FAMI/UNIMART/HILIFE 或宅配 Home），點按「選擇門市」按鈕觸發選店；同時選擇付款方式（線上付款 or COD 取貨付款）
+  %% block checkout 選店 UI 第二期後補（classic 先實作）
+
+[STEP:2] @WooCommerce {specs/features/logistics/logistics-store-selection.feature}
+  %% get_store_selection()：建立暫存物流單（RedirectToLogisticsSelection，TempLogisticsID=0），綠界回傳 RWD 選店 HTML，導轉顧客至綠界選店頁。COD 訂單帶 IsCollection=Y + CollectionAmount=訂單金額
+
+[STEP:3] @顧客 {specs/ui/物流選店頁面.md}
+  %% 顧客在綠界 RWD 選店頁選擇超商門市（或宅配填地址 + 溫層）
+
+[STEP:4] @綠界ECPay {specs/features/logistics/logistics-selection-callback.feature}
+  %% 顧客選店後，綠界以瀏覽器 Form POST 至 ClientReplyURL，回傳 ResultData（含 TempLogisticsID + 門市資訊）
+  %% parse_store_selection()：解密 ResultData 取 TempLogisticsID 與門市資訊，暫存於 order meta（_pc_logistics_temp_id、_pc_logistics_store_*）
+
+[STEP:5] @管理員 {specs/features/logistics/logistics-create-shipment.feature}
+  %% create_shipment()：管理員於後台訂單頁出貨時，憑 TempLogisticsID 呼叫 CreateByTempTrade 成立正式物流單，取得 LogisticsID，存 order meta _pc_logistics_ref。後台手動觸發（非付款成功自動）
+
+[STEP:6] @綠界ECPay {specs/features/logistics/logistics-status-callback.feature}
+  %% handle_status_callback()：綠界 ServerReplyURL 以 JSON body POST 貨態通知（AES-JSON 三層）。驗 MerchantID、比對 LogisticsID、防重；回應必須是 AES 加密 JSON 三層結構（非 1|OK），否則綠界隔 60 分重送最多 3 次
+
+[DECISION:6a] 貨態通知處理結果
+  [BRANCH:6a:貨態正常] @WooCommerce {specs/features/logistics/logistics-status-callback.feature}
+    %% 解密成功 + RtnCode=1 + 首次處理該 LogisticsID → 更新 order meta _pc_logistics_status；若貨態為「已取貨完成」且為 COD 訂單 → 標記取貨付款完成（_pc_logistics_collection_paid=yes），回 AES-JSON TransCode=1
+  [BRANCH:6a:重複或異常] @WooCommerce {specs/features/logistics/logistics-status-callback.feature}
+    %% 已處理過該 LogisticsID（防重）或解密/驗簽/MerchantID 失敗 → 不重複處理，仍回 AES-JSON（避免重送風暴）
+[MERGE:6a]
+
+[STEP:7] @管理員 {specs/features/logistics/logistics-query.feature}
+  %% query_shipment()：管理員於後台查詢物流單即時狀態（QueryLogisticsTradeInfo）
+
+[FORK:7a]
+  [PARALLEL:7a] @管理員 {specs/features/logistics/logistics-print-document.feature}
+    %% print_document()：列印託運單（PrintTradeDocument，回 HTML）
+  [PARALLEL:7a] @管理員 {specs/features/logistics/logistics-cancel-c2c.feature}
+    %% cancel_shipment()：C2C 訂單取消（CancelC2COrder，需 CVSPaymentNo/CVSValidationNo）；僅 C2C 帳號適用
+[JOIN:7a]
+
+[FINAL]
+
+%% 退貨流程（ReturnCVS/ReturnUniMartCVS/ReturnHilifeCVS/ReturnHome）延後第二期，本次不建模。
+%%   抽象 ILogisticsProvider::create_return() 方法位置已預留，本次不實作。
+%% PAYUNi 物流未建模於此 Activity（本次只實作 ECPay provider）。
+%%   統一抽象 ILogisticsProvider 已設計到能容 PAYUNi：ECPay 暫存單三段（STEP:2→4→5）對應 get_store_selection→parse_store_selection→create_shipment；
+%%   PAYUNi 為 ship_map 導轉（get_store_selection）→ callback 回 MapJson（parse_store_selection）→ trade 建單（create_shipment，商店組收件人，AES-256-GCM，貨態 Notify 回 200 OK）。
+%% B2C / C2C 帳號切換：同一 ecpay_logistics provider，設定內以 account_type（b2c/c2c）選擇，對應兩組憑證（B2C 2000132 / C2C 2000933，HashKey/HashIV 各異）。
+</content>

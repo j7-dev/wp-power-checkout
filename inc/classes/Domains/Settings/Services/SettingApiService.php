@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Settings\Services;
 
 use J7\PowerCheckout\Domains\Invoice\ProviderRegister;
+use J7\PowerCheckout\Domains\Logistics\ProviderRegister as LogisticsProviderRegister;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\ApiBase;
@@ -69,7 +70,7 @@ final class SettingApiService extends ApiBase {
 				'data'    => [
 					'gateways'  => $gateways,
 					'invoices'  => ProviderRegister::get_registered_provider_dtos(),
-					'logistics' => [],
+					'logistics' => LogisticsProviderRegister::get_registered_provider_dtos(),
 				],
 			],
 			200

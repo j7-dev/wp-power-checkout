@@ -6,12 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Power Checkout** is a WooCommerce checkout integration plugin providing payment gateway (Shopline Payment), e-invoice (Amego), and checkout field customization. Built with Domain-Driven Design: PHP backend + Vue 3 frontend.
+**Power Checkout** is a WooCommerce checkout integration plugin providing payment gateway (Shopline Payment), logistics (ECPay AllInOne), e-invoice (Amego), and checkout field customization. Built with Domain-Driven Design: PHP backend + Vue 3 frontend.
 
 **Integrated Services:**
 - **Shopline Payment (SLP)** — Redirect-based payment (credit card, ATM, Apple Pay, LINE Pay, JKOPay, ZingalaCard)
 - **ECPay AIO** (`ecpay_aio`) — Redirect-based payment via ECPay Cashier V5; CheckMacValue SHA256; supports credit card (one-time/installment/period), ATM, WebATM, CVS, BARCODE, ApplePay
 - **ECPay ECPG** (`ecpay_ecpg`) — Embedded payment (站內付 2.0); frontend JS SDK, AES-128-CBC, 3DS ThreeDURL; credit card only
+- **ECPay Logistics** (`ecpay_logistics`) — ECPay AllInOne Logistics v2; convenience store (FAMI/UNIMART/HILIFE) + home delivery (HOME, with temperature); B2C (2000132) + C2C (2000933) account types; COD (IsCollection) + online payment; two-phase store selection (TempTrade → CreateByTempTrade); AES-JSON callback
 - **Amego** — Taiwan e-invoice issuance/void
 - **ECPay Invoice** (`ecpay`) — Taiwan e-invoice B2C/B2B via ECPay; AES-128-CBC; parallel with Amego, switchable from admin
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
@@ -103,6 +104,19 @@ inc/classes/
 │   │   │   ├── Managers/StatusManager.php
 │   │   │   └── Shared/Helpers/AesCrypto.php + EcpgBlocksIntegration.php
 │   │   └── Shared/                  # AbstractPaymentGateway, PaymentApiService (REST /refund)
+│   ├── Logistics/
+│   │   ├── ProviderRegister.php     # Registers logistics providers + WC shipping method + checkout meta
+│   │   ├── Ecpay/                   # ECPay AllInOne Logistics v2 (ID: ecpay_logistics)
+│   │   │   ├── Services/EcpayLogisticsProvider.php  # implements ILogisticsProvider
+│   │   │   ├── Services/WC_EcpayLogisticsShipping.php  # extends WC_Shipping_Method (classic checkout)
+│   │   │   ├── Http/LogisticsApiClient.php  # AES-128-CBC (reuses Ecpg AesCrypto); RqHeader Revision 1.0.0; 5-min Timestamp
+│   │   │   ├── Http/LogisticsCallback.php   # ServerReplyURL (AES-JSON 3-layer) + ClientReplyURL (selection)
+│   │   │   └── DTOs/                        # EcpayLogisticsSettingsDTO, StoreSelectionParams, CreateShipmentParams
+│   │   └── Shared/
+│   │       ├── Interfaces/ILogisticsProvider.php  # 10-method interface (mirrors IInvoiceService)
+│   │       ├── Enums/                             # LogisticsSubType, LogisticsAccountType, LogisticsTemperature, LogisticsPaymentScenario, LogisticsStatus
+│   │       ├── Helpers/LogisticsMetaKeys.php       # Order meta CRUD helper (HPOS-aware)
+│   │       └── Services/LogisticsApiService.php    # REST power-checkout/v1 (5 endpoints)
 │   ├── Invoice/
 │   │   ├── ProviderRegister.php     # Registers invoice providers + auto-issue hooks
 │   │   ├── Amego/                   # AmegoProvider (IInvoiceService), API client, DTOs
@@ -195,11 +209,18 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/v1` | POST | `/refund/manual` | Nonce |
 | `power-checkout/v1/invoices` | POST | `/issue/{order_id}` | Nonce |
 | `power-checkout/v1/invoices` | POST | `/cancel/{order_id}` | Nonce |
+| `power-checkout/v1` | POST | `/logistics/{order_id}/store-selection` | Nonce |
+| `power-checkout/v1` | POST | `/logistics/{order_id}/create-shipment` | Nonce |
+| `power-checkout/v1` | GET | `/logistics/{order_id}` | Nonce |
+| `power-checkout/v1` | POST | `/logistics/{order_id}/print` | Nonce |
+| `power-checkout/v1` | POST | `/logistics/{order_id}/cancel` | Nonce |
 | `power-checkout/slp` | POST | `/webhook` | HMAC-SHA256 |
 | `power-checkout/ecpay` | POST | `/aio/return` | CheckMacValue SHA256 |
 | `power-checkout/ecpay` | POST | `/aio/payment-info` | CheckMacValue SHA256 |
 | `power-checkout/ecpay` | POST | `/ecpg/return` | AES-128-CBC (TransCode + RtnCode) |
 | `power-checkout/ecpay` | POST | `/ecpg/create-payment` | order_key (in body) |
+| `power-checkout/ecpay` | POST | `/logistics/status-callback` | MerchantID verified inside |
+| `power-checkout/ecpay` | POST | `/logistics/selection-callback` | open (ClientReplyURL) |
 
 Nonce auth requires `X-WP-Nonce` header (`wp_create_nonce('wp_rest')`).
 ECPay callbacks use `permission_callback: __return_true`; auth is verified inside callback.
@@ -251,6 +272,39 @@ ECPay callbacks use `permission_callback: __return_true`; auth is verified insid
 
 ---
 
+## ECPay Logistics Flow (ecpay_logistics)
+
+### Three-phase store selection (convenience store)
+
+1. Frontend calls `POST /logistics/{order_id}/store-selection` with `sub_type` + `payment_scenario` → `get_store_selection()` builds `RedirectToLogisticsSelection` (AES-encrypted), returns `redirect_target` HTML → browser renders RWD store picker
+2. Customer selects store → ECPay POSTs `ResultData` to `/wp-json/power-checkout/ecpay/logistics/selection-callback` (ClientReplyURL) → `parse_store_selection()` decodes `ResultData`, writes `_pc_logistics_temp_id` + store meta to order
+3. Admin calls `POST /logistics/{order_id}/create-shipment` → `create_shipment()` calls `CreateByTempTrade` using `TempLogisticsID` → writes `_pc_logistics_ref` (LogisticsID), returns `logistics_id`
+
+### Home delivery (HOME)
+
+Same store-selection step is skipped; `create_shipment()` directly calls `CreateByTempTrade` with address data.
+
+### Status callback (ServerReplyURL — AES-JSON 3-layer)
+
+ECPay POSTs JSON to `/wp-json/power-checkout/ecpay/logistics/status-callback`:
+- Response **must** be HTTP 200 + AES-JSON `{ MerchantID, RqHeader{ Timestamp, Revision:"1.0.0" }, TransCode, Data }` where `Data = AES({"RtnCode":1|0,"RtnMsg":...})` — returning plain `1|OK` causes ECPay to retry every 60 min
+- Safety: verify MerchantID → lookup order by `_pc_logistics_ref` → idempotency check via `_pc_logistics_processed_status`
+- COD: `LogisticsStatus` pickup-complete sets `_pc_logistics_collection_paid = yes`
+- Any `\Throwable` is caught; still returns AES-JSON with `RtnCode=0`
+
+### Account types
+
+| Account Type | MerchantID | Supported sub-types |
+|---|---|---|
+| B2C | 2000132 | FAMI, UNIMART, HILIFE, HOME |
+| C2C | 2000933 | FAMI, UNIMART, HILIFE |
+
+C2C only: `cancel_shipment()` (C2C cancel), `_pc_logistics_cvs_payment_no` / `_pc_logistics_cvs_validation_no`.
+
+Second phase (returns, PAYUNi logistics, block checkout) is deferred.
+
+---
+
 ## Order Meta Keys
 
 | Key | Purpose |
@@ -269,6 +323,19 @@ ECPay callbacks use `permission_callback: __return_true`; auth is verified insid
 | `_pc_ecpay_ecpg_token` | ECPG GetTokenbyTrade token (stored for frontend SDK) |
 | `_pc_ecpay_credit_variant` | Credit card variant: `''` / `'installment'` / `'period'` |
 | `_pc_ecpay_installment` | Credit card installment count (e.g. `'6'`) |
+| `_pc_logistics_provider_id` | Which logistics provider was used (e.g. `ecpay_logistics`) |
+| `_pc_logistics_sub_type` | Logistics sub-type chosen at checkout (FAMI/UNIMART/HILIFE/HOME) |
+| `_pc_logistics_payment_scenario` | Payment scenario at checkout (`online` / `cod`) |
+| `_pc_logistics_temp_id` | TempLogisticsID from store selection callback (required for CreateByTempTrade) |
+| `_pc_logistics_ref` | Unified logistics ID (ECPay LogisticsID); primary key for callback order lookup |
+| `_pc_logistics_store_id` | Selected CVS store code |
+| `_pc_logistics_store_name` | Selected CVS store name |
+| `_pc_logistics_store_addr` | Selected CVS store address |
+| `_pc_logistics_status` | Logistics status (raw ECPay LogisticsStatus string) |
+| `_pc_logistics_cvs_payment_no` | C2C CVSPaymentNo (required for cancel shipment) |
+| `_pc_logistics_cvs_validation_no` | C2C CVSValidationNo (required for cancel shipment) |
+| `_pc_logistics_collection_paid` | COD collection completion flag (`yes`) |
+| `_pc_logistics_processed_status` | Idempotency guard array — elements: `"{LogisticsID}:{LogisticsStatus}"` |
 
 ---
 
@@ -281,6 +348,9 @@ ECPay callbacks use `permission_callback: __return_true`; auth is verified insid
 | `wc_payment_gateways_initialized` | Populate ProviderUtils::$container |
 | `woocommerce_order_status_{status}` | Auto issue/void invoices |
 | `woocommerce_checkout_fields` | Classic checkout invoice fields |
+| `woocommerce_shipping_methods` | Register WC_EcpayLogisticsShipping (classic checkout shipping method) |
+| `woocommerce_checkout_create_order` | Write logistics sub_type + payment_scenario meta from checkout |
+| `rest_api_init` | Register logistics status-callback + selection-callback endpoints |
 | `admin_enqueue_scripts` | Load Vue app bundle (admin pages) |
 | `wp_enqueue_scripts` | Load Vue app bundle (frontend checkout for invoice form) |
 

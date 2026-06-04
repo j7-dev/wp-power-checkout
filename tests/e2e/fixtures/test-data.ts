@@ -196,6 +196,67 @@ export const TEST_ORDER = {
   STRING_ID: 'abc',
 } as const
 
+// ─── 全方位物流端點 ──────────────────────────────────────────
+export const LOGISTICS_EP = {
+  // 後台物流操作（namespace: power-checkout/v1）
+  STORE_SELECTION: 'power-checkout/v1/logistics/store-selection',
+  CREATE_SHIPMENT: (orderId: number | string) =>
+    `power-checkout/v1/logistics/create-shipment/${orderId}`,
+  QUERY: (orderId: number | string) =>
+    `power-checkout/v1/logistics/query/${orderId}`,
+  PRINT: (orderId: number | string) =>
+    `power-checkout/v1/logistics/print/${orderId}`,
+  CANCEL: (orderId: number | string) =>
+    `power-checkout/v1/logistics/cancel/${orderId}`,
+  // ECPay 回呼端點（namespace: power-checkout/ecpay）
+  STATUS_CALLBACK: 'power-checkout/ecpay/logistics/status-callback',
+  SELECTION_CALLBACK: 'power-checkout/ecpay/logistics/selection-callback',
+} as const
+
+// ─── 全方位物流 Provider ID ────────────────────────────────
+export const LOGISTICS_PROVIDER = {
+  /** 全方位物流 provider ID */
+  ID: 'ecpay_logistics',
+  /** B2C 帳號 MerchantID */
+  B2C_MERCHANT_ID: '2000132',
+  /** C2C 帳號 MerchantID */
+  C2C_MERCHANT_ID: '2000933',
+} as const
+
+// ─── 帳號類型 ────────────────────────────────────────────────
+export const LOGISTICS_ACCOUNT_TYPE = {
+  B2C: 'b2c',
+  C2C: 'c2c',
+} as const
+
+// ─── 物流子類型（LogisticsSubType）──────────────────────────
+export const LOGISTICS_SUB_TYPE = {
+  FAMI: 'FAMI',
+  UNIMART: 'UNIMART',
+  HILIFE: 'HILIFE',
+  FAMI_C2C: 'FAMIC2C',
+  UNIMART_C2C: 'UNIMARTC2C',
+  HOME: 'TCAT',
+} as const
+
+// ─── 貨態碼（LogisticsStatus）────────────────────────────────
+export const LOGISTICS_STATUS_CODE = {
+  /** 物流訂單建立成功 */
+  ORDER_CREATED: '300',
+  /** 貨品已送達門市 */
+  ARRIVED_STORE: '3003',
+  /** 消費者已取件 */
+  PICKED_UP: '3018',
+  /** 超過期限未取件，退回中 */
+  RETURNING: '3022',
+  /** 退回完成 */
+  RETURNED: '3024',
+  /** 門市拒收 */
+  REJECTED_BY_STORE: '3032',
+  /** 物流異常 */
+  EXCEPTION: '9500',
+} as const
+
 // ─── Test IDs File ───────────────────────────────────────────
 import * as path from 'path'
 export const TEST_IDS_FILE = path.resolve(
@@ -226,6 +287,10 @@ export interface TestIds {
   // 綠界 ECPG 信用卡訂單（pending，含 _pc_ecpay_trade_no）
   ecpgOrderId?: number
   ecpgTradeNo?: string
+  // 全方位物流測試訂單（pending，含選店 meta）
+  logisticsOrderId?: number
+  logisticsTempId?: string
+  logisticsRef?: string
   [key: string]: unknown
 }
 

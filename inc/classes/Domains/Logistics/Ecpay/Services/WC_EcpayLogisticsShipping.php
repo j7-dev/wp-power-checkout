@@ -1,0 +1,205 @@
+<?php
+/**
+ * 綠界全方位物流 WC_Shipping_Method（風險 R7 — 專案全新領域，最小切片）
+ *
+ * 使超商取貨 / 宅配出現在 classic 結帳「運送方式」清單，並提供：
+ *  - 固定運費（計畫 T4：後台可設 cost，預設 0；不做依重量 / 地區的級距運費）。
+ *  - 結帳頁寫 _pc_logistics_sub_type / _pc_logistics_payment_scenario 到 order meta
+ *    （classic checkout 透過 woocommerce_checkout_create_order hook）。
+ *
+ * ⚠️ 第二期才做：block checkout 選店 UI（計畫 T3，classic-first）；
+ *    級距運費；多 instance 拆分為各超商獨立運送方式。
+ *
+ * enabled_methods（EcpayLogisticsSettingsDTO）決定結帳頁可選的物流子類型，
+ * 透過 {@see self::get_supported_sub_types()} 取得（settings.enabled_methods 子集）。
+ *
+ * @see .claude/skills/ECPay-API-Skill/guides/07-logistics-allinone.md
+ */
+
+declare(strict_types=1);
+
+namespace J7\PowerCheckout\Domains\Logistics\Ecpay\Services;
+
+use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\EcpayLogisticsSettingsDTO;
+use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsPaymentScenario;
+use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsSubType;
+use J7\PowerCheckout\Domains\Logistics\Shared\Helpers\LogisticsMetaKeys;
+
+/** 綠界全方位物流運送方式（classic checkout） */
+final class WC_EcpayLogisticsShipping extends \WC_Shipping_Method {
+
+	/** @var string 運送方式 id（WooCommerce shipping method 識別碼） */
+	public const METHOD_ID = 'ecpay_logistics';
+
+	/** @var string 固定運費（後台可設，預設 0；計畫 T4） */
+	public string $cost = '0';
+
+	/**
+	 * Constructor
+	 *
+	 * @param int $instance_id Shipping zone instance id（0 = 全域）
+	 */
+	public function __construct( $instance_id = 0 ) {
+		$this->id                 = self::METHOD_ID;
+		$this->instance_id        = \absint( $instance_id );
+		$this->method_title       = \__( '綠界 ECPay 全方位物流', 'power_checkout' );
+		$this->method_description = \__( '綠界 ECPay 全方位物流，支援 7-11 / 全家 / 萊爾富超商取貨與黑貓宅配，可代收貨款（COD）。', 'power_checkout' );
+
+		// 同時支援 shipping zones（instance）與全域設定
+		$this->supports = [
+			'shipping-zones',
+			'instance-settings',
+			'instance-settings-modal',
+		];
+
+		$this->init();
+	}
+
+	/**
+	 * 初始化設定欄位與值
+	 *
+	 * @return void
+	 */
+	public function init(): void {
+		$this->init_form_fields();
+		$this->init_settings();
+
+		// 從設定讀取（含啟用狀態與標題、固定運費）
+		$this->title   = (string) $this->get_option( 'title', \__( '綠界超商取貨 / 宅配', 'power_checkout' ) );
+		$this->enabled = (string) $this->get_option( 'enabled', 'yes' );
+		$this->cost    = (string) $this->get_option( 'cost', $this->cost );
+
+		\add_action(
+			'woocommerce_update_options_shipping_' . $this->id,
+			[ $this, 'process_admin_options' ]
+		);
+	}
+
+	/**
+	 * 後台運送方式設定欄位（最小切片：啟用 / 標題 / 固定運費）
+	 *
+	 * @return void
+	 */
+	public function init_form_fields(): void {
+		$this->instance_form_fields = [
+			'enabled' => [
+				'title'   => \__( '啟用', 'power_checkout' ),
+				'type'    => 'checkbox',
+				'label'   => \__( '啟用綠界全方位物流運送方式', 'power_checkout' ),
+				'default' => 'yes',
+			],
+			'title'   => [
+				'title'       => \__( '名稱', 'power_checkout' ),
+				'type'        => 'text',
+				'description' => \__( '結帳頁顯示的運送方式名稱。', 'power_checkout' ),
+				'default'     => \__( '綠界超商取貨 / 宅配', 'power_checkout' ),
+				'desc_tip'    => true,
+			],
+			'cost'    => [
+				'title'       => \__( '運費', 'power_checkout' ),
+				'type'        => 'text',
+				'description' => \__( '固定運費（新台幣），預設 0；本期不支援依重量 / 地區的級距運費。', 'power_checkout' ),
+				'default'     => '0',
+				'desc_tip'    => true,
+			],
+		];
+
+		// 全域（非 instance）設定使用同一組欄位
+		$this->form_fields = $this->instance_form_fields;
+	}
+
+	/**
+	 * 計算運費（回固定運費；計畫 T4）
+	 *
+	 * @param array<string, mixed> $package 購物車運送 package
+	 *
+	 * @return void
+	 */
+	public function calculate_shipping( $package = [] ): void {
+		$cost = (float) $this->cost;
+
+		$this->add_rate(
+			[
+				'id'      => $this->get_rate_id(),
+				'label'   => $this->title ?: $this->method_title,
+				'cost'    => $cost,
+				'package' => $package,
+			]
+		);
+	}
+
+	/**
+	 * 取得結帳頁可選的物流子類型（settings.enabled_methods 子集，僅合法子類型）
+	 *
+	 * @return array<int, string>
+	 */
+	public function get_supported_sub_types(): array {
+		$settings = EcpayLogisticsSettingsDTO::instance();
+		$methods  = $settings->enabled_methods;
+
+		$valid = \array_map(
+			static fn( LogisticsSubType $sub_type ): string => $sub_type->value,
+			LogisticsSubType::cases()
+		);
+
+		$supported = [];
+		foreach ( $methods as $method ) {
+			$method = (string) $method;
+			if (\in_array( $method, $valid, true )) {
+				$supported[] = $method;
+			}
+		}
+
+		return $supported;
+	}
+
+	/**
+	 * Classic checkout：將結帳選擇的物流子類型 / 付款情境寫入 order meta
+	 *
+	 * 由 woocommerce_checkout_create_order hook 觸發（見 ProviderRegister）。
+	 * sub_type 從結帳送出欄位 _pc_logistics_sub_type 取得；無則嘗試從選定的運送方式推導；
+	 * payment_scenario 依付款方式（COD → cod，其餘 → online）。
+	 *
+	 * @param \WC_Order            $order 訂單
+	 * @param array<string, mixed> $data 結帳送出資料
+	 *
+	 * @return void
+	 */
+	public static function save_checkout_meta( \WC_Order $order, array $data = [] ): void {
+		// 僅在選用本物流運送方式時寫入
+		if (!self::is_chosen( $order )) {
+			return;
+		}
+
+		$meta = new LogisticsMetaKeys( $order );
+
+		// 物流子類型：優先取結帳送出欄位
+		$sub_type = isset($_POST['_pc_logistics_sub_type']) // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		? \sanitize_text_field( \wp_unslash( (string) $_POST['_pc_logistics_sub_type'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		: '';
+		if ('' !== $sub_type) {
+			$meta->update_sub_type( $sub_type );
+		}
+
+		// 付款情境：COD → cod，其餘 → online
+		$is_cod   = 'cod' === $order->get_payment_method();
+		$scenario = $is_cod ? LogisticsPaymentScenario::COD->value : LogisticsPaymentScenario::ONLINE->value;
+		$meta->update_payment_scenario( $scenario );
+	}
+
+	/**
+	 * 訂單是否選用本物流運送方式
+	 *
+	 * @param \WC_Order $order 訂單
+	 *
+	 * @return bool
+	 */
+	private static function is_chosen( \WC_Order $order ): bool {
+		foreach ( $order->get_shipping_methods() as $shipping_item ) {
+			if (self::METHOD_ID === $shipping_item->get_method_id()) {
+				return true;
+			}
+		}
+		return false;
+	}
+}

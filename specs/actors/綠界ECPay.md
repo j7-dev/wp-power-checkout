@@ -1,6 +1,6 @@
 # 綠界ECPay
 
-綠界科技（ECPay）第三方金流 + 電子發票服務商。Power Checkout 透過兩種金流整合模式（AIO 導轉式、ECPG 站內付 2.0）整合線上付款，並可選用綠界電子發票（與 Amego 並存）。
+綠界科技（ECPay）第三方金流 + 電子發票 + 物流服務商。Power Checkout 透過兩種金流整合模式（AIO 導轉式、ECPG 站內付 2.0）整合線上付款，可選用綠界電子發票（與 Amego 並存），並透過綠界全方位物流 v2（AllInOne）整合超商取貨 / 宅配出貨（Logistics domain 新 provider `ecpay_logistics`，鏡像金流/發票 provider 抽象）。
 
 ## 描述
 
@@ -25,6 +25,20 @@
 
 ### 電子發票（Invoice provider `ecpay`，與 Amego 並存）
 - B2C / B2B 開立、作廢（AES-JSON）
+
+### 物流 — 全方位物流 v2 / AllInOne（Logistics provider `ecpay_logistics`）
+- 端點前綴 `/Express/v2/`（test `logistics-stage.ecpay.com.tw` / prod `logistics.ecpay.com.tw`），AES-128-CBC + JSON POST（與 ECPG/發票同套加密，可複用 AesCrypto）
+- RqHeader 必填 `Revision:"1.0.0"` + Timestamp（**5 分鐘**視窗，須即時 time()，比 ECPG/跨境物流的 10 分鐘短）
+- 暫存單三段流程：
+  - RedirectToLogisticsSelection（建暫存單 + 回 RWD 選店 HTML，用 PostWithAesStrResponseService）
+  - 消費者選店 → 綠界 Form POST 至 ClientReplyURL（回 ResultData 含 TempLogisticsID）
+  - CreateByTempTrade（憑 TempLogisticsID 成立正式物流單，回 LogisticsID）
+- ServerReplyURL 貨態 callback：JSON body POST，回應**必須是 AES 加密 JSON 三層結構**（非 1|OK），否則綠界隔 60 分重送，當天最多 3 次
+- 雙層錯誤檢查：外層 `TransCode===1`（傳輸層，整數）→ 解密 Data → 內層 `RtnCode===1`（業務層，整數）
+- 帳號 B2C(2000132) / C2C(2000933) 不同，HashKey/HashIV 也不同
+- 其他操作：QueryLogisticsTradeInfo（查詢）、PrintTradeDocument（列印託運單 HTML）、ReturnCVS/ReturnUniMartCVS/ReturnHilifeCVS/ReturnHome（退貨）、UpdateShipmentInfo（B2C 更新出貨）、CancelC2COrder/UpdateStoreInfo（C2C）
+- 物流類型：超商（FAMI 全家 / UNIMART 統一 / HILIFE 萊爾富）、宅配（Home，含溫層 Temperature）
+- callback 安全必做：驗 MerchantID、比對 LogisticsID 與訂單、防重複（記錄已處理 LogisticsID）、遮蔽 HashKey/HashIV
 
 ## 關鍵屬性
 

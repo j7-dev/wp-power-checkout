@@ -28,3 +28,25 @@ globs:
 5. Register in `Invoice\ProviderRegister::$invoice_providers`
 6. Add Vue settings page: `js/src/pages/Invoices/NewProvider/index.vue`
 7. Add route in `js/src/router/index.ts` and entry in `ROUTER_MAPPER`
+
+## Adding a New Logistics Provider
+
+`ILogisticsProvider` is the unified abstraction (mirrors `IInvoiceService`). Designed to accommodate future providers (e.g. PAYUNi logistics).
+
+1. Create domain folder: `Domains/Logistics/NewProvider/`
+2. Create provider class implementing `ILogisticsProvider` (10 methods):
+   - `get_settings(static)` — return settings array
+   - `get_store_selection()` — phase A: build store picker redirect (RWD HTML)
+   - `parse_store_selection()` — decode ClientReplyURL POST, write store meta to order
+   - `create_shipment()` — phase B: create shipment from TempLogisticsID, return `logistics_id`
+   - `query_shipment()`, `print_document()`, `cancel_shipment()` — query / print / cancel
+   - `create_return()` — reserved, throw `\Exception('尚未實作')`
+   - `handle_status_callback()` — parse ServerReplyURL POST; **must** return AES-JSON 3-layer response
+   - `get_supported_methods()` — return enabled sub-type list
+3. All failures must `throw` (REST layer catches and maps to HTTP code)
+4. Status callbacks: all paths (including exceptions) must return AES-JSON 3-layer — never throw HTTP 500
+5. Create settings DTO extending `BaseSettingsDTO`
+6. Create WC_Shipping_Method subclass if needed (classic checkout)
+7. Register in `Logistics\ProviderRegister::$logistics_providers`
+8. Add Vue settings page: `js/src/pages/Logistics/NewProvider/index.vue`
+9. Add route in `js/src/router/index.ts` and entry in `ROUTER_MAPPER`

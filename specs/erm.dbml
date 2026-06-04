@@ -1,5 +1,8 @@
 // Power Checkout — Entity Relationship Model
-// Version: 1.2.0 | Date: 2026-06-04
+// Version: 1.3.0 | Date: 2026-06-04
+// 1.3.0: 新增 Logistics domain（綠界全方位物流 v2 / AllInOne，provider id=ecpay_logistics）相關
+//        物流子類型 enum、帳號類型 enum、物流貨態 enum、付款情境 enum、物流 order meta、wp_options 物流設定表
+//        統一抽象 ILogisticsProvider（鏡像 IInvoiceService），設計可容 PAYUNi（本次只實作 ECPay）
 // 1.2.0: 新增綠界 ECPay 金流（AIO ecpay_aio / ECPG ecpay_ecpg）+ 綠界電子發票（ecpay）相關
 //        order meta、付款方式 enum、整合模式 enum、invoice provider enum、wp_options 設定表
 // 本外掛不建立自訂資料表，使用 WooCommerce 訂單 (HPOS / wp_posts) 和 wp_options 儲存資料
@@ -46,6 +49,49 @@ Enum ecpay_aio_rtn_code {
 Enum invoice_provider {
   amego [note: '光貿電子發票（gateway id=amego，md5 簽章）']
   ecpay [note: '綠界電子發票 B2C/B2B（gateway id=ecpay，AES-128-CBC）']
+}
+
+// ---- Logistics（綠界全方位物流 v2 / AllInOne）----
+
+// 物流 Provider 值域（統一抽象 ILogisticsProvider；本次只實作 ecpay_logistics，預留 payuni）
+Enum logistics_provider {
+  ecpay_logistics [note: '綠界全方位物流 v2（AllInOne，AES-128-CBC + JSON，/Express/v2/）']
+  // payuni_logistics [note: '預留：PAYUNi 物流（ship_map + trade，AES-256-GCM）— 本次不實作']
+}
+
+// 綠界物流子類型 LogisticsSubType（對應結帳頁 WC_Shipping_Method 選項）
+Enum logistics_sub_type {
+  FAMI [note: '全家超商取貨']
+  UNIMART [note: '統一超商（7-11）取貨']
+  HILIFE [note: '萊爾富超商取貨']
+  HOME [note: '宅配（黑貓，含溫層 Temperature）']
+}
+
+// 綠界物流帳號類型（同一 provider 內以 account_type 切換兩組憑證）
+Enum logistics_account_type {
+  b2c [note: 'B2C 大宗寄倉（測試帳號 MerchantID 2000132）']
+  c2c [note: 'C2C 店到店（測試帳號 MerchantID 2000933，HashKey/HashIV 各異）']
+}
+
+// 宅配溫層 Temperature（綠界全方位物流 v2）
+Enum logistics_temperature {
+  "0001" [note: '常溫']
+  "0002" [note: '冷藏']
+  "0003" [note: '冷凍']
+}
+
+// 物流付款情境（結帳頁顧客選擇，決定建單是否帶代收貨款）
+Enum logistics_payment_scenario {
+  online [note: '線上付款（既有金流 gateway，建物流單 IsCollection=N）']
+  cod [note: '取貨付款 COD（IsCollection=Y + CollectionAmount=訂單金額，門市取貨時付款）']
+}
+
+// 物流貨態（_pc_logistics_status 儲存綠界 LogisticsStatus 原始碼字串；不直接映射 WC 訂單狀態，與金流 StatusManager 解耦）
+// 以下為代表性碼值，實際碼值以綠界文件為準；cancelled 為本系統取消 C2C 物流單後的標記值
+Enum logistics_status {
+  "300" [note: '物流單已建立 / 已出貨（代表性）']
+  "2067" [note: '超商取件完成（代表性；COD 訂單觸發取貨付款完成標記）']
+  cancelled [note: '本系統取消 C2C 物流單後的標記']
 }
 
 Enum slp_response_status {
@@ -235,6 +281,38 @@ Table wp_options_ecpay_invoice_settings {
   '''
 }
 
+Table wp_options_ecpay_logistics_settings {
+  option_name varchar [pk, note: 'woocommerce_ecpay_logistics_settings']
+  enabled varchar [note: 'yes / no']
+  title varchar [note: '前台顯示標題（預設「綠界超商取貨 / 宅配」）']
+  description text [note: '前台顯示描述']
+  icon varchar [note: '圖示 URL']
+  method_title varchar [note: '後台標題']
+  mode provider_mode [note: 'test / prod']
+  account_type logistics_account_type [note: '帳號類型 b2c / c2c（決定使用哪組憑證）']
+  b2c_merchant_id varchar [note: 'B2C 綠界特店編號（憑證存 DB，禁寫死正式憑證）']
+  b2c_hash_key varchar [note: 'B2C HashKey（憑證存 DB）']
+  b2c_hash_iv varchar [note: 'B2C HashIV（憑證存 DB）']
+  c2c_merchant_id varchar [note: 'C2C 綠界特店編號（憑證存 DB）']
+  c2c_hash_key varchar [note: 'C2C HashKey（憑證存 DB）']
+  c2c_hash_iv varchar [note: 'C2C HashIV（憑證存 DB）']
+  enabled_methods json [note: '啟用的物流子類型 array（logistics_sub_type 子集，如 ["FAMI","UNIMART","HILIFE","HOME"]）']
+  sender_name varchar [note: '寄件人姓名']
+  sender_phone varchar [note: '寄件人電話']
+  sender_zip_code varchar [note: '寄件人郵遞區號']
+  sender_address varchar [note: '寄件人地址']
+  server_reply_url varchar [note: '貨態 callback URL（ServerReplyURL，僅 80/443 port）']
+  client_reply_url varchar [note: '選店回呼 URL（ClientReplyURL，需公開可訪問）']
+
+  Note: '''
+    綠界 ECPay 全方位物流 v2（AllInOne）設定，Logistics domain 新 provider
+    儲存在 wp_options，option_name = woocommerce_ecpay_logistics_settings，值為 PHP serialized array
+    test 模式未填憑證時套用綠界物流公開測試帳號（B2C 2000132 / C2C 2000933，AES-128-CBC）
+    account_type 切換 B2C / C2C 兩組憑證；憑證複用既有 Payment\\Ecpg AES-128-CBC AesCrypto（同套加密）
+    對應 .feature: logistics/logistics-store-selection、logistics-create-shipment 等（EcpayLogisticsSettingsDTO）
+  '''
+}
+
 Table wp_options_global_settings {
   option_name varchar [pk, note: 'power_checkout_settings']
   value json [note: '全域設定（目前保留未使用）']
@@ -301,6 +379,34 @@ Table wc_order_meta_invoice {
   '''
 }
 
+// ==================== WC_Order Meta: 物流（綠界全方位物流 v2）====================
+
+Table wc_order_meta_logistics {
+  order_id bigint [ref: > wc_orders.id, note: '訂單 ID']
+  _pc_logistics_provider_id logistics_provider [note: '使用的物流 Provider ID（ecpay_logistics）']
+  _pc_logistics_sub_type logistics_sub_type [note: '物流子類型（FAMI/UNIMART/HILIFE/HOME），結帳選擇寫入']
+  _pc_logistics_payment_scenario logistics_payment_scenario [note: '付款情境（online / cod），結帳選擇寫入']
+  _pc_logistics_temp_id varchar [note: '暫存物流單號 TempLogisticsID（選店回呼 ClientReplyURL 寫入；成立物流單的必要憑證）']
+  _pc_logistics_ref varchar [note: '統一物流單號（= 綠界 LogisticsID / 未來 PAYUNi ShipTradeNo；成立物流單後寫入；下游主鍵）']
+  _pc_logistics_store_id varchar [note: '選定門市代碼（超商，選店回呼寫入）']
+  _pc_logistics_store_name varchar [note: '選定門市名稱（超商）']
+  _pc_logistics_store_addr varchar [note: '選定門市地址（超商）']
+  _pc_logistics_status logistics_status [note: '物流貨態（ServerReplyURL 貨態 callback 寫入綠界 LogisticsStatus；防重亦記已處理碼）']
+  _pc_logistics_cvs_payment_no varchar [note: 'C2C 寄貨編號 CVSPaymentNo（C2C 成立物流單後寫入；取消單需用）']
+  _pc_logistics_cvs_validation_no varchar [note: 'C2C 驗證碼 CVSValidationNo（C2C 成立物流單後寫入；取消單需用）']
+  _pc_logistics_collection_paid varchar [note: 'COD 取貨付款完成標記（yes；取件完成貨態時寫入）']
+
+  Note: '''
+    綠界全方位物流相關的 Order Meta（統一抽象 ILogisticsProvider 共用同一組 meta key）
+    對應 .feature: logistics/logistics-store-selection、logistics-selection-callback、
+                   logistics-create-shipment、logistics-status-callback、logistics-query、
+                   logistics-print-document、logistics-cancel-c2c
+    透過 Logistics\\Shared\\Helpers\\LogisticsMetaKeys 類別存取（HPOS 相容，禁用 get_post_meta）
+    _pc_logistics_ref 為統一主鍵：貨態 callback（ServerReplyURL）以 LogisticsID 反查訂單，防重以已處理碼為 key
+    _pc_logistics_collection_paid 僅 COD 訂單於取件完成貨態時標記
+  '''
+}
+
 // ==================== WC_Order_Item Meta ====================
 
 Table wc_order_item_meta {
@@ -319,3 +425,4 @@ Table wc_order_item_meta {
 Ref: wc_order_meta_payment.order_id > wc_orders.id
 Ref: wc_order_meta_ecpay_payment.order_id > wc_orders.id
 Ref: wc_order_meta_invoice.order_id > wc_orders.id
+Ref: wc_order_meta_logistics.order_id > wc_orders.id

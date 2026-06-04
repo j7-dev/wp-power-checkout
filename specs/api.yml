@@ -23,9 +23,16 @@ info:
     - `ecpg/create-payment`：前端 SDK 取得 PayToken 後送回，以 **WooCommerce `order_key`** 比對擁有權（非 nonce，因支援訪客結帳）。
     - 三個 callback（`aio/*`、`ecpg/return`）回應一律為**純文字 `1|OK`、HTTP 200**（非 JSON）。
 
+    ## 綠界全方位物流 v2 端點（Logistics domain，統一抽象 ILogisticsProvider）
+    物流管理端 API（store-selection / create-shipment / query / print / cancel）走 `power-checkout/v1/logistics`，需 Nonce。
+    物流 callback（selection-callback / status-callback）走 `power-checkout/ecpay`，不需 WordPress 認證：
+    - `logistics/selection-callback`：綠界選店 Form POST ResultData，以 **AES-128-CBC 解密能力**把關。
+    - `logistics/status-callback`：綠界貨態 JSON POST（AES-JSON 三層），驗 MerchantID + 比對 LogisticsID + 防重；
+      回應**必須是 AES 加密 JSON 三層結構**（非 1|OK），否則綠界隔 60 分重送最多 3 次。
+
     ## 錯誤處理
     所有端點的錯誤以 Exception 形式拋出，WordPress REST API 框架統一捕獲後回傳 HTTP 500 + 錯誤訊息。
-  version: "1.2.0"
+  version: "1.3.0"
 
 servers:
   - url: /wp-json/power-checkout/v1
@@ -35,7 +42,9 @@ servers:
   - url: /wp-json/power-checkout/slp
     description: Shopline Payment Webhook 命名空間
   - url: /wp-json/power-checkout/ecpay
-    description: 綠界 ECPay 幕後通知 / 前端 API 命名空間（AIO / ECPG）
+    description: 綠界 ECPay 幕後通知 / 前端 API 命名空間（AIO / ECPG / 物流 callback）
+  - url: /wp-json/power-checkout/v1/logistics
+    description: 綠界全方位物流管理 API 命名空間（統一抽象 ILogisticsProvider）
 
 tags:
   - name: Settings
@@ -48,6 +57,8 @@ tags:
     description: Shopline Payment Webhook 接收
   - name: ECPay
     description: 綠界 ECPay 幕後通知（AIO ReturnURL / PaymentInfoURL、ECPG ReturnURL）與站內付前端 API
+  - name: Logistics
+    description: 綠界全方位物流 v2（選店 / 成立物流單 / 查詢 / 列印 / 取消 / 貨態 callback），統一抽象 ILogisticsProvider
 
 components:
   securitySchemes:
@@ -407,6 +418,139 @@ components:
             need_3ds:
               type: boolean
               description: 是否需導向 3D 驗證
+
+    # ===== Logistics（綠界全方位物流 v2 / 統一抽象 ILogisticsProvider）=====
+    LogisticsSubType:
+      type: string
+      enum: [FAMI, UNIMART, HILIFE, HOME]
+      description: 物流子類型（全家 / 統一 / 萊爾富 / 宅配）
+
+    LogisticsStoreSelectionResponse:
+      type: object
+      required: [code, message]
+      description: 取得選店導轉頁回應；成功時 data 含導轉目標（綠界 RWD 選店頁）
+      properties:
+        code:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "取得選店頁成功"
+        data:
+          type: object
+          nullable: true
+          properties:
+            redirect_target:
+              type: string
+              description: 綠界 RWD 選店頁 HTML（PostWithAesStrResponseService 回傳的 body，供前端導轉）
+
+    LogisticsSelectionCallbackPayload:
+      type: object
+      required: [ResultData]
+      description: 綠界選店回呼（ClientReplyURL，瀏覽器 Form POST）
+      properties:
+        ResultData:
+          type: string
+          description: AES 加密的選店結果（解密後含 TempLogisticsID 與門市資訊）
+
+    LogisticsShipmentResponse:
+      type: object
+      required: [code, message]
+      description: 成立正式物流單回應
+      properties:
+        code:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "物流單成立成功"
+        data:
+          type: object
+          nullable: true
+          properties:
+            logistics_id:
+              type: string
+              description: 統一物流單號（綠界 LogisticsID，存 _pc_logistics_ref）
+
+    LogisticsQueryResponse:
+      type: object
+      required: [code, message]
+      description: 查詢物流單即時狀態回應
+      properties:
+        code:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "查詢成功"
+        data:
+          type: object
+          nullable: true
+          properties:
+            logistics_id:
+              type: string
+              description: 物流單號
+            status:
+              type: string
+              description: 即時貨態（綠界 LogisticsStatus）
+            store_info:
+              type: object
+              nullable: true
+              description: 門市資訊（超商取貨時）
+              properties:
+                store_id:
+                  type: string
+                store_name:
+                  type: string
+                store_addr:
+                  type: string
+
+    LogisticsStatusCallbackPayload:
+      type: object
+      required: [MerchantID, TransCode, Data]
+      description: |
+        綠界全方位物流貨態通知（ServerReplyURL，JSON body POST，AES-JSON 三層結構）。
+        外層 TransCode（整數）=== 1 → 解密 Data → 內層 RtnCode（整數）。
+      properties:
+        MerchantID:
+          type: string
+          description: 綠界特店編號（須驗證為本商店 B2C 或 C2C 帳號）
+        RqHeader:
+          type: object
+          properties:
+            Timestamp:
+              type: integer
+        TransCode:
+          type: integer
+          description: 傳輸層代碼（1 = 傳輸成功）
+        TransMsg:
+          type: string
+        Data:
+          type: string
+          description: AES-128-CBC 加密的貨態資料（解密後含 RtnCode/LogisticsID/LogisticsStatus）
+
+    LogisticsAesJsonResponse:
+      type: object
+      required: [MerchantID, TransCode, Data]
+      description: |
+        綠界全方位物流 callback 的回應格式（AES 加密 JSON 三層結構，非 1|OK）。
+        未正確回應時綠界隔 60 分重送，當天最多 3 次。
+      properties:
+        MerchantID:
+          type: string
+        RqHeader:
+          type: object
+          properties:
+            Timestamp:
+              type: integer
+        TransCode:
+          type: integer
+          example: 1
+        TransMsg:
+          type: string
+        Data:
+          type: string
+          description: AES 加密的 { RtnCode, RtnMsg }
 
 security:
   - wpNonce: []
@@ -1021,3 +1165,274 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/EcpgCreatePaymentResponse"
+
+  # ==================== Logistics（綠界全方位物流 v2 / 統一抽象）====================
+
+  /logistics/{order_id}/store-selection:
+    post:
+      tags: [Logistics]
+      summary: 取得物流選店導轉頁（階段 A）
+      description: |
+        ILogisticsProvider::get_store_selection()。建立綠界暫存物流單（RedirectToLogisticsSelection，
+        TempLogisticsID=0），回傳綠界 RWD 選店頁供前端導轉。
+        WC 整合：綠界物流做成 WC_Shipping_Method，顧客在 classic checkout 結帳頁點「選擇門市」觸發。
+        account_type（b2c/c2c）決定使用的帳號與憑證；COD 訂單帶 IsCollection=Y + CollectionAmount。
+      operationId: logisticsStoreSelection
+      servers:
+        - url: /wp-json/power-checkout/v1
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sub_type:
+                  $ref: "#/components/schemas/LogisticsSubType"
+      responses:
+        "200":
+          description: 取得選店導轉頁成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogisticsStoreSelectionResponse"
+        "400":
+          description: |
+            前置（參數）驗證失敗：
+            - "ClientReplyURL 必須為公開可訪問的 URL"
+            - "運送方式必須為已啟用的綠界物流子類型"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: 綠界全方位物流未啟用
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: 找不到訂單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /logistics/selection-callback:
+    post:
+      tags: [Logistics]
+      summary: 物流選店回呼（ClientReplyURL）
+      description: |
+        ILogisticsProvider::parse_store_selection()。顧客在綠界 RWD 頁選店後，綠界以瀏覽器 Form POST
+        至此端點，body 含 ResultData（AES 加密）。不需要 WordPress 認證，授權以 AES 解密能力把關。
+        解密取 TempLogisticsID 與門市資訊，暫存於 order meta（_pc_logistics_temp_id / _pc_logistics_store_*）。
+      operationId: logisticsSelectionCallback
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/ecpay
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/LogisticsSelectionCallbackPayload"
+      responses:
+        "200":
+          description: 選店結果處理完成（解析成功暫存門市；解析失敗記錄並回應）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+
+  /logistics/{order_id}/create-shipment:
+    post:
+      tags: [Logistics]
+      summary: 成立正式物流單（階段 B）
+      description: |
+        ILogisticsProvider::create_shipment()。管理員於後台訂單頁手動觸發，憑 TempLogisticsID 呼叫
+        CreateByTempTrade 成立正式物流單，取得 LogisticsID 存 _pc_logistics_ref。
+        雙層檢查（外層 TransCode 整數 1 → 解密 Data → 內層 RtnCode 整數 1）。
+        C2C 額外保存 CVSPaymentNo / CVSValidationNo。
+      operationId: logisticsCreateShipment
+      servers:
+        - url: /wp-json/power-checkout/v1
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 物流單成立成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogisticsShipmentResponse"
+        "400":
+          description: |
+            成立失敗：
+            - "傳輸層錯誤（TransCode）"
+            - "業務層錯誤（RtnCode）"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: 尚未選店，無暫存物流單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: 找不到訂單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /logistics/{order_id}:
+    get:
+      tags: [Logistics]
+      summary: 查詢物流單即時狀態
+      description: |
+        ILogisticsProvider::query_shipment()。管理員於後台查詢物流單即時狀態（QueryLogisticsTradeInfo）。
+      operationId: logisticsQuery
+      servers:
+        - url: /wp-json/power-checkout/v1
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogisticsQueryResponse"
+        "403":
+          description: 尚未成立物流單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: 找不到訂單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /logistics/{order_id}/print:
+    post:
+      tags: [Logistics]
+      summary: 列印託運單
+      description: |
+        ILogisticsProvider::print_document()。管理員列印託運單（PrintTradeDocument，回 HTML，
+        請求帶 LogisticsID 與 LogisticsSubType）。
+      operationId: logisticsPrintDocument
+      servers:
+        - url: /wp-json/power-checkout/v1
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 列印成功，回傳託運單 HTML
+          content:
+            text/html:
+              schema:
+                type: string
+        "403":
+          description: 尚未成立物流單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: 找不到訂單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /logistics/{order_id}/cancel:
+    post:
+      tags: [Logistics]
+      summary: 取消 C2C 物流單
+      description: |
+        ILogisticsProvider::cancel_shipment()。取消尚未寄件的 C2C 物流單（CancelC2COrder，僅 C2C 帳號，
+        需 CVSPaymentNo / CVSValidationNo）。成功後標記 _pc_logistics_status=cancelled。
+      operationId: logisticsCancelShipment
+      servers:
+        - url: /wp-json/power-checkout/v1
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          description: 缺少 C2C 寄貨編號，無法取消
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: 取消物流單僅支援 C2C 帳號
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: 找不到訂單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /logistics/status-callback:
+    post:
+      tags: [Logistics]
+      summary: 物流貨態通知（ServerReplyURL）
+      description: |
+        ILogisticsProvider::handle_status_callback()。綠界以 JSON body POST 貨態通知（AES-JSON 三層）。
+        不需要 WordPress 認證，授權以 MerchantID 驗證 + LogisticsID 比對把關。
+        驗 MerchantID、比對 LogisticsID、防重（記已處理碼）；回應必須是 AES 加密 JSON 三層結構（非 1|OK），
+        否則綠界隔 60 分重送最多 3 次。COD 訂單取件完成時標記 _pc_logistics_collection_paid=yes。
+      operationId: logisticsStatusCallback
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/ecpay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogisticsStatusCallbackPayload"
+      responses:
+        "200":
+          description: 始終回應 AES 加密 JSON 三層結構（HTTP 200，application/json）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogisticsAesJsonResponse"

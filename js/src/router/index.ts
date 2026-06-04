@@ -7,6 +7,7 @@ export const ROUTER_MAPPER = {
 	ecpay_ecpg: '/payments/ecpay_ecpg',
 	amego: '/invoices/amego',
 	ecpay: '/invoices/ecpay',
+	ecpay_logistics: '/logistics/ecpay_logistics',
 }
 
 const routes = [
@@ -24,7 +25,11 @@ const routes = [
 		path: '/payments/ecpay_ecpg',
 		component: () => import('@/pages/Payments/EcpayEcpg/index.vue'),
 	},
-	{ path: '/logistics', component: () => import('@/pages/Logistics.vue') },
+	{ path: '/logistics', component: () => import('@/pages/Logistics/index.vue') },
+	{
+		path: '/logistics/ecpay_logistics',
+		component: () => import('@/pages/Logistics/Ecpay/index.vue'),
+	},
 	{ path: '/invoices', component: () => import('@/pages/Invoices/index.vue') },
 	{
 		path: '/invoices/amego',

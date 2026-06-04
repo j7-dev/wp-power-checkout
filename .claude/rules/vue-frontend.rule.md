@@ -104,7 +104,8 @@ Hash mode router (`createWebHashHistory`):
 /payments/shopline_payment_redirect     → SLP settings
 /payments/ecpay_aio                     → ECPay AIO settings
 /payments/ecpay_ecpg                    → ECPay ECPG settings
-/logistics                              → Logistics (placeholder)
+/logistics                              → Logistics list (js/src/pages/Logistics/index.vue)
+/logistics/ecpay_logistics              → ECPay Logistics settings (js/src/pages/Logistics/Ecpay/index.vue)
 /invoices                               → Invoice list
 /invoices/amego                         → Amego settings
 /invoices/ecpay                         → ECPay Invoice settings
