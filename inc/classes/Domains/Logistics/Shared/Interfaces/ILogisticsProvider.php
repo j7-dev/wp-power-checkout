@@ -90,14 +90,18 @@ interface ILogisticsProvider {
 	public function cancel_shipment( \WC_Order $order ): array;
 
 	/**
-	 * 建立退貨單（預留，本次未實作）
+	 * 建立退貨單（逆物流）
+	 *
+	 * 由已出貨訂單建立逆物流單。前置：provider 啟用 / 訂單存在 /
+	 * 已成立正向物流單（order meta 有 LogisticsID）/ reply URL 公開可訪問。
+	 * 依原始 sub_type 分派各 provider 對應的退貨 API。
 	 *
 	 * @param \WC_Order            $order 訂單
 	 * @param array<string, mixed> $ctx   上下文
 	 *
 	 * @return array<string, mixed>
 	 *
-	 * @throws \Exception 尚未實作
+	 * @throws \Exception 前置驗證失敗或 API 呼叫失敗
 	 */
 	public function create_return( \WC_Order $order, array $ctx = [] ): array;
 

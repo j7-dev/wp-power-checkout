@@ -48,4 +48,15 @@ enum LogisticsSubType: string {
 			self::HOME => '宅配',
 		};
 	}
+
+	/**
+	 * 以子類型字串值取得中文標籤（非合法值回傳原字串，供顯示退化）
+	 *
+	 * @param string $value 子類型字串（FAMI/UNIMART/HILIFE/HOME）
+	 * @return string
+	 */
+	public static function label_of( string $value ): string {
+		$case = self::tryFrom( $value );
+		return $case instanceof self ? $case->label() : $value;
+	}
 }

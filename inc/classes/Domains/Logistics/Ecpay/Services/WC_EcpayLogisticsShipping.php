@@ -109,23 +109,41 @@ final class WC_EcpayLogisticsShipping extends \WC_Shipping_Method {
 	}
 
 	/**
-	 * 計算運費（回固定運費；計畫 T4）
+	 * 計算運費（每個 enabled sub_type 各產一個 rate）
+	 *
+	 * 第一性原理：WC 一個 shipping rate = 顧客可選的一個運送選項。物流啟用多個 sub_type
+	 * （FAMI/UNIMART/HILIFE/HOME）時，須為每個 enabled sub_type 各 add 一個 rate，使顧客
+	 * 「選哪個 rate」即決定 sub_type。每個 rate：
+	 *   - rate_id 帶 sub_type 後綴（{@see get_rate_id()} → 形如 ecpay_logistics:FAMI），
+	 *   - meta_data 帶 sub_type（Store API CartShippingRateSchema 預設出到 block 前端 cart.shippingRates），
+	 *   - label 用對應子類型中文標籤（全家 / 統一 / 萊爾富 / 宅配）。
+	 * 固定運費沿用後台設定 cost（計畫 T4，不做依重量 / 地區的級距運費）。
 	 *
 	 * @param array<string, mixed> $package 購物車運送 package
 	 *
 	 * @return void
 	 */
 	public function calculate_shipping( $package = [] ): void {
-		$cost = (float) $this->cost;
+		$cost      = (float) $this->cost;
+		$base      = $this->title ?: $this->method_title;
+		$sub_types = $this->get_supported_sub_types();
 
-		$this->add_rate(
-			[
-				'id'      => $this->get_rate_id(),
-				'label'   => $this->title ?: $this->method_title,
-				'cost'    => $cost,
-				'package' => $package,
-			]
-		);
+		// 無 enabled sub_type → 不產生任何 rate（顧客無可選的綠界物流運送方式）
+		foreach ( $sub_types as $sub_type ) {
+			$label = LogisticsSubType::label_of( $sub_type );
+
+			$this->add_rate(
+				[
+					// rate_id 帶 sub_type 後綴：顧客選定的 rate 即決定 sub_type
+					'id'        => $this->get_rate_id( $sub_type ),
+					'label'     => "{$base}（{$label}）",
+					'cost'      => $cost,
+					'package'   => $package,
+					// 帶 sub_type meta：classic 下單時搬進 order item meta；block 經 Store API 出到前端
+					'meta_data' => [ 'sub_type' => $sub_type ],
+				]
+			);
+		}
 	}
 
 	/**
@@ -157,7 +175,11 @@ final class WC_EcpayLogisticsShipping extends \WC_Shipping_Method {
 	 * Classic checkout：將結帳選擇的物流子類型 / 付款情境寫入 order meta
 	 *
 	 * 由 woocommerce_checkout_create_order hook 觸發（見 ProviderRegister）。
-	 * sub_type 從結帳送出欄位 _pc_logistics_sub_type 取得；無則嘗試從選定的運送方式推導；
+	 * sub_type 取得順序（第一性原理：「選定的 rate」即決定 sub_type）：
+	 *   1. 選定的運送方式（order shipping item）的 sub_type meta —— WC set_shipping_rate()
+	 *      會把 rate 的 meta_data（含本外掛帶的 sub_type）搬進 order item meta。
+	 *   2. 退化相容：舊版結帳送出欄位 _pc_logistics_sub_type（單值）。
+	 * 兩者皆經白名單（已啟用合法子類型）把關，杜絕注入。
 	 * payment_scenario 依付款方式（COD → cod，其餘 → online）。
 	 *
 	 * @param \WC_Order            $order 訂單
@@ -173,11 +195,10 @@ final class WC_EcpayLogisticsShipping extends \WC_Shipping_Method {
 
 		$meta = new LogisticsMetaKeys( $order );
 
-		// 物流子類型：優先取結帳送出欄位
-		$sub_type = isset($_POST['_pc_logistics_sub_type']) // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		? \sanitize_text_field( \wp_unslash( (string) $_POST['_pc_logistics_sub_type'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		: '';
-		// 安全：僅寫入已啟用的合法子類型（白名單），杜絕從 $_POST 注入任意值
+		// 物流子類型：優先取「選定的 rate」（order shipping item meta），退化取舊版 $_POST 欄位
+		$sub_type = self::resolve_chosen_sub_type( $order );
+
+		// 安全：僅寫入已啟用的合法子類型（白名單），杜絕注入任意值
 		$method = new self();
 		if ('' !== $sub_type && \in_array( $sub_type, $method->get_supported_sub_types(), true )) {
 			$meta->update_sub_type( $sub_type );
@@ -187,6 +208,35 @@ final class WC_EcpayLogisticsShipping extends \WC_Shipping_Method {
 		$is_cod   = 'cod' === $order->get_payment_method();
 		$scenario = $is_cod ? LogisticsPaymentScenario::COD->value : LogisticsPaymentScenario::ONLINE->value;
 		$meta->update_payment_scenario( $scenario );
+	}
+
+	/**
+	 * 從訂單取得「選定的 rate」對應的物流子類型
+	 *
+	 * 來源優先序：
+	 *   1. 本物流運送方式 order shipping item 的 sub_type meta（多 rate：選哪個 rate 決定 sub_type）。
+	 *   2. 退化相容：舊版結帳送出欄位 _pc_logistics_sub_type（單值，phase 1 classic）。
+	 * 本方法不做白名單過濾（交由呼叫端統一把關）。
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return string 子類型字串（FAMI/UNIMART/HILIFE/HOME），無則空字串
+	 */
+	private static function resolve_chosen_sub_type( \WC_Order $order ): string {
+		// 1. 選定的運送方式 item 的 sub_type meta（WC 由 rate meta_data 搬入）
+		foreach ( $order->get_shipping_methods() as $shipping_item ) {
+			if (self::METHOD_ID !== $shipping_item->get_method_id()) {
+				continue;
+			}
+			$sub_type = (string) $shipping_item->get_meta( 'sub_type' );
+			if ('' !== $sub_type) {
+				return $sub_type;
+			}
+		}
+
+		// 2. 退化相容：舊版結帳送出欄位（單值）
+		return isset($_POST['_pc_logistics_sub_type']) // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		? \sanitize_text_field( \wp_unslash( (string) $_POST['_pc_logistics_sub_type'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		: '';
 	}
 
 	/**

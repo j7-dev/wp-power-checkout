@@ -97,7 +97,7 @@ mutations: { retry: 0 }
 
 ## Router
 
-Hash mode router (`createWebHashHistory`):
+Memory mode router (`createMemoryHistory`):
 
 ```
 /payments                               → Payments list

@@ -28,33 +28,67 @@
 		: ['FAMI', 'UNIMART', 'HILIFE']
 
 	/**
-	 * 是否選用了綠界物流運送方式
-	 * @return {boolean}
+	 * 取得目前選定的綠界物流運送方式 rate_id（形如 ecpay_logistics:FAMI / ecpay_logistics:5:FAMI）
+	 * @return {string} 選定的 rate_id，未選用本物流則回空字串
 	 */
-	function isLogisticsChosen() {
+	function getChosenRateId() {
 		var inputs = document.querySelectorAll(
 			'input[name^="shipping_method"]:checked, input[name^="shipping_method"][type="hidden"]'
 		)
 		for (var i = 0; i < inputs.length; i++) {
-			if (String(inputs[i].value).indexOf(METHOD_ID) === 0) {
-				return true
+			var value = String(inputs[i].value)
+			if (value.indexOf(METHOD_ID) === 0) {
+				return value
 			}
 		}
-		return false
+		return ''
 	}
 
 	/**
-	 * 取得目前選定的超商取貨子類型（無法判斷時回第一個 CVS 子類型）
+	 * 從 rate_id 解析 sub_type 後綴（多 rate：選哪個 rate 決定 sub_type）
+	 * rate_id 形如 ecpay_logistics:FAMI 或 ecpay_logistics:5:FAMI（含 instance_id）→ 取最後一段。
+	 * @param {string} rateId
+	 * @return {string} sub_type，無法解析回空字串
+	 */
+	function parseSubTypeFromRateId(rateId) {
+		var parts = String(rateId).split(':')
+		return parts.length > 1 ? parts[parts.length - 1] : ''
+	}
+
+	/**
+	 * 是否選用了綠界「超商取貨」運送方式（須選店；HOME 宅配不須選店）
+	 * @return {boolean}
+	 */
+	function isLogisticsChosen() {
+		var rateId = getChosenRateId()
+		if (!rateId) {
+			return false
+		}
+		var subType = getSelectedSubType()
+		// 僅超商取貨子類型須顯示選店按鈕（HOME 等不在 cvsSubTypes 內 → 不顯示）
+		return cvsSubTypes.indexOf(subType) !== -1
+	}
+
+	/**
+	 * 取得目前選定的超商取貨子類型
+	 *
+	 * 優先序：選定 rate_id 後綴（多 rate）→ 頁面 sub_type 欄位（退化）→ 第一個 CVS 子類型。
 	 * @return {string}
 	 */
 	function getSelectedSubType() {
-		// 若頁面有 sub_type 選擇欄位（後端可擴充），優先讀取
+		// 1. 選定的 rate_id 後綴（多 rate：選哪個 rate 即決定 sub_type）
+		var fromRate = parseSubTypeFromRateId(getChosenRateId())
+		if (fromRate) {
+			return fromRate
+		}
+		// 2. 若頁面有 sub_type 選擇欄位（後端可擴充），讀取
 		var field = data.sub_type_field
 			? document.querySelector('[name="' + data.sub_type_field + '"]')
 			: null
 		if (field && field.value) {
 			return String(field.value)
 		}
+		// 3. 退化：第一個 CVS 子類型
 		return cvsSubTypes[0]
 	}
 

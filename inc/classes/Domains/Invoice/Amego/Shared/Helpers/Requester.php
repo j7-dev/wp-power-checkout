@@ -38,6 +38,11 @@ final class Requester {
 	public function post( EApi $api ): ?IssueInvoiceResponseDTO {
 		try {
 
+			// MOCK 模式：不打真 API，回固定 fixture（CI 安全、測試隔離）
+			if ( self::is_mock() ) {
+				return self::mock_response( $api );
+			}
+
 			$request_body_dto = $api->prepare_request_param( $this->order );
 			$uni_params       = UniParamsDTO::create( $request_body_dto );
 			$api_url          = self::API_URL . $api->value;
@@ -98,5 +103,42 @@ final class Requester {
 			);
 			return null;
 		}
+	}
+
+	/** @return bool 是否為 MOCK 模式（測試用，不打真 API） */
+	private static function is_mock(): bool {
+		$mode = \str_replace( ' ', '', \getenv( 'API_MODE' ) ?: '' );
+		return 'mock' === \strtolower( $mode );
+	}
+
+	/**
+	 * MOCK 回應（固定 fixture）
+	 *
+	 * 開立回固定發票號碼與隨機碼；作廢僅回 code/msg。
+	 * 與其餘 6 個 API client 的 mock 行為一致。
+	 *
+	 * @param EApi $api 端點
+	 *
+	 * @return IssueInvoiceResponseDTO
+	 */
+	private static function mock_response( EApi $api ): IssueInvoiceResponseDTO {
+		if ( EApi::ISSUE === $api ) {
+			return new IssueInvoiceResponseDTO(
+				[
+					'code'           => 0,
+					'msg'            => 'OK',
+					'invoice_number' => 'AG00000001',
+					'invoice_time'   => \time(),
+					'random_number'  => '1234',
+				]
+			);
+		}
+
+		return new IssueInvoiceResponseDTO(
+			[
+				'code' => 0,
+				'msg'  => 'OK',
+			]
+		);
 	}
 }

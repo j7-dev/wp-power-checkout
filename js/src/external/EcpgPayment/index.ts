@@ -180,7 +180,6 @@ const submitPayment = async (
 		// 不外洩內部細節（後端已寫 order note / log）
 		ElMessage.error('建立付款時發生錯誤，請稍後再試')
 		setButtonLoading(button, false)
-		// eslint-disable-next-line no-console
 		console.error('ECPG create-payment 失敗', err)
 	}
 }
@@ -198,7 +197,6 @@ const startEcpgPayment = async (data: IEcpgData): Promise<void> => {
 		sdk = await loadEcpaySdk(data.sdk_url)
 	} catch (err) {
 		ElMessage.error('綠界付款元件載入失敗，請重新整理頁面')
-		// eslint-disable-next-line no-console
 		console.error('ECPG SDK 載入失敗', err)
 		return
 	}
@@ -210,7 +208,6 @@ const startEcpgPayment = async (data: IEcpgData): Promise<void> => {
 		// errMsg 須用 != null 判斷（空字串非錯誤）
 		if (initErr != null) {
 			ElMessage.error('綠界付款元件初始化失敗')
-			// eslint-disable-next-line no-console
 			console.error('ECPay.initialize 失敗', initErr)
 			return
 		}
@@ -222,7 +219,6 @@ const startEcpgPayment = async (data: IEcpgData): Promise<void> => {
 			(createErr) => {
 				if (createErr != null) {
 					ElMessage.error('綠界付款元件渲染失敗')
-					// eslint-disable-next-line no-console
 					console.error('ECPay.createPayment 失敗', createErr)
 					return
 				}
@@ -234,7 +230,6 @@ const startEcpgPayment = async (data: IEcpgData): Promise<void> => {
 						if (payErr != null) {
 							ElMessage.error('取得付款資訊失敗，請確認卡片資訊')
 							setButtonLoading(btn, false)
-							// eslint-disable-next-line no-console
 							console.error('ECPay.getPayToken 失敗', payErr)
 							return
 						}

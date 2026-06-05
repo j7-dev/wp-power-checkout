@@ -12,6 +12,7 @@ namespace J7\PowerCheckout\Domains\Invoice\Shared\Services;
 use J7\PowerCheckout\Domains\Invoice\Shared\DTOs\InvoiceParams;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
+use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
 use J7\PowerCheckout\Domains\Invoice\Shared\Utils\InvoiceUtils;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -40,6 +41,14 @@ final class InvoiceApiService extends ApiBase {
 		],
 		[
 			'endpoint' => 'cancel/(?P<id>\d+)', // order_id
+			'method'   => 'post',
+		],
+		[
+			'endpoint' => 'allowance/(?P<id>\d+)', // order_id 開立折讓
+			'method'   => 'post',
+		],
+		[
+			'endpoint' => 'allowance-cancel/(?P<id>\d+)', // order_id 作廢折讓
 			'method'   => 'post',
 		],
 	];
@@ -80,6 +89,63 @@ final class InvoiceApiService extends ApiBase {
 		return new \WP_REST_Response( $result, 200 );
 	}
 
+
+	/**
+	 * 開立折讓（部分退款開折讓單）
+	 *
+	 * 目前僅綠界（ecpay）支援折讓；以訂單記錄的 provider 為準。
+	 *
+	 * @param \WP_REST_Request $request 請求（body: amount, [notify_mail]）
+	 *
+	 * @return \WP_REST_Response 回應
+	 */
+	public function post_allowance_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		$order_id    = (string) ( $request['id'] ?? '' );
+		$order       = OrderUtils::get_order( $order_id );
+		$provider    = self::get_allowance_provider( $order );
+		$amount      = (float) ( $request['amount'] ?? 0 );
+		$notify_mail = (string) ( $request['notify_mail'] ?? '' );
+
+		$result = $provider->issue_allowance( $order, $amount, $notify_mail );
+		return new \WP_REST_Response( $result, 200 );
+	}
+
+	/**
+	 * 作廢折讓
+	 *
+	 * @param \WP_REST_Request $request 請求
+	 *
+	 * @return \WP_REST_Response 回應
+	 */
+	public function post_allowance_cancel_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		$order_id = (string) ( $request['id'] ?? '' );
+		$order    = OrderUtils::get_order( $order_id );
+		$provider = self::get_allowance_provider( $order );
+
+		$result = $provider->invalid_allowance( $order );
+		return new \WP_REST_Response( $result, 200 );
+	}
+
+	/**
+	 * 取得支援折讓的 provider（依訂單記錄的 provider_id）
+	 *
+	 * 折讓能力由 ISupportsAllowance 標示（目前僅 Ecpay 支援，Amego 折讓後續實作）。
+	 *
+	 * @param \WC_Order $order 訂單
+	 *
+	 * @return ISupportsAllowance 具備折讓能力的 provider
+	 * @throws \Exception 找不到 provider 或不支援折讓
+	 */
+	private static function get_allowance_provider( \WC_Order $order ): ISupportsAllowance {
+		$provider_id = ( new MetaKeys( $order ) )->get_provider_id();
+		$provider    = ProviderUtils::get_provider( $provider_id );
+
+		if (!$provider instanceof ISupportsAllowance) {
+			throw new \Exception( "{$provider_id} 不支援發票折讓" );
+		}
+
+		return $provider;
+	}
 
 	/**
 	 * 從請求體解析出服務 & 訂單

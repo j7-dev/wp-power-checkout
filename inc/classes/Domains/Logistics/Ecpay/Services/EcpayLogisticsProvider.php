@@ -2,12 +2,12 @@
 /**
  * 綠界全方位物流 v2（AllInOne）服務提供者
  *
- * 統一抽象 ILogisticsProvider 的 ECPay 實作（本次唯一 provider）。
- * account_type 切換 B2C / C2C 兩組憑證（計畫 R5）。
+ * 統一抽象 ILogisticsProvider 的 ECPay 實作（與 PayuniLogisticsProvider 並存可切換）。
+ * account_type 切換 B2C / C2C 兩組憑證。
  *
- * ⚠️ 階段一（抽象骨架）：本類別僅建立骨架與 get_settings()，
- * 選店 / 建單 / 查詢 / 列印 / 取消 / 貨態 callback 等業務方法於第三階段實作，
- * 目前一律 throw，避免在地基階段提供未驗證的行為。
+ * 已實作完整流程：選店（get_store_selection → parse_store_selection）、
+ * 建單（create_shipment / CreateByTempTrade）、查詢、列印、取消（C2C）、
+ * 逆物流退貨（create_return）與貨態 callback（handle_status_callback）。
  */
 
 declare(strict_types=1);

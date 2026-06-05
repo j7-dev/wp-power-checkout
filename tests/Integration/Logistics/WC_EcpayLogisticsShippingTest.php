@@ -238,4 +238,186 @@ final class WC_EcpayLogisticsShippingTest extends TestCase {
 		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
 		$this->assertSame( '', $fresh_meta->get_sub_type(), '未啟用的子類型不應被寫入' );
 	}
+
+	// ========== 多 rate（每個 enabled sub_type 各一個 rate，帶 sub_type meta） ==========
+
+	/**
+	 * 從 calculate_shipping 產生的 rates 中，建立 rate_id → WC_Shipping_Rate 對照表
+	 *
+	 * @param WC_EcpayLogisticsShipping $method 運送方式
+	 * @return array<string, \WC_Shipping_Rate>
+	 */
+	private function calculate_and_index_rates( WC_EcpayLogisticsShipping $method ): array {
+		$method->calculate_shipping( [] );
+		$indexed = [];
+		foreach ( ( $method->rates ?? [] ) as $rate ) {
+			$indexed[ $rate->get_id() ] = $rate;
+		}
+		return $indexed;
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_calculate_shipping_對每個enabled_sub_type各產一個rate(): void {
+		// Given: enabled_methods = FAMI, UNIMART, HOME（三個）
+		$this->enable_logistics( [ 'enabled_methods' => [ 'FAMI', 'UNIMART', 'HOME' ] ] );
+
+		// When
+		$method = new WC_EcpayLogisticsShipping();
+		$rates  = $this->calculate_and_index_rates( $method );
+
+		// Then: 應產出 3 個 rate，rate_id 各含對應 sub_type 後綴
+		$this->assertCount( 3, $rates, '應為每個 enabled sub_type 各產一個 rate' );
+		$this->assertArrayHasKey( 'ecpay_logistics:FAMI', $rates );
+		$this->assertArrayHasKey( 'ecpay_logistics:UNIMART', $rates );
+		$this->assertArrayHasKey( 'ecpay_logistics:HOME', $rates );
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_calculate_shipping_每個rate帶正確sub_type_meta(): void {
+		// Given
+		$this->enable_logistics( [ 'enabled_methods' => [ 'FAMI', 'UNIMART', 'HOME' ] ] );
+
+		// When
+		$method = new WC_EcpayLogisticsShipping();
+		$rates  = $this->calculate_and_index_rates( $method );
+
+		// Then: 每個 rate 的 meta_data['sub_type'] 對應正確
+		$this->assertSame( 'FAMI', $rates['ecpay_logistics:FAMI']->get_meta_data()['sub_type'] ?? null );
+		$this->assertSame( 'UNIMART', $rates['ecpay_logistics:UNIMART']->get_meta_data()['sub_type'] ?? null );
+		$this->assertSame( 'HOME', $rates['ecpay_logistics:HOME']->get_meta_data()['sub_type'] ?? null );
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_calculate_shipping_每個rate的label用對應中文標籤(): void {
+		// Given
+		$this->enable_logistics( [ 'enabled_methods' => [ 'FAMI', 'HOME' ] ] );
+
+		// When
+		$method = new WC_EcpayLogisticsShipping();
+		$rates  = $this->calculate_and_index_rates( $method );
+
+		// Then: label 帶可辨識的中文標籤（全家 / 宅配）
+		$this->assertStringContainsString( '全家', $rates['ecpay_logistics:FAMI']->get_label() );
+		$this->assertStringContainsString( '宅配', $rates['ecpay_logistics:HOME']->get_label() );
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_calculate_shipping_每個rate沿用設定固定運費(): void {
+		// Given: cost = 60，enabled = FAMI, HOME
+		$this->enable_logistics(
+			[
+				'enabled_methods' => [ 'FAMI', 'HOME' ],
+				'cost'            => '60',
+			]
+		);
+
+		// When
+		$method       = new WC_EcpayLogisticsShipping();
+		$method->cost = '60';
+		$rates        = $this->calculate_and_index_rates( $method );
+
+		// Then: 每個 rate 都用設定的固定運費
+		$this->assertSame( 60.0, (float) $rates['ecpay_logistics:FAMI']->get_cost() );
+		$this->assertSame( 60.0, (float) $rates['ecpay_logistics:HOME']->get_cost() );
+	}
+
+	/**
+	 * @test
+	 * @group edge
+	 */
+	public function test_calculate_shipping_無enabled_methods時不產rate(): void {
+		// Given: enabled_methods 空
+		$this->enable_logistics( [ 'enabled_methods' => [] ] );
+
+		// When
+		$method = new WC_EcpayLogisticsShipping();
+		$method->calculate_shipping( [] );
+
+		// Then: 不產生任何 rate（顧客無可選運送方式）
+		$this->assertEmpty( $method->rates ?? [] );
+	}
+
+	// ========== save_checkout_meta 依「選定的 rate」取 sub_type ==========
+
+	/**
+	 * 建立帶指定 sub_type meta（模擬選定 rate）的物流運送訂單
+	 *
+	 * 模擬 WC 從選定的 WC_Shipping_Rate 建立 order shipping item：
+	 * set_shipping_rate() 會把 rate 的 meta_data（含 sub_type）搬到 order item meta。
+	 *
+	 * @param string $sub_type 選定 rate 的 sub_type（寫入 order item meta）
+	 * @return \WC_Order
+	 */
+	private function create_order_with_chosen_rate( string $sub_type ): \WC_Order {
+		$order         = wc_create_order();
+		$shipping_item = new \WC_Order_Item_Shipping();
+		$shipping_item->set_method_id( WC_EcpayLogisticsShipping::METHOD_ID );
+		$shipping_item->set_method_title( '綠界超商取貨' );
+		// 模擬 set_shipping_rate() 搬入的 rate meta
+		$shipping_item->add_meta_data( 'sub_type', $sub_type, true );
+		$order->add_item( $shipping_item );
+		$order->save();
+		return $order;
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_save_checkout_meta_依選定rate的meta寫入sub_type(): void {
+		// Given: 顧客選了 UNIMART rate（無 $_POST['_pc_logistics_sub_type']）
+		$order = $this->create_order_with_chosen_rate( 'UNIMART' );
+
+		// When
+		WC_EcpayLogisticsShipping::save_checkout_meta( $order, [] );
+
+		// Then: 從選定 rate 的 meta 取得 UNIMART 並寫入
+		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
+		$this->assertSame( 'UNIMART', $fresh_meta->get_sub_type() );
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_save_checkout_meta_選定HOME_rate寫入HOME(): void {
+		// Given: enabled 含 HOME，顧客選 HOME（宅配）rate
+		$this->enable_logistics( [ 'enabled_methods' => [ 'FAMI', 'UNIMART', 'HOME' ] ] );
+		$order = $this->create_order_with_chosen_rate( 'HOME' );
+
+		// When
+		WC_EcpayLogisticsShipping::save_checkout_meta( $order, [] );
+
+		// Then
+		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
+		$this->assertSame( 'HOME', $fresh_meta->get_sub_type() );
+	}
+
+	/**
+	 * @test
+	 * @group security
+	 */
+	public function test_save_checkout_meta_選定rate為未啟用子類型不寫入(): void {
+		// Given: enabled = FAMI, UNIMART；選定 rate meta 為未啟用的 HILIFE
+		$order = $this->create_order_with_chosen_rate( 'HILIFE' );
+
+		// When
+		WC_EcpayLogisticsShipping::save_checkout_meta( $order, [] );
+
+		// Then: 未啟用子類型不寫入（白名單把關仍生效）
+		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
+		$this->assertSame( '', $fresh_meta->get_sub_type(), '選定 rate 為未啟用子類型不應寫入' );
+	}
 }

@@ -22,6 +22,9 @@ class MetaKeys {
 	/** @var string 紀錄此訂單是用哪個發票服務開出的 */
 	private const PROVIDER_ID_KEY = '_pc_invoice_provider_id';
 
+	/** @var string 紀錄開立折讓後的資料（部分退款折讓單） */
+	private const ALLOWANCE_DATA_KEY = '_pc_allowance_data';
+
 	/** Construct */
 	public function __construct(
 		private readonly \WC_Order $order,
@@ -154,6 +157,37 @@ class MetaKeys {
 		$this->order->save_meta_data();
 	}
 
+
+	/**
+	 * 取得開立折讓資料 array
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function get_allowance_data(): array {
+		$allowance_data = $this->order->get_meta( self::ALLOWANCE_DATA_KEY ) ?: [];
+		return \is_array($allowance_data) ? $allowance_data : [];
+	}
+
+	/**
+	 * 儲存開立折讓資料 array
+	 *
+	 * @param array<string, mixed> $value 開立折讓資料 array
+	 * @return void
+	 */
+	public function update_allowance_data( array $value ): void {
+		$this->order->update_meta_data( self::ALLOWANCE_DATA_KEY, $value );
+		$this->order->save_meta_data();
+	}
+
+	/**
+	 * 刪除開立折讓資料（作廢折讓時調用）
+	 *
+	 * @return void
+	 */
+	public function clear_allowance_data(): void {
+		$this->order->delete_meta_data( self::ALLOWANCE_DATA_KEY );
+		$this->order->save_meta_data();
+	}
 
 	/**
 	 * 取得電子發票服務 id

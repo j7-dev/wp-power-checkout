@@ -71,7 +71,7 @@ This plugin has **two separate frontend build pipelines**:
    - `MountRefundDialog()` creates a Vue instance on order detail pages
    - `MountInvoiceApp()` creates Vue instances on order detail pages (admin MetaBox) AND checkout page (frontend invoice form)
    - `MountEcpgPayment()` from `js/src/external/EcpgPayment/` — mounts on order-received page for ECPay ECPG embedded payment (loads SDK, triggers CreatePayment with PayToken, handles 3DS redirect)
-   - Stack: Vue 3 + Element Plus + TanStack Vue Query + Vue Router 4 (hash mode)
+   - Stack: Vue 3 + Element Plus + TanStack Vue Query + Vue Router 4 (memory mode, `createMemoryHistory`)
 
 2. **React WC Blocks** (`vite.config.block.ts` → `inc/assets/dist/blocks/`)
    - WooCommerce Block Checkout payment method registration

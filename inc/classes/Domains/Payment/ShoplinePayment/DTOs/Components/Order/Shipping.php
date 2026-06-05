@@ -35,7 +35,18 @@ final class Shipping extends DTO {
 		'address',
 	];
 	/**
-	 * TODO shippingMethod carrier 還不確定怎麼填寫
+	 * 由 WC_Order 組裝 SLP 運送資訊（智慧風控必需，兩欄皆 String(64)、自由字串）
+	 *
+	 * 依 SLP create session 文件（api-reference.md）：
+	 *   - shippingMethod：物流「方式」，e.g. "delivery" / "pickup"。
+	 *     目前以 WC 的 get_shipping_method()（運送方式 label）填入，語意相符。
+	 *   - carrier：物流「通道 / 承運商」名稱，e.g. carrier name（如「黑貓宅配」）。
+	 *     WC 標準資料無獨立 carrier 來源（承運商綁在運送方式設定內，無通用 API），
+	 *     文件對 carrier 僅給 "e.g. carrier name"，未規定固定值。
+	 *
+	 * TODO carrier 正確值待確認：理想為實際承運商名稱，但無可靠 WC 來源；
+	 *      暫以 get_shipping_method() 佔位（風控仍收到非空字串）。
+	 *      確認 SLP 對 carrier 是否有格式 / 白名單要求後再調整，勿貿然改動以免影響既有風控通過率。
 	 *
 	 * @param \WC_Order $order 訂單
 	 * @return self 創建實例

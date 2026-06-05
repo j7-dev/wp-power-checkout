@@ -122,7 +122,6 @@ const handleIssue = async () => {
 			if (!input) {
 				return
 			}
-			console.log(input)
 			// 確認 input html tag name 為 input
 			if ('INPUT' !== (input?.tagName || '').toUpperCase()) {
 				return

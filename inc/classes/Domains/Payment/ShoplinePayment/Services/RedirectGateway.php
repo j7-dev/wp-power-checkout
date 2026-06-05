@@ -70,8 +70,7 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 	/**
 	 * [後台] 自訂欄位驗證邏輯
 	 * 可以用 \WC_Admin_Settings::add_error 來替欄位加入錯誤訊息
-	 * ATM手續費最低收取金額*+1元」(含)~49,999元(含)
-	 * TODO 待處理
+	 * 驗證 min_amount（≥ 5）與 max_amount（≤ 50000）範圍，超出則拒絕儲存
 	 *
 	 * @see https://docs.shoplinepayments.com/api/trade/session/
 	 * @see WC_Settings_API::process_admin_options
