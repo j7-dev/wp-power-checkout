@@ -3,18 +3,19 @@
  * 綠界 AIO 信用卡 DoAction（請款 / 退款 / 取消授權）API client
  *
  * 端點：/CreditDetail/DoAction（CMV-SHA256 協議，回應為 pipe-separated `RtnCode|RtnMsg`）。
- * 本階段僅用於退款（Action=R 退刷）。
+ * 支援 Action：C 請款（關帳）、N 放棄（取消授權 / 取消請款）、R 退款（退刷）。
  *
- * ⚠️ 重要限制（Source: ECPay-API-Skill guides/01-payment-aio.md §信用卡請款/退款，2026-06）：
+ * ⚠️ 重要限制（Source: ECPay-API-Skill guides/01-payment-aio.md §信用卡請款 / 退款 / 取消，2026-06）：
  *  - DoAction **僅正式環境可用**（payment.ecpay.com.tw），Stage 環境因無法實際授權故不支援。
  *  - TradeNo 必須是綠界回傳的交易編號（存於 _pc_ecpay_payment_detail），非 MerchantTradeNo。
  *  - Action=R 時 TotalAmount 為「欲退款金額」（非原訂單金額），支援多次部分退款，累計不得超過原交易。
+ *  - Action=C 請款（關帳）：授權後請款；Action=N 放棄（取消授權）：請款前取消，不支援部分取消。
  *  - 僅信用卡類付款方式可呼叫；ATM/CVS/BARCODE/WebATM/ApplePay 由呼叫端先擋下（見 EcpayPaymentType）。
  *
  * MOCK 模式（API_MODE=mock）回固定 fixture（`1|OK`），不打真 API（DoAction 連 Stage 都不可用）。
  *
  * @see https://developers.ecpay.com.tw/?p=2901 §信用卡請退款功能
- * @see ECPay-API-Skill guides/01-payment-aio.md §信用卡請款 / 退款 / 取消
+ * @see ECPay-API-Skill guides/01-payment-aio.md §信用卡請款 / 退款 / 取消（Action C/N/R/E 對照表）
  */
 
 declare(strict_types=1);
@@ -49,29 +50,74 @@ final class DoActionClient {
 	/**
 	 * 信用卡退款（Action=R 退刷）
 	 *
-	 * @param string $trade_no     綠界交易編號 TradeNo（非 MerchantTradeNo）
-	 * @param float  $amount       欲退款金額（來自 WC refund 物件，非前端）
+	 * @param string $trade_no 綠界交易編號 TradeNo（非 MerchantTradeNo）
+	 * @param float  $amount   欲退款金額（來自 WC refund 物件，非前端）
 	 *
 	 * @return array{RtnCode: string, RtnMsg: string} DoAction 回應（RtnCode='1' 為成功）
 	 * @throws \Exception 連線失敗 / 缺 TradeNo / RtnCode 非 1
 	 */
 	public function refund( string $trade_no, float $amount ): array {
+		return $this->do_action( 'R', $trade_no, $amount, '退款' );
+	}
+
+	/**
+	 * 信用卡請款 / 關帳（Action=C）
+	 *
+	 * 語意：授權後請款。TotalAmount 為欲請款金額（通常等於授權金額）。
+	 *
+	 * @param string $trade_no 綠界交易編號 TradeNo（非 MerchantTradeNo）
+	 * @param float  $amount   欲請款金額
+	 *
+	 * @return array{RtnCode: string, RtnMsg: string} DoAction 回應（RtnCode='1' 為成功）
+	 * @throws \Exception 連線失敗 / 缺 TradeNo / RtnCode 非 1
+	 */
+	public function capture( string $trade_no, float $amount ): array {
+		return $this->do_action( 'C', $trade_no, $amount, '請款' );
+	}
+
+	/**
+	 * 信用卡取消授權 / 放棄（Action=N）
+	 *
+	 * 語意：請款前取消授權。TotalAmount 為原授權金額（不支援部分取消）。
+	 *
+	 * @param string $trade_no 綠界交易編號 TradeNo（非 MerchantTradeNo）
+	 * @param float  $amount   原授權金額
+	 *
+	 * @return array{RtnCode: string, RtnMsg: string} DoAction 回應（RtnCode='1' 為成功）
+	 * @throws \Exception 連線失敗 / 缺 TradeNo / RtnCode 非 1
+	 */
+	public function cancel_auth( string $trade_no, float $amount ): array {
+		return $this->do_action( 'N', $trade_no, $amount, '取消授權' );
+	}
+
+	/**
+	 * 發送 DoAction（C 請款 / N 取消授權 / R 退款），共用組裝 + CMV + MOCK + 解析
+	 *
+	 * @param string $action    'C' | 'N' | 'R'
+	 * @param string $trade_no  綠界交易編號 TradeNo（非 MerchantTradeNo）
+	 * @param float  $amount    金額（新台幣整數，無條件進位）
+	 * @param string $action_zh 動作中文（order note 用：請款 / 取消授權 / 退款）
+	 *
+	 * @return array{RtnCode: string, RtnMsg: string}
+	 * @throws \Exception 缺 TradeNo / 連線失敗 / RtnCode 非 1
+	 */
+	private function do_action( string $action, string $trade_no, float $amount, string $action_zh ): array {
 		$merchant_trade_no = ( new EcpayMetaKeys( $this->order ) )->get_trade_no();
 
 		if ( '' === $trade_no ) {
-			$msg = '綠界 AIO 退款缺少 TradeNo（綠界交易編號）';
+			$msg = "綠界 AIO {$action_zh}缺少 TradeNo（綠界交易編號）";
 			$this->order->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
-		// 綠界僅收新台幣整數，無條件進位（與建單 TotalAmount 一致，避免少退）
+		// 綠界僅收新台幣整數，無條件進位（與建單 TotalAmount 一致，避免少收 / 少退）
 		$total_amount = (int) \ceil( $amount );
 
 		$params = [
 			'MerchantID'      => $this->settings->merchantId,
 			'MerchantTradeNo' => $merchant_trade_no,
 			'TradeNo'         => $trade_no,
-			'Action'          => 'R', // R=退款（退刷）
+			'Action'          => $action, // C=請款 / N=取消授權 / R=退款
 			'TotalAmount'     => $total_amount,
 		];
 
@@ -91,7 +137,7 @@ final class DoActionClient {
 			];
 		}
 
-		$response_body = $this->request( $params );
+		$response_body = $this->request( $params, $action_zh );
 
 		return $this->parse_response( $response_body );
 	}
@@ -99,14 +145,15 @@ final class DoActionClient {
 	/**
 	 * 發送 POST 請求（form-urlencoded），回傳原始 body 字串
 	 *
-	 * @param array<string, string|int> $params 請求參數（含 CheckMacValue）
+	 * @param array<string, string|int> $params    請求參數（含 CheckMacValue）
+	 * @param string                    $action_zh 動作中文（log 用）
 	 *
 	 * @return string 原始回應 body（pipe-separated `RtnCode|RtnMsg`）
 	 * @throws \Exception 連線失敗
 	 */
-	private function request( array $params ): string {
+	private function request( array $params, string $action_zh = '退款' ): string {
 		Plugin::logger(
-			"綠界 AIO DoAction 退款請求 #{$this->order->get_id()}",
+			"綠界 AIO DoAction {$action_zh}請求 #{$this->order->get_id()}",
 			'info',
 			[ 'endpoint' => $this->get_endpoint() ]
 		);
@@ -145,7 +192,7 @@ final class DoActionClient {
 		$rtn_msg  = $parts[1] ?? '';
 
 		if ( '1' !== $rtn_code ) {
-			$msg = "綠界 AIO DoAction 退款失敗 RtnCode={$rtn_code}：{$rtn_msg}";
+			$msg = "綠界 AIO DoAction 失敗 RtnCode={$rtn_code}：{$rtn_msg}";
 			$this->order->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}

@@ -51,12 +51,12 @@ export default defineConfig({
             jquery: 'const $ = window.jQuery; export { $ as default }',
             "@woocommerce/blocks-registry": 'const { registerPaymentMethod } = window.wc.wcBlocksRegistry; export { registerPaymentMethod }; export default window.wc.wcBlocksRegistry',
             "@woocommerce/settings": 'const { getSetting } = window.wc.wcSettings; export { getSetting }; export default window.wc.wcSettings',
-            // 物流選店（block shipping slot fill）需要的額外 WC/WP globals（皆從 window 取，不打包）
-            "@woocommerce/blocks-checkout": 'const { ExperimentalOrderShippingPackages, extensionCartUpdate } = window.wc.blocksCheckout; export { ExperimentalOrderShippingPackages, extensionCartUpdate }; export default window.wc.blocksCheckout',
+            // 物流選店（block shipping slot fill）+ 發票表單（block order-meta slot fill）需要的額外 WC/WP globals（皆從 window 取，不打包）
+            "@woocommerce/blocks-checkout": 'const { ExperimentalOrderShippingPackages, ExperimentalOrderMeta, extensionCartUpdate } = window.wc.blocksCheckout; export { ExperimentalOrderShippingPackages, ExperimentalOrderMeta, extensionCartUpdate }; export default window.wc.blocksCheckout',
             "@wordpress/element": 'const { createElement, useState, useEffect, useCallback, useRef, Fragment } = window.wp.element; export { createElement, useState, useEffect, useCallback, useRef, Fragment }; export default window.wp.element',
             "@wordpress/html-entities": 'const { decodeEntities } = window.wp.htmlEntities; export { decodeEntities }; export default window.wp.htmlEntities',
             "@wordpress/i18n": 'const { __ } = window.wp.i18n; export { __ }; export default window.wp.i18n',
-            "@wordpress/data": 'const { useSelect } = window.wp.data; export { useSelect }; export default window.wp.data',
+            "@wordpress/data": 'const { useSelect, useDispatch } = window.wp.data; export { useSelect, useDispatch }; export default window.wp.data',
             "@wordpress/plugins": 'const { registerPlugin } = window.wp.plugins; export { registerPlugin }; export default window.wp.plugins',
         }),
         terser({

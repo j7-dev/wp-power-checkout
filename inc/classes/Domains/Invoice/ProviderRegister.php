@@ -9,6 +9,8 @@ use J7\PowerCheckout\Domains\Invoice\Amego\Services\AmegoProvider;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
+use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
+use J7\PowerCheckout\Domains\Invoice\Shared\Services\BlocksInvoiceIntegration;
 use J7\PowerCheckout\Domains\Invoice\Shared\Services\InvoiceApiService;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
@@ -55,6 +57,12 @@ final class ProviderRegister {
 		if ($any_enabled) {
 			InvoiceApiService::instance();
 
+			// block 結帳發票表單整合（enqueue + cart extensions + update callback + 下單寫 meta）
+			BlocksInvoiceIntegration::register_hooks();
+
+			// 退款自動開折讓 hook（部分退款 + 已開發票 + provider 支援折讓 + 設定開關開 → 自動開折讓）
+			\add_action( 'woocommerce_order_refunded', [ __CLASS__, 'maybe_issue_allowance_on_refund' ], 10, 2 );
+
 			( new CheckoutFieldDTO(
 				[
 					'id'    => MetaKeys::get_issue_params_key(),
@@ -62,6 +70,89 @@ final class ProviderRegister {
 				]
 				) )->register();
 		}
+	}
+
+	/**
+	 * 退款時自動開立折讓
+	 *
+	 * 觸發條件（全部成立才開折讓）：
+	 *  1. 訂單存在且已開立發票（有 issued_data）
+	 *  2. 訂單使用的 provider 支援折讓（implements ISupportsAllowance）
+	 *  3. 該 provider 設定 auto_allowance_on_refund = 'yes'（預設關）
+	 *  4. 本次為「部分退款」——退款後仍有剩餘金額（全額退款走作廢發票既有邏輯，不開折讓）
+	 *
+	 * 任何 \Throwable 都被攔截，不破壞 WooCommerce 退款主流程。
+	 *
+	 * @param int $order_id  訂單 ID
+	 * @param int $refund_id 退款單 ID
+	 *
+	 * @return void
+	 */
+	public static function maybe_issue_allowance_on_refund( int $order_id, int $refund_id ): void {
+		try {
+			$order = \wc_get_order( $order_id );
+			if (!$order instanceof \WC_Order) {
+				return;
+			}
+
+			// 須已開立發票
+			$meta_keys = new MetaKeys( $order );
+			if (!$meta_keys->get_issued_data()) {
+				return;
+			}
+
+			// provider 須支援折讓
+			$provider = ProviderUtils::get_provider( $meta_keys->get_provider_id() );
+			if (!$provider instanceof ISupportsAllowance || !$provider instanceof IInvoiceService) {
+				return;
+			}
+
+			// 設定開關須開啟（預設關）
+			$settings = $provider::get_settings();
+			if ('yes' !== ( $settings['auto_allowance_on_refund'] ?? 'no' )) {
+				return;
+			}
+
+			// 僅部分退款開折讓：全額退款（退款後無剩餘）走作廢發票邏輯
+			$remaining = (float) $order->get_remaining_refund_amount();
+			if ($remaining <= 0) {
+				return;
+			}
+
+			// 本次退款金額
+			$refund_amount = self::get_refund_amount( $refund_id );
+			if ($refund_amount <= 0) {
+				return;
+			}
+
+			$provider->issue_allowance( $order, $refund_amount );
+		} catch (\Throwable $e) {
+			Plugin::logger(
+				"退款自動開折讓失敗 #{$order_id}： {$e->getMessage()}",
+				'error',
+				[],
+				5
+			);
+		}
+	}
+
+	/**
+	 * 取得退款單金額
+	 *
+	 * @param int $refund_id 退款單 ID
+	 *
+	 * @return float
+	 */
+	private static function get_refund_amount( int $refund_id ): float {
+		if ($refund_id <= 0) {
+			return 0.0;
+		}
+		$refund = \wc_get_order( $refund_id );
+		if (!$refund instanceof \WC_Order_Refund) {
+			return 0.0;
+		}
+		// 退款金額在 WC 內部為負值表示，取絕對值
+		return \abs( (float) $refund->get_amount() );
 	}
 
 	/**

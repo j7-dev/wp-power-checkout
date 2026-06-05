@@ -44,6 +44,12 @@ class BaseSettingsDTO extends DTO {
 	/** @var string[] 自動作廢發票的訂單狀態  */
 	public array $auto_cancel_order_statuses = [ 'wc-refunded' ];
 
+	/**
+	 * @var string 部分退款時是否自動開立折讓（發票 provider 適用，預設關）
+	 * 'yes' = 部分退款自動開折讓；'no' = 不自動（預設）。全額退款一律不開折讓（走作廢發票）。
+	 */
+	public string $auto_allowance_on_refund = 'no';
+
 	// endregion 基礎通用欄位
 
 	/** @var Mode Mode 模式  */

@@ -23,6 +23,7 @@ use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\CancelParams;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\EcpayInvoiceSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\IssueParams;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\IssueResponse;
+use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\QueryParams;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Shared\Enums\EApi;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Shared\Helpers\AesCrypto;
@@ -98,6 +99,78 @@ final class InvoiceApiClient {
 	public function invalid_allowance( AllowanceInvalidParams $params, bool $is_b2b ): ?AllowanceResponse {
 		$api = $is_b2b ? EApi::B2B_ALLOWANCE_INVALID : EApi::B2C_ALLOWANCE_INVALID;
 		return $this->request_allowance( $api, $params->to_request_data( $is_b2b ) );
+	}
+
+	/**
+	 * 查詢發票明細（GetIssue，唯讀）
+	 *
+	 * 回傳解密後的內層 Data（陣列），含發票明細欄位；失敗回 null。
+	 *
+	 * @param QueryParams $params 查詢參數
+	 *
+	 * @return array<string, mixed>|null
+	 */
+	public function query( QueryParams $params ): ?array {
+		$api = EApi::B2C_GET_ISSUE;
+		try {
+			// MOCK 模式：不打真 API，回固定 fixture
+			if (self::is_mock()) {
+				return $this->mock_query_response();
+			}
+
+			$api_url  = $this->settings->get_api_url() . $api->value;
+			$envelope = $this->build_envelope( $api, $params->to_request_data() );
+
+			EcpayInvoiceProvider::logger(
+				"{$api->label()} {$api->value} 請求 #{$this->order->get_id()}",
+				'info',
+				[
+					'api_url' => $api_url,
+					'data'    => PiiMasker::mask_invoice_data( $params->to_request_data() ),
+				],
+			);
+
+			$response = \wp_remote_post(
+				$api_url,
+				[
+					'body'     => (string) \wp_json_encode( $envelope ),
+					'headers'  => [ 'Content-Type' => 'application/json' ],
+					'blocking' => true,
+					'timeout'  => self::TIMEOUT,
+				]
+			);
+
+			if (\is_wp_error( $response )) {
+				throw new \Exception( $response->get_error_message() );
+			}
+
+			/** @var array{TransCode?: int, TransMsg?: string, Data?: string} $body */
+			$body = \json_decode( \wp_remote_retrieve_body( $response ), true, 512, JSON_THROW_ON_ERROR );
+
+			$trans_code = (int) ( $body['TransCode'] ?? 0 );
+			if (1 !== $trans_code) {
+				$trans_msg = (string) ( $body['TransMsg'] ?? 'unknown' );
+				throw new \Exception( "TransCode={$trans_code} AES/格式錯誤: {$trans_msg}" );
+			}
+
+			/** @var array<string, mixed> $decrypted */
+			$decrypted = $this->crypto->decrypt( (string) ( $body['Data'] ?? '' ) );
+			$rtn_code  = (int) ( $decrypted['RtnCode'] ?? 0 );
+			if (1 !== $rtn_code) {
+				throw new \Exception( "RtnCode={$rtn_code} " . (string) ( $decrypted['RtnMsg'] ?? '' ) );
+			}
+
+			return $decrypted;
+		} catch (\Throwable $e) {
+			EcpayInvoiceProvider::logger(
+				"❌ {$api->label()} {$api->value} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
+				'error',
+				[],
+				5,
+				$this->order
+			);
+			return null;
+		}
 	}
 
 	/**
@@ -349,5 +422,24 @@ final class InvoiceApiClient {
 				'RtnMsg'  => '折讓作廢成功',
 			]
 		);
+	}
+
+	/**
+	 * 查詢 MOCK 回應（固定 fixture，回發票明細）
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function mock_query_response(): array {
+		return [
+			'RtnCode'      => 1,
+			'RtnMsg'       => '查詢成功',
+			'IIS_Number'   => 'AG00000001',
+			'IIS_Identifier' => '0000000000',
+			'IIS_Invoice_Date' => \gmdate( 'Y-m-d' ),
+			'IIS_Random_Number' => '1234',
+			'IIS_Sales_Amount'  => 100,
+			'IIS_Invalid_Status' => '0',
+			'IIS_Award_Flag'     => '0',
+		];
 	}
 }

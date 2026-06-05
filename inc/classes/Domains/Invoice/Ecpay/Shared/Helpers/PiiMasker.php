@@ -24,9 +24,19 @@ final class PiiMasker {
 	 * @var array<int, string>
 	 */
 	private const FULL_MASK_KEYS = [
+		// 綠界欄位
 		'CustomerName',
 		'CustomerAddr',
 		'CarrierNum',
+		// 光貿（Amego）欄位
+		'BuyerName',
+		'BuyerAddress',
+		'CarrierId1',
+		'CarrierId2',
+		'buyer_name',
+		'buyer_address',
+		'carrier_id1',
+		'carrier_id2',
 	];
 
 	/**
@@ -128,9 +138,14 @@ final class PiiMasker {
 		}
 
 		return match ( $key ) {
+			// 綠界欄位
 			'CustomerEmail'      => self::mask_email( $value ),
 			'CustomerPhone'      => self::mask_phone( $value ),
 			'CustomerIdentifier' => self::mask_partial( $value ),
+			// 光貿（Amego）欄位
+			'BuyerEmailAddress', 'buyer_email_address' => self::mask_email( $value ),
+			'BuyerTelephoneNumber', 'buyer_telephone_number' => self::mask_phone( $value ),
+			'BuyerIdentifier', 'buyer_identifier' => self::mask_partial( $value ),
 			default              => \in_array( $key, self::FULL_MASK_KEYS, true ) && '' !== $value
 			? '***'
 			: $value,

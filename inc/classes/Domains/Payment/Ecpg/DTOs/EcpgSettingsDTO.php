@@ -77,10 +77,15 @@ final class EcpgSettingsDTO extends BaseSettingsDTO {
 	/**
 	 * @var array<string> 允許的付款方式（對齊 EcpayPaymentMethod::value）
 	 *
-	 * 站內付 2.0 本階段聚焦信用卡（站內付元件收單），預設僅 Credit。
-	 * ATM / CVS / BARCODE 取號流程屬後續階段（取號資訊在 CreatePayment 回應內、ReturnURL 非同步）。
+	 * 站內付 2.0 支援的付款方式：
+	 *  - Credit（信用卡）：前端站內付元件（JS SDK）收單，CreatePayment 回 ThreeDInfo.ThreeDURL（3DS）。
+	 *  - ATM / CVS / BARCODE（非信用卡幕後取號）：不需 JS SDK，後端 GetToken → CreatePayment（PayToken
+	 *    直接用 GetToken 回傳的 Token）即取號，回虛擬帳號 / 超商代碼 / 條碼 + 繳費期限，訂單維持待付款，
+	 *    消費者實際繳費後 ReturnURL 非同步通知（RtnCode=1）才轉付款完成。
+	 *
+	 * @see .claude/skills/ECPay-API-Skill/guides/02b-ecpg-atm-cvs-spa.md
 	 */
-	public array $allowedPayments = [ 'Credit' ];
+	public array $allowedPayments = [ 'Credit', 'ATM', 'CVS', 'BARCODE' ];
 
 	// endregion
 

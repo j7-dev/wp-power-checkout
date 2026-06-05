@@ -13,6 +13,7 @@ use J7\PowerCheckout\Domains\Invoice\Shared\DTOs\InvoiceParams;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
+use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsQuery;
 use J7\PowerCheckout\Domains\Invoice\Shared\Utils\InvoiceUtils;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -50,6 +51,10 @@ final class InvoiceApiService extends ApiBase {
 		[
 			'endpoint' => 'allowance-cancel/(?P<id>\d+)', // order_id 作廢折讓
 			'method'   => 'post',
+		],
+		[
+			'endpoint' => 'query/(?P<id>\d+)', // order_id 發票查詢（唯讀）
+			'method'   => 'get',
 		],
 	];
 
@@ -123,6 +128,29 @@ final class InvoiceApiService extends ApiBase {
 		$provider = self::get_allowance_provider( $order );
 
 		$result = $provider->invalid_allowance( $order );
+		return new \WP_REST_Response( $result, 200 );
+	}
+
+	/**
+	 * 發票查詢（唯讀）
+	 *
+	 * 依訂單記錄的 provider 路由；provider 須支援 ISupportsQuery（目前 Ecpay / Amego 皆支援）。
+	 *
+	 * @param \WP_REST_Request $request 請求
+	 *
+	 * @return \WP_REST_Response 回應
+	 */
+	public function get_query_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		$order_id    = (string) ( $request['id'] ?? '' );
+		$order       = OrderUtils::get_order( $order_id );
+		$provider_id = ( new MetaKeys( $order ) )->get_provider_id();
+		$provider    = ProviderUtils::get_provider( $provider_id );
+
+		if (!$provider instanceof ISupportsQuery) {
+			throw new \Exception( "{$provider_id} 不支援發票查詢" );
+		}
+
+		$result = $provider->query_invoice( $order );
 		return new \WP_REST_Response( $result, 200 );
 	}
 

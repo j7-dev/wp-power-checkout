@@ -133,6 +133,46 @@ final class InvoiceAllowanceApiServiceTest extends TestCase {
 
 	/**
 	 * @test
+	 * @group happy
+	 */
+	public function test_發票查詢端點成功回發票明細(): void {
+		// Given
+		$order   = $this->create_issued_order();
+		$request = new \WP_REST_Request( 'GET', "/power-checkout/v1/invoices/query/{$order->get_id()}" );
+		$request->set_param( 'id', (string) $order->get_id() );
+
+		// When
+		$response = InvoiceApiService::instance()->get_query_with_id_callback( $request );
+
+		// Then
+		$this->assertSame( 200, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertIsArray( $data );
+		$this->assertNotEmpty( $data );
+		$this->assertArrayHasKey( 'invoice_number', $data );
+	}
+
+	/**
+	 * @test
+	 * @group error
+	 */
+	public function test_發票查詢端點_provider不支援時拋例外(): void {
+		// Given: provider_id 指向不支援查詢的服務
+		$order     = $this->create_wc_order( [ 'status' => 'processing' ] );
+		$meta_keys = new MetaKeys( $order );
+		$meta_keys->update_issued_data( [ 'invoice_number' => 'AB12345678' ] );
+		$meta_keys->update_provider_id( 'nonexistent_provider' );
+
+		$request = new \WP_REST_Request( 'GET', "/power-checkout/v1/invoices/query/{$order->get_id()}" );
+		$request->set_param( 'id', (string) $order->get_id() );
+
+		// When / Then
+		$this->expectException( \Exception::class );
+		InvoiceApiService::instance()->get_query_with_id_callback( $request );
+	}
+
+	/**
+	 * @test
 	 * @group error
 	 */
 	public function test_開立折讓端點金額不合法回空陣列(): void {

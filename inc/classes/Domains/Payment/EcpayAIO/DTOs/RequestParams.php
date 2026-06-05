@@ -9,6 +9,7 @@ use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\CheckMacValueServic
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayMetaKeys;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\ItemName;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\TradeNo;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\TokenService;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Http\AioCallback;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
 use J7\PowerCheckout\Shared\Utils\StrHelper;
@@ -145,6 +146,25 @@ final class RequestParams extends DTO {
 
 	// endregion
 
+	// region 記憶卡號（Token 綁卡）
+
+	/**
+	 * @var int 記憶卡號（1=使用 / 0=不使用）。0 代表不綁卡（不送出）。
+	 *
+	 * 僅信用卡（含分期 / 定期定額）且登入會員勾選時送 1；綠界會回 CardID 供回購幕後扣款。
+	 * Source: ECPay-API-Skill guides/01-payment-aio.md §記憶卡號 BindingCard。
+	 */
+	public int $BindingCard = 0;
+
+	/**
+	 * @var string 記憶卡號識別碼（MerchantID + 會員編號，≤30）。空字串代表不綁卡。
+	 *
+	 * 僅支援 Visa/MasterCard/JCB。Source: developers.ecpay.com.tw §記憶卡號 MerchantMemberID。
+	 */
+	public string $MerchantMemberID = '';
+
+	// endregion
+
 	/** @var string 計算 CheckMacValue 用的 HashKey（不送往綠界，private 不在 to_array 內） */
 	private string $hashKey = '';
 
@@ -195,6 +215,9 @@ final class RequestParams extends DTO {
 
 		// 信用卡分期 / 定期定額（皆屬 Credit，互斥）：依 checkout 顧客選擇（order meta）組裝
 		$data = self::build_credit_variant( $data, $order, $settings, $return_url, $total_amount );
+
+		// 記憶卡號（Token 綁卡）：登入會員勾選時帶 BindingCard=1 + MerchantMemberID
+		$data = TokenService::apply_binding( $data, $order, $settings->merchantId );
 
 		return new self( $data );
 	}
@@ -371,6 +394,9 @@ final class RequestParams extends DTO {
 			'Frequency'         => $this->Frequency,
 			'ExecTimes'         => $this->ExecTimes,
 			'PeriodReturnURL'   => $this->PeriodReturnURL,
+			// 記憶卡號（BindingCard=0 與空 MerchantMemberID 會於下方 array_filter 過濾不送）
+			'BindingCard'       => $this->BindingCard,
+			'MerchantMemberID'  => $this->MerchantMemberID,
 		];
 
 		if ( $with_check_value ) {

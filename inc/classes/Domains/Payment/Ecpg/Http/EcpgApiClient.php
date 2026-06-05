@@ -29,6 +29,7 @@ use J7\PowerCheckout\Domains\Payment\Ecpg\DTOs\CreatePaymentParams;
 use J7\PowerCheckout\Domains\Payment\Ecpg\DTOs\EcpgSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\Ecpg\DTOs\GetTokenParams;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Shared\Helpers\AesCrypto;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Enums\EcpayPaymentMethod;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayMetaKeys;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\ItemName;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\TradeNo;
@@ -48,6 +49,15 @@ final class EcpgApiClient {
 
 	/** @var string 信用卡請退款 DoAction 端點路徑（ecpayment domain，非 ecpg） */
 	private const PATH_DO_ACTION = '/1.0.0/Credit/DoAction';
+
+	/** @var int ATM 預設繳費有效天數（綠界 ATMInfo.ExpireDate，1~60，預設 3） */
+	private const ATM_EXPIRE_DAYS = 3;
+
+	/** @var int CVS 預設逾期分鐘數（綠界 CVSInfo.StoreExpireDate，預設 10080=7 天） */
+	private const CVS_EXPIRE_MINUTES = 10080;
+
+	/** @var int BARCODE 預設繳費有效天數（綠界 BarcodeInfo.StoreExpireDate，預設 7，最長 30） */
+	private const BARCODE_EXPIRE_DAYS = 7;
 
 	/** @var EcpgSettingsDTO 設定 */
 	private readonly EcpgSettingsDTO $settings;
@@ -85,7 +95,7 @@ final class EcpgApiClient {
 			$meta_keys->update_trade_no( $trade_no );
 		}
 
-		$params = $this->build_get_token_params( $trade_no );
+		$params = $this->build_get_token_params( $trade_no, EcpayPaymentMethod::CREDIT );
 
 		// MOCK 模式：不打真 API，回固定 fixture
 		if (self::is_mock()) {
@@ -103,6 +113,70 @@ final class EcpgApiClient {
 		}
 
 		return $decrypted;
+	}
+
+	/**
+	 * 非信用卡幕後取號（ATM / CVS / BARCODE）
+	 *
+	 * 與信用卡的關鍵差異（官方規格 02b-ecpg-atm-cvs-spa.md）：
+	 *  - 不需 JS SDK：CreatePayment 的 PayToken 直接填 GetTokenbyTrade 回傳的 Token（跳過前端收卡）。
+	 *  - 一氣呵成在後端完成：GetToken（帶非信用卡 ChoosePaymentList + 對應 Info）→ CreatePayment → 取得取號資訊。
+	 *  - CreatePayment 回應無 ThreeDURL，而是巢狀取號資訊：
+	 *      ATM：ATMInfo{BankCode, vAccount, ExpireDate}
+	 *      CVS：CVSInfo{PaymentNo, ExpireDate}
+	 *      BARCODE：BarcodeInfo{Barcode1, Barcode2, Barcode3, ExpireDate}
+	 *    RtnCode=1 代表「取號成功」（非付款成功）；訂單應維持待付款，待消費者實際繳費後 ReturnURL 才轉付款完成。
+	 *
+	 * 冪等：沿用既有 MerchantTradeNo（重試取號不重新編號），首次則生成並寫入。
+	 *
+	 * @param EcpayPaymentMethod $payment 付款方式（限 ATM / CVS / BARCODE）
+	 *
+	 * @return array<string, mixed> CreatePayment 解密後的 Data（含 ATMInfo / CVSInfo / BarcodeInfo + OrderInfo）
+	 * @throws \Exception 非取號付款方式 / 取 token 失敗 / 取號失敗（傳輸層 / 業務層）
+	 * @see .claude/skills/ECPay-API-Skill/guides/02b-ecpg-atm-cvs-spa.md
+	 * @see https://developers.ecpay.com.tw/9053.md（CreatePayment 非信用卡取號回應欄位）
+	 */
+	public function get_code( EcpayPaymentMethod $payment ): array {
+		if ( ! $payment->is_get_code_payment() ) {
+			throw new \Exception( "綠界站內付幕後取號不支援付款方式：{$payment->value}" );
+		}
+
+		$meta_keys = new EcpayMetaKeys( $this->order );
+
+		// 冪等：沿用既有 MerchantTradeNo，首次則生成並寫入
+		$trade_no = $meta_keys->get_trade_no();
+		if ( '' === $trade_no ) {
+			$trade_no = TradeNo::encode( $this->order->get_id() );
+			$meta_keys->update_trade_no( $trade_no );
+		}
+
+		// 步驟 1：GetTokenbyTrade（帶非信用卡 ChoosePaymentList + 對應 Info）取得 Token
+		$params = $this->build_get_token_params( $trade_no, $payment );
+
+		// MOCK 模式：不打真 API，回固定取號 fixture
+		if ( self::is_mock() ) {
+			return $this->mock_get_code_response( $trade_no, $payment );
+		}
+
+		$token_url = $this->settings->tokenEndpoint . self::PATH_GET_TOKEN;
+		$token_res = $this->request( $token_url, $params->to_array() );
+		$token     = (string) ( $token_res['Token'] ?? '' );
+		if ( '' === $token ) {
+			$msg = '綠界站內付幕後取號 GetTokenbyTrade 回應缺少 Token';
+			$this->order->add_order_note( "❌ {$msg}" );
+			throw new \Exception( $msg );
+		}
+
+		// 步驟 2：CreatePayment（PayToken 直接用 GetToken 回傳的 Token，跳過 JS SDK）→ 取得取號資訊
+		$create_params = new CreatePaymentParams(
+			[
+				'MerchantID'      => $this->settings->merchantId,
+				'PayToken'        => $token,
+				'MerchantTradeNo' => $trade_no,
+			]
+		);
+		$create_url    = $this->settings->tokenEndpoint . self::PATH_CREATE_PAYMENT; // 同屬 ecpg domain
+		return $this->request( $create_url, $create_params->to_array() );
 	}
 
 	/**
@@ -270,20 +344,30 @@ final class EcpgApiClient {
 	/**
 	 * 組裝 GetTokenbyTrade 內層 Data 參數
 	 *
-	 * @param string $trade_no MerchantTradeNo
+	 * 依付款方式組裝對應的 ChoosePaymentList 與付款方式專屬 Info：
+	 *  - 信用卡（Credit）：ChoosePaymentList='1'，帶 CardInfo.OrderResultURL（3DS 完成後導回）。
+	 *  - ATM（'3'）：帶 ATMInfo.ExpireDate（繳費天數）。
+	 *  - CVS（'4'）：帶 CVSInfo.StoreExpireDate（逾期分鐘數）。
+	 *  - BARCODE（'5'）：帶 BarcodeInfo.StoreExpireDate（繳費天數）。
+	 *
+	 * 非信用卡不帶 CardInfo（綠界規格：ATM/CVS/Barcode 不需 OrderResultURL）。空 Info 由 array_filter 濾除，
+	 * 避免送出與付款方式無關的空欄位。
+	 *
+	 * @param string             $trade_no MerchantTradeNo
+	 * @param EcpayPaymentMethod $payment  付款方式
 	 *
 	 * @return GetTokenParams
 	 * @throws \Exception ConsumerInfo 缺 Email/Phone 時
+	 * @see .claude/skills/ECPay-API-Skill/guides/02a-ecpg-quickstart.md §GetTokenbyTrade Data 必填欄位速查
 	 */
-	private function build_get_token_params( string $trade_no ): GetTokenParams {
-		$return_url       = EcpgCallback::get_return_url();
-		$order_result_url = $this->order->get_checkout_order_received_url();
+	private function build_get_token_params( string $trade_no, EcpayPaymentMethod $payment ): GetTokenParams {
+		$return_url = EcpgCallback::get_return_url();
 
 		$data = [
 			'MerchantID'        => $this->settings->merchantId,
 			'RememberCard'      => 0,
 			'PaymentUIType'     => 2,
-			'ChoosePaymentList' => '1', // 信用卡
+			'ChoosePaymentList' => self::choose_payment_list( $payment ),
 			'OrderInfo'         => [
 				'MerchantTradeDate' => \wp_date( 'Y/m/d H:i:s' ) ?: \gmdate( 'Y/m/d H:i:s', \time() + 8 * 3600 ),
 				'MerchantTradeNo'   => $trade_no,
@@ -292,13 +376,55 @@ final class EcpgApiClient {
 				'TradeDesc'         => "Order #{$this->order->get_id()}",
 				'ItemName'          => ItemName::get( $this->order ),
 			],
-			'CardInfo'          => [
-				'OrderResultURL' => $order_result_url,
-			],
 			'ConsumerInfo'      => $this->build_consumer_info(),
 		];
 
+		// 付款方式專屬欄位（信用卡 CardInfo；ATM/CVS/BARCODE 各自的取號 Info）
+		$data = \array_merge( $data, $this->build_payment_specific_info( $payment ) );
+
 		return new GetTokenParams( $data );
+	}
+
+	/**
+	 * 由付款方式取得綠界 ChoosePaymentList 值（字串，非整數）
+	 *
+	 * @param EcpayPaymentMethod $payment 付款方式
+	 *
+	 * @return string '1'=信用卡 / '3'=ATM / '4'=CVS / '5'=BARCODE
+	 * @see .claude/skills/ECPay-API-Skill/guides/02a-ecpg-quickstart.md §ChoosePaymentList
+	 */
+	private static function choose_payment_list( EcpayPaymentMethod $payment ): string {
+		return match ( $payment ) {
+			EcpayPaymentMethod::ATM => '3',
+			EcpayPaymentMethod::CVS => '4',
+			EcpayPaymentMethod::BARCODE => '5',
+			default => '1', // 信用卡
+		};
+	}
+
+	/**
+	 * 組裝付款方式專屬欄位（CardInfo / ATMInfo / CVSInfo / BarcodeInfo）
+	 *
+	 * @param EcpayPaymentMethod $payment 付款方式
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function build_payment_specific_info( EcpayPaymentMethod $payment ): array {
+		return match ( $payment ) {
+			EcpayPaymentMethod::ATM => [
+				'ATMInfo' => [ 'ExpireDate' => self::ATM_EXPIRE_DAYS ],
+			],
+			EcpayPaymentMethod::CVS => [
+				'CVSInfo' => [ 'StoreExpireDate' => self::CVS_EXPIRE_MINUTES ],
+			],
+			EcpayPaymentMethod::BARCODE => [
+				'BarcodeInfo' => [ 'StoreExpireDate' => self::BARCODE_EXPIRE_DAYS ],
+			],
+			// 信用卡：3DS 完成後導回 order-received 頁
+			default => [
+				'CardInfo' => [ 'OrderResultURL' => $this->order->get_checkout_order_received_url() ],
+			],
+		};
 	}
 
 	/**
@@ -380,5 +506,59 @@ final class EcpgApiClient {
 				'ThreeDURL' => "https://ecpayment-stage.ecpay.com.tw/Cashier/3DVerify?tk=mock_{$trade_no}",
 			],
 		];
+	}
+
+	/**
+	 * MOCK：非信用卡幕後取號回應（固定 fixture，依付款方式回對應取號資訊）
+	 *
+	 * 對齊官方規格 9053.md CreatePayment 非信用卡回應的巢狀結構：
+	 *  - ATM：ATMInfo{BankCode, vAccount, ExpireDate}
+	 *  - CVS：CVSInfo{PaymentNo, ExpireDate}
+	 *  - BARCODE：BarcodeInfo{Barcode1, Barcode2, Barcode3, ExpireDate}
+	 *
+	 * @param string             $trade_no MerchantTradeNo
+	 * @param EcpayPaymentMethod $payment  付款方式（ATM / CVS / BARCODE）
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function mock_get_code_response( string $trade_no, EcpayPaymentMethod $payment ): array {
+		$base = [
+			'RtnCode'    => 1, // 取號成功（非付款成功）
+			'RtnMsg'     => '取號成功',
+			'MerchantID' => $this->settings->merchantId,
+			'OrderInfo'  => [
+				'MerchantTradeNo' => $trade_no,
+				'TradeNo'         => 'mock' . \substr( $trade_no, -10 ),
+				'TradeAmt'        => (int) \ceil( (float) $this->order->get_total() ),
+				'PaymentType'     => $payment->value,
+			],
+		];
+
+		$specific = match ( $payment ) {
+			EcpayPaymentMethod::ATM => [
+				'ATMInfo' => [
+					'BankCode'   => '812',
+					'vAccount'   => '9103522850',
+					'ExpireDate' => \gmdate( 'Y/m/d', \time() + self::ATM_EXPIRE_DAYS * 86400 ),
+				],
+			],
+			EcpayPaymentMethod::CVS => [
+				'CVSInfo' => [
+					'PaymentNo'  => 'LLL' . \substr( $trade_no, -8 ),
+					'ExpireDate' => \gmdate( 'Y/m/d H:i:s', \time() + self::CVS_EXPIRE_MINUTES * 60 ),
+				],
+			],
+			EcpayPaymentMethod::BARCODE => [
+				'BarcodeInfo' => [
+					'Barcode1'   => '110501',
+					'Barcode2'   => '3453010377003472',
+					'Barcode3'   => '040000000100000',
+					'ExpireDate' => \gmdate( 'Y/m/d H:i:s', \time() + self::BARCODE_EXPIRE_DAYS * 86400 ),
+				],
+			],
+			default => [],
+		};
+
+		return \array_merge( $base, $specific );
 	}
 }

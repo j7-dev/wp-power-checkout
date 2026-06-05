@@ -39,6 +39,9 @@ enum EApi: string {
 	// B2B 作廢折讓（存證模式）
 	case B2B_ALLOWANCE_INVALID = '/B2BInvoice/AllowanceInvalid';
 
+	// B2C 查詢發票明細（唯讀，GetIssue）
+	case B2C_GET_ISSUE = '/B2CInvoice/GetIssue';
+
 	/** @return string 標籤 */
 	public function label(): string {
 		return match ($this) {
@@ -50,13 +53,14 @@ enum EApi: string {
 			self::B2C_ALLOWANCE_INVALID => 'B2C 作廢折讓',
 			self::B2B_ALLOWANCE => 'B2B 開立折讓',
 			self::B2B_ALLOWANCE_INVALID => 'B2B 作廢折讓',
+			self::B2C_GET_ISSUE => 'B2C 查詢發票',
 		};
 	}
 
 	/** @return string RqHeader.Revision，B2C 為 3.0.0、B2B 為 1.0.0 */
 	public function revision(): string {
 		return match ($this) {
-			self::B2C_ISSUE, self::B2C_INVALID, self::B2C_ALLOWANCE, self::B2C_ALLOWANCE_INVALID => '3.0.0',
+			self::B2C_ISSUE, self::B2C_INVALID, self::B2C_ALLOWANCE, self::B2C_ALLOWANCE_INVALID, self::B2C_GET_ISSUE => '3.0.0',
 			self::B2B_ISSUE, self::B2B_INVALID, self::B2B_ALLOWANCE, self::B2B_ALLOWANCE_INVALID => '1.0.0',
 		};
 	}

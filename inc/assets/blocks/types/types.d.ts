@@ -40,11 +40,19 @@ declare module '@wordpress/data' {
 		mapSelect: (select: (storeName: string) => any) => T,
 		deps?: unknown[],
 	): T
+
+	/** 取得指定 store 的 action dispatcher（用於觸發 store 動作，例如 cart 重新整理） */
+	export function useDispatch(storeName: string): Record<string, any>
 }
 
 declare module '@woocommerce/blocks-checkout' {
 	/** 物流（運送）包裹 slot fill，render 進結帳「運送方式」步驟 */
 	export const ExperimentalOrderShippingPackages: (props: {
+		children?: unknown
+	}) => unknown
+
+	/** 訂單 meta slot fill，render 進結帳「訂單摘要」區（發票表單用） */
+	export const ExperimentalOrderMeta: (props: {
 		children?: unknown
 	}) => unknown
 

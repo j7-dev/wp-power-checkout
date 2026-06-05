@@ -17,19 +17,21 @@ use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\CancelParams;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\EcpayInvoiceSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\IssueParams;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\IssueResponse;
+use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\QueryParams;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Http\InvoiceApiClient;
 use J7\PowerCheckout\Domains\Invoice\Shared\DTOs\InvoiceParams;
 use J7\PowerCheckout\Domains\Invoice\Shared\Enums\EInvoiceType;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
+use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsQuery;
 use J7\PowerCheckout\Shared\Abstracts\BaseService;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\WP;
 
 /** 綠界電子發票服務提供者 */
-final class EcpayInvoiceProvider extends BaseService implements IInvoiceService, ISupportsAllowance {
+final class EcpayInvoiceProvider extends BaseService implements IInvoiceService, ISupportsAllowance, ISupportsQuery {
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	public const ID = 'ecpay';
@@ -275,6 +277,50 @@ final class EcpayInvoiceProvider extends BaseService implements IInvoiceService,
 			return $result;
 		} catch (\Throwable $e) {
 			self::logger( "作廢折讓失敗 #{$order->get_id()}： {$e->getMessage()}", 'error', [], 5, $order );
+			return [];
+		}
+	}
+
+	/**
+	 * 查詢發票明細（唯讀，GetIssue）
+	 *
+	 * 以已開立發票 meta（發票號碼 + 開立日期）查詢；未開立則回空陣列。
+	 * 回傳統一鍵 invoice_number（對應綠界 IIS_Number），其餘原始欄位保留。
+	 *
+	 * @param \WC_Order|int $order_or_id 訂單
+	 *
+	 * @return array<string, mixed> 發票明細；查無或失敗回空陣列
+	 */
+	public function query_invoice( \WC_Order|int $order_or_id ): array {
+		$order = ( $order_or_id instanceof \WC_Order ) ? $order_or_id : OrderUtils::get_order( $order_or_id );
+
+		try {
+			$meta_keys   = new MetaKeys( $order );
+			$issued_data = $meta_keys->get_issued_data();
+			/** @var array<string, mixed> $issued_data */
+			$issued_data = \is_array( $issued_data ) ? $issued_data : [];
+
+			if (empty( $issued_data['invoice_number'] )) {
+				return [];
+			}
+
+			$settings = EcpayInvoiceSettingsDTO::instance();
+			$params   = QueryParams::from_issued_data( $settings->merchant_id, $issued_data );
+			$client   = new InvoiceApiClient( $order );
+			$result   = $client->query( $params );
+
+			if (!\is_array( $result ) || !$result) {
+				return [];
+			}
+
+			// 統一鍵：綠界回 IIS_Number，補上 invoice_number 方便跨 provider 一致取用
+			if (!isset( $result['invoice_number'] ) && isset( $result['IIS_Number'] )) {
+				$result['invoice_number'] = (string) $result['IIS_Number'];
+			}
+
+			return $result;
+		} catch (\Throwable $e) {
+			self::logger( "發票查詢失敗 #{$order->get_id()}： {$e->getMessage()}", 'error', [], 5, $order );
 			return [];
 		}
 	}

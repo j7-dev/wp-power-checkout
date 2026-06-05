@@ -270,12 +270,129 @@ final class AioRedirectGateway extends AbstractPaymentGateway implements IGatewa
 
 	// endregion
 
-	/** 初始化：註冊 callback + blocks */
+	// region 後台訂單操作（請款 Capture / 取消授權 Cancel-Auth）
+
+	/** @var string 後台訂單操作 — 請款（Action=C） */
+	public const ACTION_CAPTURE = 'pc_ecpay_aio_capture';
+
+	/** @var string 後台訂單操作 — 取消授權（Action=N） */
+	public const ACTION_CANCEL_AUTH = 'pc_ecpay_aio_cancel_auth';
+
+	/**
+	 * 後台訂單操作清單注入請款 / 取消授權（woocommerce_order_actions filter）
+	 *
+	 * 僅信用卡類 AIO 訂單顯示（依綠界回傳並存於 _pc_ecpay_payment_detail 的 PaymentType 判定，非前端）。
+	 * ATM/CVS/BARCODE/WebATM/ApplePay 與非綠界訂單不顯示。
+	 *
+	 * @param array<string, string> $actions 既有訂單操作
+	 * @param \WC_Order|null         $order   訂單（WC 於 order detail 頁傳入）
+	 * @return array<string, string>
+	 */
+	public static function add_order_actions( array $actions, ?\WC_Order $order = null ): array {
+		if ( ! $order instanceof \WC_Order ) {
+			return $actions;
+		}
+		if ( $order->get_payment_method() !== self::ID ) {
+			return $actions;
+		}
+		// 僅信用卡類可請款 / 取消授權（DoAction C/N 僅信用卡）
+		if ( ! EcpayPaymentType::order_is_credit( $order ) ) {
+			return $actions;
+		}
+
+		$actions[ self::ACTION_CAPTURE ]     = \__( '綠界 ECPay 信用卡請款（關帳）', 'power_checkout' );
+		$actions[ self::ACTION_CANCEL_AUTH ] = \__( '綠界 ECPay 信用卡取消授權', 'power_checkout' );
+		return $actions;
+	}
+
+	/**
+	 * 後台「請款」訂單操作 handler（Action=C）
+	 *
+	 * 信用卡類 → 呼叫綠界 DoAction(C) 請款，寫 capture meta + order note；
+	 * 非信用卡 → 僅記錄不支援提示（雙重防禦，理應已被 add_order_actions 隱藏）。
+	 * 任何 \Throwable 一律捕捉並記錄 order note，不外露內部錯誤。
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return void
+	 */
+	public static function handle_capture_action( \WC_Order $order ): void {
+		self::do_capture_or_void( $order, 'capture' );
+	}
+
+	/**
+	 * 後台「取消授權」訂單操作 handler（Action=N）
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return void
+	 */
+	public static function handle_cancel_auth_action( \WC_Order $order ): void {
+		self::do_capture_or_void( $order, 'cancel_auth' );
+	}
+
+	/**
+	 * 請款 / 取消授權共用流程
+	 *
+	 * @param \WC_Order $order  訂單
+	 * @param string    $method 'capture'（請款 C）｜'cancel_auth'（取消授權 N）
+	 * @return void
+	 */
+	private static function do_capture_or_void( \WC_Order $order, string $method ): void {
+		$action_zh    = 'capture' === $method ? '請款' : '取消授權';
+		$status_value = 'capture' === $method ? 'captured' : 'voided';
+
+		if ( $order->get_payment_method() !== self::ID ) {
+			return;
+		}
+
+		// 非信用卡一律擋下，不呼叫任何 API（依綠界 PaymentType，非前端）
+		if ( ! EcpayPaymentType::order_is_credit( $order ) ) {
+			$order->add_order_note( "⚠️ 非信用卡付款方式不支援綠界 API {$action_zh}，請至綠界商家後台人工處理" );
+			return;
+		}
+
+		try {
+			$trade_no = EcpayPaymentType::get_trade_no( $order );
+			$amount   = (float) $order->get_total(); // 金額來自訂單，非前端
+			$client   = new DoActionClient( $order );
+
+			$response = 'capture' === $method
+				? $client->capture( $trade_no, $amount )
+				: $client->cancel_auth( $trade_no, $amount );
+
+			( new EcpayMetaKeys( $order ) )->update_capture_status( $status_value );
+
+			$order->add_order_note(
+				\sprintf(
+					'✅ 綠界 ECPay 信用卡%1$s成功，金額 %2$s 元，TradeNo：%3$s，RtnMsg：%4$s',
+					$action_zh,
+					(int) \ceil( $amount ),
+					$trade_no,
+					$response['RtnMsg']
+				)
+			);
+		} catch ( \Throwable $e ) {
+			// do_action 內已記錄失敗 order note；此處僅記錄至 log，不外露細節
+			Plugin::logger(
+				"綠界 AIO {$action_zh}失敗 #{$order->get_id()}",
+				'error',
+				[ 'error' => $e->getMessage() ]
+			);
+		}
+	}
+
+	// endregion
+
+	/** 初始化：註冊 callback + blocks + 後台訂單操作 */
 	public static function init(): void {
 		AioCallback::instance();
 
 		// 整合區塊結帳
 		\add_action( 'woocommerce_blocks_loaded', [ __CLASS__, 'register_checkout_blocks' ] );
+
+		// 後台訂單操作：請款 / 取消授權（woocommerce_order_actions filter + 對應 handler action）
+		\add_filter( 'woocommerce_order_actions', [ __CLASS__, 'add_order_actions' ], 10, 2 );
+		\add_action( 'woocommerce_order_action_' . self::ACTION_CAPTURE, [ __CLASS__, 'handle_capture_action' ] );
+		\add_action( 'woocommerce_order_action_' . self::ACTION_CANCEL_AUTH, [ __CLASS__, 'handle_cancel_auth_action' ] );
 	}
 
 	/** 註冊區塊結帳支援（仿 SLP） */

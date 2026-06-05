@@ -123,6 +123,9 @@ final class AioCallback extends ApiBase {
 		}
 
 		( new StatusManager( $params, $order ) )->update_order_status();
+
+		// 記憶卡號（Token 綁卡）：付款成功且綠界回傳 CardID 時存為 WC_Payment_Token_CC（冪等於內部處理）
+		\J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\TokenService::save_token_from_payload( $order, $params );
 	}
 
 	/**

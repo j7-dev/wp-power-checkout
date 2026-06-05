@@ -28,6 +28,9 @@ final class EcpayMetaKeys {
 	/** @var string 信用卡分期期數（顧客選擇的單一期數，如 '6'，checkout 寫入） */
 	private const INSTALLMENT_KEY = '_pc_ecpay_installment';
 
+	/** @var string 信用卡請款 / 授權狀態（''｜'captured' 已請款｜'voided' 已取消授權，DoAction C/N 寫入） */
+	private const CAPTURE_STATUS_KEY = '_pc_ecpay_capture_status';
+
 	/** Constructor */
 	public function __construct(
 		private readonly \WC_Order $_order,
@@ -116,6 +119,24 @@ final class EcpayMetaKeys {
 	 */
 	public function update_installment( string $value ): void {
 		$this->_order->update_meta_data( self::INSTALLMENT_KEY, $value );
+		$this->_order->save_meta_data();
+	}
+
+	/**
+	 * @return string 取得信用卡請款 / 授權狀態（''｜'captured'｜'voided'）
+	 */
+	public function get_capture_status(): string {
+		return (string) ( $this->_order->get_meta( self::CAPTURE_STATUS_KEY ) ?: '' );
+	}
+
+	/**
+	 * 儲存信用卡請款 / 授權狀態
+	 *
+	 * @param string $value ''｜'captured' 已請款｜'voided' 已取消授權
+	 * @return void
+	 */
+	public function update_capture_status( string $value ): void {
+		$this->_order->update_meta_data( self::CAPTURE_STATUS_KEY, $value );
 		$this->_order->save_meta_data();
 	}
 

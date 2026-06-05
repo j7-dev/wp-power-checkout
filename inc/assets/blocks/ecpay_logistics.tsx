@@ -25,10 +25,19 @@
  * @see inc/classes/Domains/Logistics/Ecpay/Services/WC_EcpayLogisticsShipping.php（classic 對照）
  */
 
-import { ExperimentalOrderShippingPackages } from '@woocommerce/blocks-checkout'
+import {
+	ExperimentalOrderShippingPackages,
+	extensionCartUpdate,
+} from '@woocommerce/blocks-checkout'
 import { getSetting } from '@woocommerce/settings'
 import { useSelect } from '@wordpress/data'
-import { createElement, useState, Fragment } from '@wordpress/element'
+import {
+	createElement,
+	useState,
+	useEffect,
+	useCallback,
+	Fragment,
+} from '@wordpress/element'
 import { decodeEntities } from '@wordpress/html-entities'
 import { __ } from '@wordpress/i18n'
 import { registerPlugin } from '@wordpress/plugins'
@@ -189,6 +198,21 @@ const openSelectionHtml = (html: string): void => {
 }
 
 /**
+ * 觸發 Store API cart 重算，讓 cart.extensions['ecpay_logistics'] 同步最新 session 門市
+ *
+ * 選店回呼（綠界 RWD 頁 → selection-callback）以權杖把門市寫進 WC session 後，前端的
+ * cart 快取仍為舊值；呼叫 extensionCartUpdate（命中本 namespace 的 register_update_callback）
+ * 會強制 Store API 重新計算並重新輸出 cart extensions，使 useSelect 訂閱者即時刷新。
+ */
+const refreshCartExtensions = async (): Promise<void> => {
+	try {
+		await extensionCartUpdate({ namespace: NAMESPACE, data: {} })
+	} catch {
+		// 刷新失敗不阻塞；使用者可手動點「重新整理門市」再試
+	}
+}
+
+/**
  * 「選擇門市」按鈕 + 已選門市顯示（render 進運送方式步驟）
  *
  * @return slot fill 內容元素
@@ -205,6 +229,18 @@ const StoreSelector = (): unknown => {
 			selectedSubType: getSelectedCvsSubType(cartData.shippingRates ?? []),
 			selectedStore: readSelectedStore(cartData.extensions),
 		}
+	}, [])
+
+	// 掛載即刷新 cart extensions：涵蓋「從綠界選店頁導轉回結帳頁」後 cart 快取仍為舊值的情境，
+	// 讓選店回呼寫入 session 的門市能即時顯示（無此步驟需手動重整頁面才看得到已選門市）。
+	useEffect(() => {
+		void refreshCartExtensions()
+	}, [])
+
+	// 手動「重新整理門市」：選店頁於新分頁開啟時，回到結帳分頁可手動同步
+	const handleRefresh = useCallback(async (): Promise<void> => {
+		setNotice('')
+		await refreshCartExtensions()
 	}, [])
 
 	// 非「綠界超商取貨」運送方式 → 不顯示任何 UI
@@ -261,6 +297,25 @@ const StoreSelector = (): unknown => {
 				},
 			},
 			buttonLabel
+		),
+
+		// 「重新整理門市」：選店頁於另一分頁完成時，回到結帳分頁可手動同步 cart extensions
+		createElement(
+			'button',
+			{
+				type: 'button',
+				className: 'wc-block-components-button',
+				onClick: handleRefresh,
+				style: {
+					marginLeft: '8px',
+					padding: '8px 16px',
+					borderRadius: '8px',
+					cursor: 'pointer',
+					background: 'transparent',
+					border: '1px solid #ddd',
+				},
+			},
+			__('重新整理門市', 'power_checkout')
 		),
 		selectedStore
 			? createElement(

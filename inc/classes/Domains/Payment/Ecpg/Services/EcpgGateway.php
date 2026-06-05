@@ -33,6 +33,8 @@ use J7\PowerCheckout\Domains\Payment\Ecpg\Http\EcpgApiClient;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Http\EcpgCallback;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Http\EcpgFrontendApi;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Shared\Helpers\EcpgBlocksIntegration;
+use J7\PowerCheckout\Domains\Payment\Ecpg\Shared\Helpers\EcpgMetaKeys;
+use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Enums\EcpayPaymentMethod;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayMetaKeys;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayPaymentType;
 use J7\PowerCheckout\Domains\Payment\Shared\Abstracts\AbstractPaymentGateway;
@@ -73,23 +75,70 @@ final class EcpgGateway extends AbstractPaymentGateway implements IGateway {
 	public $method_description = '綠界 ECPay 站內付 2.0，內嵌式信用卡收單，不跳轉即完成付款（含 3D 驗證）';
 
 	/**
-	 * 站內付 2.0 核心支付邏輯
+	 * 站內付 2.0 核心支付邏輯（依顧客選擇的付款方式分流）
 	 *
-	 * 呼叫 GetTokenbyTrade 取得交易 Token，寫入訂單 meta 供前端站內付元件讀取，
-	 * 回傳 order-received URL。實際收單由前端 JS SDK 接手（階段六）。
+	 * 兩種資料流：
+	 *  - 信用卡（Credit）：GetTokenbyTrade 取交易 Token → 寫 meta 供前端 JS SDK 收單（3DS）。
+	 *  - 非信用卡（ATM / CVS / BARCODE）：後端幕後取號（GetToken → CreatePayment 直接用 Token），
+	 *    取得虛擬帳號 / 超商代碼 / 條碼 + 繳費期限，寫入 _pc_ecpay_payment_info + order note。
+	 *    取號 ≠ 付款：訂單維持待付款（pending），消費者實際繳費後 ReturnURL（RtnCode=1）才轉付款完成。
+	 *
+	 * 兩者皆回傳 order-received URL。
 	 *
 	 * @param \WC_Order $order 訂單
 	 * @return string order-received URL
-	 * @throws \Exception 取 token 失敗（ConsumerInfo 缺漏 / 傳輸層 / 業務層）由父類 process_payment 攔截
+	 * @throws \Exception 取 token / 取號失敗（ConsumerInfo 缺漏 / 傳輸層 / 業務層）由父類 process_payment 攔截
 	 */
 	protected function before_process_payment( \WC_Order $order ): string {
-		$decrypted = ( new EcpgApiClient( $order ) )->get_token();
+		$payment = ( new EcpgMetaKeys( $order ) )->get_payment();
 
-		// 暫存交易 Token，供前端站內付元件（階段六 block tsx）讀取渲染收單 UI
-		$order->update_meta_data( self::TOKEN_META_KEY, (string) ( $decrypted['Token'] ?? '' ) );
-		$order->save_meta_data();
+		if ( $payment->is_get_code_payment() ) {
+			$this->get_code( $order, $payment );
+		} else {
+			$this->get_credit_token( $order );
+		}
 
 		return $this->get_return_url( $order );
+	}
+
+	/**
+	 * 信用卡流程：GetTokenbyTrade 取交易 Token，寫入訂單 meta 供前端站內付元件讀取
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return void
+	 * @throws \Exception 取 token 失敗
+	 */
+	private function get_credit_token( \WC_Order $order ): void {
+		$decrypted = ( new EcpgApiClient( $order ) )->get_token();
+
+		// 暫存交易 Token，供前端站內付元件（block tsx）讀取渲染收單 UI
+		$order->update_meta_data( self::TOKEN_META_KEY, (string) ( $decrypted['Token'] ?? '' ) );
+		$order->save_meta_data();
+	}
+
+	/**
+	 * 非信用卡幕後取號流程：取得取號資訊，寫入訂單 meta + order note，訂單維持待付款
+	 *
+	 * 取號資訊（ATMInfo / CVSInfo / BarcodeInfo + OrderInfo）寫入 _pc_ecpay_payment_info（沿用 AIO 的
+	 * EcpayMetaKeys::update_payment_info），並以人類可讀的 order note 呈現繳費指示供顧客 / 客服查閱。
+	 *
+	 * @param \WC_Order          $order   訂單
+	 * @param EcpayPaymentMethod $payment 付款方式（ATM / CVS / BARCODE）
+	 * @return void
+	 * @throws \Exception 取號失敗
+	 */
+	private function get_code( \WC_Order $order, EcpayPaymentMethod $payment ): void {
+		$info = ( new EcpgApiClient( $order ) )->get_code( $payment );
+
+		// 取號資訊寫入 _pc_ecpay_payment_info（admin / 顧客顯示用）
+		( new EcpayMetaKeys( $order ) )->update_payment_info( $info );
+
+		// order note 記錄取號繳費指示（人類可讀）
+		$note = WP::array_to_html(
+			$info,
+			[ 'title' => \sprintf( '綠界站內付 2.0 %s 取號成功（待繳費）', $payment->label() ) ]
+		);
+		$order->add_order_note( $note );
 	}
 
 	/**

@@ -47,9 +47,36 @@ final class GetTokenParams extends DTO {
 	/**
 	 * @var array<string, mixed> 卡片相關資訊
 	 *
-	 * 信用卡含 OrderResultURL（前端 3D 驗證完成後導回）。
+	 * 信用卡含 OrderResultURL（前端 3D 驗證完成後導回）。ATM/CVS/BARCODE 不需此欄位。
 	 */
 	public array $CardInfo = [];
+
+	/**
+	 * @var array<string, mixed> ATM 虛擬帳號取號資訊（ChoosePaymentList=3 必填）
+	 *
+	 * ExpireDate（Int，繳費有效天數 1~60，預設 3）；ATMBankCode（選填，指定繳費銀行）。
+	 *
+	 * @see .claude/skills/ECPay-API-Skill/guides/02b-ecpg-atm-cvs-spa.md §ATM
+	 */
+	public array $ATMInfo = [];
+
+	/**
+	 * @var array<string, mixed> CVS 超商代碼取號資訊（ChoosePaymentList=4 必填）
+	 *
+	 * StoreExpireDate（Int，逾期分鐘數，預設 10080=7天，最長 43200=30天）；CVSCode / Desc_1~4（選填）。
+	 *
+	 * @see .claude/skills/ECPay-API-Skill/guides/02b-ecpg-atm-cvs-spa.md §CVS
+	 */
+	public array $CVSInfo = [];
+
+	/**
+	 * @var array<string, mixed> BARCODE 超商條碼取號資訊（ChoosePaymentList=5 必填）
+	 *
+	 * StoreExpireDate（Int，繳費有效天數，預設 7，最長 30）。
+	 *
+	 * @see .claude/skills/ECPay-API-Skill/guides/02b-ecpg-atm-cvs-spa.md §BARCODE
+	 */
+	public array $BarcodeInfo = [];
 
 	/**
 	 * @var array<string, mixed> 消費者資訊（必填物件）
