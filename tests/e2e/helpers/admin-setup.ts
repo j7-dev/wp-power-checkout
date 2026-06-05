@@ -27,9 +27,13 @@ export async function loginAsAdmin(baseURL: string): Promise<string> {
     },
   ])
 
+  // 帳密可用 E2E_ADMIN_USER / E2E_ADMIN_PASS 覆寫（wp-env 預設 admin / password）
+  const adminUser = process.env.E2E_ADMIN_USER || 'test'
+  const adminPass = process.env.E2E_ADMIN_PASS || 'YRjUdar!k^HRMwacf!@09X87'
+
   await page.goto(`${baseURL}/wp-login.php`)
-  await page.fill('#user_login', 'test')
-  await page.fill('#user_pass', 'YRjUdar!k^HRMwacf!@09X87')
+  await page.fill('#user_login', adminUser)
+  await page.fill('#user_pass', adminPass)
   await page.click('#wp-submit')
   await page.waitForURL('**/wp-admin/**', { timeout: 60_000 })
 

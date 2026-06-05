@@ -10,7 +10,8 @@
  */
 
 // ─── Base URL ────────────────────────────────────────────────
-export const BASE_URL = 'https://local-turbo.powerhouse.tw'
+// 預設指向用戶真實 Local 站；可用 E2E_BASE_URL 覆寫（例如 wp-env：http://localhost:8891）
+export const BASE_URL = process.env.E2E_BASE_URL || 'https://local-turbo.powerhouse.tw'
 
 // ─── API Endpoints ───────────────────────────────────────────
 export const EP = {
@@ -199,15 +200,17 @@ export const TEST_ORDER = {
 // ─── 全方位物流端點 ──────────────────────────────────────────
 export const LOGISTICS_EP = {
   // 後台物流操作（namespace: power-checkout/v1）
-  STORE_SELECTION: 'power-checkout/v1/logistics/store-selection',
+  // 對齊實作路由：/logistics/{id}/{action}（id 在中間，非結尾）
+  STORE_SELECTION: (orderId: number | string) =>
+    `power-checkout/v1/logistics/${orderId}/store-selection`,
   CREATE_SHIPMENT: (orderId: number | string) =>
-    `power-checkout/v1/logistics/create-shipment/${orderId}`,
+    `power-checkout/v1/logistics/${orderId}/create-shipment`,
   QUERY: (orderId: number | string) =>
-    `power-checkout/v1/logistics/query/${orderId}`,
+    `power-checkout/v1/logistics/${orderId}`,
   PRINT: (orderId: number | string) =>
-    `power-checkout/v1/logistics/print/${orderId}`,
+    `power-checkout/v1/logistics/${orderId}/print`,
   CANCEL: (orderId: number | string) =>
-    `power-checkout/v1/logistics/cancel/${orderId}`,
+    `power-checkout/v1/logistics/${orderId}/cancel`,
   // ECPay 回呼端點（namespace: power-checkout/ecpay）
   STATUS_CALLBACK: 'power-checkout/ecpay/logistics/status-callback',
   SELECTION_CALLBACK: 'power-checkout/ecpay/logistics/selection-callback',

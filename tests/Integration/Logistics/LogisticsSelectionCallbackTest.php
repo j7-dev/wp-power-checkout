@@ -111,7 +111,7 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 		$response = null;
 		$threw    = false;
 		try {
-			$response = $this->get_callback()->post_logistics_selection_callback( $request );
+			$response = $this->get_callback()->post_logistics_selection_callback_callback( $request );
 		} catch ( \Throwable $e ) {
 			$threw = true;
 		}
@@ -148,7 +148,7 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 		$response = null;
 		$threw    = false;
 		try {
-			$response = $this->get_callback()->post_logistics_selection_callback( $request );
+			$response = $this->get_callback()->post_logistics_selection_callback_callback( $request );
 		} catch ( \Throwable $e ) {
 			$threw = true;
 		}
@@ -161,6 +161,109 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 		// Then: 訂單 meta 不應被寫入垃圾資料
 		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
 		$this->assertSame( '', $fresh_meta->get_temp_id(), 'temp_id 不應被寫入（解密失敗）' );
+	}
+
+	// ========== IDOR 防護（order_key 綁定） ==========
+
+	/**
+	 * @test
+	 * @group security
+	 */
+	public function test_選店回呼_order_key不符時拒絕寫入門市meta(): void {
+		// Given: 攻擊者帶正確 order_id 但偽造 pc_key（IDOR 嘗試）
+		$order       = $this->create_wc_order( [ 'status' => 'pending' ] );
+		$result_data = $this->build_result_data(
+			[
+				'TempLogisticsID'  => '2264',
+				'CVSStoreID'       => '991182',
+				'CVSStoreName'     => '惡意門市',
+				'CVSAddress'       => '惡意地址',
+				'LogisticsSubType' => 'FAMI',
+			]
+		);
+
+		$request = $this->make_selection_request(
+			[
+				'ResultData' => $result_data,
+				'pc_oid'     => $order->get_id(),
+				'pc_key'     => 'wc_forged_order_key_xxxxxx', // 偽造 order_key
+			]
+		);
+
+		// When
+		$response = $this->get_callback()->post_logistics_selection_callback_callback( $request );
+
+		// Then: 回 HTTP 200（不拋 500），但拒絕寫入任何門市 meta
+		$this->assertSame( 200, $response->get_status() );
+		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
+		$this->assertSame( '', $fresh_meta->get_temp_id(), 'order_key 不符時不應寫入 temp_id' );
+		$this->assertSame( '', $fresh_meta->get_store_id(), 'order_key 不符時不應寫入 store_id' );
+	}
+
+	/**
+	 * @test
+	 * @group security
+	 */
+	public function test_選店回呼_缺少pc_key時拒絕寫入門市meta(): void {
+		// Given: 僅帶 order_id，未帶 pc_key
+		$order       = $this->create_wc_order( [ 'status' => 'pending' ] );
+		$result_data = $this->build_result_data(
+			[
+				'TempLogisticsID'  => '3300',
+				'CVSStoreID'       => 'X001',
+				'LogisticsSubType' => 'FAMI',
+			]
+		);
+
+		$request = $this->make_selection_request(
+			[
+				'ResultData' => $result_data,
+				'pc_oid'     => $order->get_id(),
+			]
+		);
+
+		// When
+		$response = $this->get_callback()->post_logistics_selection_callback_callback( $request );
+
+		// Then: 拒絕寫入
+		$this->assertSame( 200, $response->get_status() );
+		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
+		$this->assertSame( '', $fresh_meta->get_temp_id() );
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_選店回呼_order_key相符時正常寫入門市meta(): void {
+		// Given: 帶正確 order_id + 正確 order_key
+		$order       = $this->create_wc_order( [ 'status' => 'pending' ] );
+		$result_data = $this->build_result_data(
+			[
+				'TempLogisticsID'  => '4400',
+				'CVSStoreID'       => 'Y002',
+				'CVSStoreName'     => '合法門市',
+				'CVSAddress'       => '台北市信義區合法路1號',
+				'LogisticsSubType' => 'FAMI',
+			]
+		);
+
+		$request = $this->make_selection_request(
+			[
+				'ResultData' => $result_data,
+				'pc_oid'     => $order->get_id(),
+				'pc_key'     => $order->get_order_key(),
+			]
+		);
+
+		// When
+		$response = $this->get_callback()->post_logistics_selection_callback_callback( $request );
+
+		// Then: 正常寫入
+		$this->assertSame( 200, $response->get_status() );
+		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
+		$this->assertSame( '4400', $fresh_meta->get_temp_id() );
+		$this->assertSame( 'Y002', $fresh_meta->get_store_id() );
 	}
 
 	// ========== 快樂路徑 ==========
@@ -185,12 +288,13 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 		$request = $this->make_selection_request(
 			[
 				'ResultData' => $result_data,
-				'order_id'   => $order->get_id(),
+				'pc_oid'     => $order->get_id(),
+				'pc_key'     => $order->get_order_key(),
 			]
 		);
 
 		// When
-		$response = $this->get_callback()->post_logistics_selection_callback( $request );
+		$response = $this->get_callback()->post_logistics_selection_callback_callback( $request );
 
 		// Then: 回應 HTTP 200
 		$this->assertSame( 200, $response->get_status() );
@@ -224,12 +328,13 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 		$request = $this->make_selection_request(
 			[
 				'ResultData' => $result_data,
-				'order_id'   => $order->get_id(),
+				'pc_oid'     => $order->get_id(),
+				'pc_key'     => $order->get_order_key(),
 			]
 		);
 
 		// When
-		$this->get_callback()->post_logistics_selection_callback( $request );
+		$this->get_callback()->post_logistics_selection_callback_callback( $request );
 
 		// Then: temp_id 寫入，可作為 create_shipment 的前置條件
 		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
@@ -249,7 +354,7 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 		$response = null;
 		$threw    = false;
 		try {
-			$response = $this->get_callback()->post_logistics_selection_callback( $request );
+			$response = $this->get_callback()->post_logistics_selection_callback_callback( $request );
 		} catch ( \Throwable $e ) {
 			$threw = true;
 		}

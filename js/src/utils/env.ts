@@ -2,7 +2,6 @@ import { IEcpgData } from '@/external/EcpgPayment/types'
 
 const env = window?.power_checkout_data?.env
 
-
 export const SITE_URL = env?.SITE_URL
 export const API_URL = env?.API_URL
 export const CURRENT_USER_ID = env?.CURRENT_USER_ID
@@ -20,5 +19,4 @@ export const APP1_SELECTOR = env?.APP1_SELECTOR
  * 比照 InvoiceApp 讀其專屬 localize 物件的方式，集中於 env.ts 取得，模組內不直接讀 window。
  * 僅在「訂單以 ecpay_ecpg 結帳且已成功取得交易 token」的 order-received 頁存在，否則為 undefined。
  */
-export const ECPG_DATA: IEcpgData | undefined =
-	window?.power_checkout_ecpg_data
+export const ECPG_DATA: IEcpgData | undefined = window?.power_checkout_ecpg_data

@@ -138,7 +138,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		?AesCrypto $crypto = null
 	): void {
 		$crypto ??= $this->b2c_crypto;
-		$data   = $response->get_data();
+		$data     = $response->get_data();
 
 		// 1. HTTP 狀態碼 200
 		$this->assertSame( 200, $response->get_status(), '貨態 callback 必須回 HTTP 200' );
@@ -198,7 +198,12 @@ final class LogisticsStatusCallbackTest extends TestCase {
 	 */
 	public function test_貨態300已出貨時寫入status_meta並回AES_JSON_RtnCode1(): void {
 		// Given: 有對應訂單
-		$order = $this->create_wc_order( [ 'status' => 'processing', 'total' => 1000 ] );
+		$order = $this->create_wc_order(
+			[
+				'status' => 'processing',
+				'total'  => 1000,
+			]
+			);
 		( new LogisticsMetaKeys( $order ) )->update_ref( '1234567890' );
 
 		$payload = $this->build_status_payload(
@@ -211,7 +216,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 回應為 AES-JSON 三層，RtnCode=1
 		$this->assert_response_is_aes_json( $response, expected_rtn_code: 1 );
@@ -224,6 +229,40 @@ final class LogisticsStatusCallbackTest extends TestCase {
 			$fresh_meta->is_processed( '1234567890', '300' ),
 			'應已標記 1234567890:300 為已處理'
 		);
+	}
+
+	/**
+	 * 逆物流貨態通知帶 ReturnLogisticsID，須能以 return_ref 反查訂單並更新貨態
+	 *
+	 * @test
+	 * @group happy
+	 */
+	public function test_逆物流貨態以ReturnLogisticsID反查訂單並更新status_meta(): void {
+		// Given: 訂單已建立退貨單（有 return_ref，無正向 ref 直接對應該逆物流單號）
+		$order = $this->create_wc_order(
+			[
+				'status' => 'processing',
+				'total'  => 1000,
+			]
+		);
+		( new LogisticsMetaKeys( $order ) )->update_return_ref( 'RET1234567890' );
+
+		$payload = $this->build_status_payload(
+			trans_code: 1,
+			merchant_id: self::B2C_MERCHANT_ID,
+			rtn_code: 1,
+			logistics_id: 'RET1234567890',
+			logistics_status: '300'
+		);
+		$request = $this->make_request( $payload );
+
+		// When
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
+
+		// Then: 回應為 AES-JSON 三層，RtnCode=1，且訂單貨態更新（逆物流沿用同一 callback）
+		$this->assert_response_is_aes_json( $response, expected_rtn_code: 1 );
+		$fresh_meta = new LogisticsMetaKeys( \wc_get_order( $order->get_id() ) );
+		$this->assertSame( '300', $fresh_meta->get_status(), '逆物流貨態應更新 _pc_logistics_status' );
 	}
 
 	// ========== 傳輸層失敗（TransCode=0） ==========
@@ -239,7 +278,10 @@ final class LogisticsStatusCallbackTest extends TestCase {
 
 		$payload = [
 			'MerchantID' => self::B2C_MERCHANT_ID,
-			'RqHeader'   => [ 'Timestamp' => \time(), 'Revision' => '1.0.0' ],
+			'RqHeader'   => [
+				'Timestamp' => \time(),
+				'Revision'  => '1.0.0',
+			],
 			'TransCode'  => 0,
 			'TransMsg'   => 'AES error',
 			'Data'       => '',
@@ -247,7 +289,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 回 AES-JSON，RtnCode=0（告知綠界有錯）
 		$this->assert_response_is_aes_json( $response, expected_rtn_code: 0 );
@@ -270,7 +312,10 @@ final class LogisticsStatusCallbackTest extends TestCase {
 
 		$payload = [
 			'MerchantID' => self::B2C_MERCHANT_ID,
-			'RqHeader'   => [ 'Timestamp' => \time(), 'Revision' => '1.0.0' ],
+			'RqHeader'   => [
+				'Timestamp' => \time(),
+				'Revision'  => '1.0.0',
+			],
 			'TransCode'  => 1,
 			'TransMsg'   => '',
 			'Data'       => '###INVALID_CIPHER_TEXT###',
@@ -278,7 +323,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 解密失敗仍回 AES-JSON（不可 HTTP 500）
 		$this->assert_response_is_aes_json( $response, expected_rtn_code: 0 );
@@ -309,7 +354,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 回 AES-JSON（不拋 HTTP 500）
 		$this->assertSame( 200, $response->get_status(), 'MerchantID 不符時仍應回 HTTP 200' );
@@ -343,7 +388,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 仍回 AES-JSON（避免重送風暴），不 HTTP 500
 		$this->assertSame( 200, $response->get_status() );
@@ -379,7 +424,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 回 AES-JSON，RtnCode=1
 		$this->assert_response_is_aes_json( $response, expected_rtn_code: 1 );
@@ -421,7 +466,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When: 重送相同貨態
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 仍回 AES-JSON，RtnCode=1（成功冪等）
 		$this->assert_response_is_aes_json( $response, expected_rtn_code: 1 );
@@ -451,7 +496,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When: LogisticsID 對應不到訂單，內部流程可能拋例外
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 無論如何都回 HTTP 200 + AES-JSON（非 500）
 		$this->assertSame( 200, $response->get_status(), '例外發生時不可回 HTTP 500' );
@@ -484,7 +529,7 @@ final class LogisticsStatusCallbackTest extends TestCase {
 		$request = $this->make_request( $payload );
 
 		// When
-		$response = $this->get_callback()->post_logistics_status_callback( $request );
+		$response = $this->get_callback()->post_logistics_status_callback_callback( $request );
 
 		// Then: 完整三層結構解密驗證
 		$this->assert_response_is_aes_json( $response, expected_rtn_code: 1 );

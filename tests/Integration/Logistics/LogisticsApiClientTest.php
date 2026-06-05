@@ -469,6 +469,79 @@ final class LogisticsApiClientTest extends TestCase {
 	}
 
 	/**
+	 * 超商退貨各端點 MOCK fixture（依子類型分派）
+	 *
+	 * @test
+	 * @dataProvider return_cvs_method_provider
+	 * @group happy
+	 *
+	 * @param string $method ApiClient 退貨方法名
+	 */
+	public function test_MOCK模式超商退貨回固定fixture含ReturnLogisticsID( string $method ): void {
+		// Given: MOCK 模式
+		\putenv( 'API_MODE=mock' );
+		$order  = $this->create_wc_order( [ 'total' => 100 ] );
+		$client = $this->b2c_client( $order );
+		$params = new \J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\CreateReturnParams(
+			[
+				'LogisticsID'    => '1234567890',
+				'GoodsAmount'    => 100,
+				'ServiceType'    => '4',
+				'SenderName'     => '退貨人',
+				'ServerReplyURL' => 'https://example.com/status-callback',
+			]
+		);
+
+		// When
+		$result = $client->{$method}( $params );
+
+		// Then: 業務層成功 + 含逆物流單號（ReturnLogisticsID 或 LogisticsID）
+		$this->assertSame( 1, (int) $result['RtnCode'] );
+		$this->assertNotSame( '', (string) ( $result['ReturnLogisticsID'] ?? $result['LogisticsID'] ?? '' ) );
+	}
+
+	/**
+	 * 超商退貨方法 data provider
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public function return_cvs_method_provider(): array {
+		return [
+			'全家 return_cvs'         => [ 'return_cvs' ],
+			'統一 return_unimart_cvs' => [ 'return_unimart_cvs' ],
+			'萊爾富 return_hilife_cvs' => [ 'return_hilife_cvs' ],
+		];
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_MOCK模式宅配退貨回固定fixture含ReturnLogisticsID(): void {
+		// Given: MOCK 模式
+		\putenv( 'API_MODE=mock' );
+		$order  = $this->create_wc_order( [ 'total' => 100 ] );
+		$client = $this->b2c_client( $order );
+		$params = new \J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\CreateReturnParams(
+			[
+				'LogisticsID'    => '1234567890',
+				'GoodsAmount'    => 100,
+				'Temperature'    => '0003',
+				'Distance'       => '00',
+				'Specification'  => '0001',
+				'ServerReplyURL' => 'https://example.com/status-callback',
+			]
+		);
+
+		// When
+		$result = $client->return_home( $params );
+
+		// Then
+		$this->assertSame( 1, (int) $result['RtnCode'] );
+		$this->assertNotSame( '', (string) ( $result['ReturnLogisticsID'] ?? $result['LogisticsID'] ?? '' ) );
+	}
+
+	/**
 	 * @test
 	 * @group edge
 	 */

@@ -36,8 +36,19 @@ use J7\WpUtils\Traits\SingletonTrait;
 final class LogisticsApiService extends ApiBase {
 	use SingletonTrait;
 
-	/** @var string 物流 provider id（本次唯一 provider；委派目標） */
-	private const PROVIDER_ID = 'ecpay_logistics';
+	/**
+	 * 已知物流 provider id 解析順序（綠界 / PAYUNi 並存可切換）
+	 *
+	 * Resolve 依此順序找「第一個啟用」的 provider 作為委派目標（請求未帶 provider 參數時）；
+	 * 帶 provider 參數時優先用該 provider（須在本清單且已啟用）。
+	 * ⚠️ 兩 provider 共用同一組 order meta（LogisticsMetaKeys），故反查 / 委派一致。
+	 *
+	 * @var array<int, string>
+	 */
+	private const PROVIDER_IDS = [
+		'ecpay_logistics',
+		'payuni_logistics',
+	];
 
 	/** @var string REST API namespace */
 	protected $namespace = 'power-checkout/v1';
@@ -62,6 +73,10 @@ final class LogisticsApiService extends ApiBase {
 		],
 		[
 			'endpoint' => 'logistics/(?P<id>\d+)/cancel',
+			'method'   => 'post',
+		],
+		[
+			'endpoint' => 'logistics/(?P<id>\d+)/return',
 			'method'   => 'post',
 		],
 		[
@@ -179,6 +194,25 @@ final class LogisticsApiService extends ApiBase {
 		);
 	}
 
+	/**
+	 * 建立退貨單（逆物流；後台手動觸發）
+	 *
+	 * @param \WP_REST_Request $request 請求
+	 * @return \WP_REST_Response
+	 */
+	public function post_logistics_with_id_return_callback( \WP_REST_Request $request ): \WP_REST_Response {
+		return $this->run(
+			$request,
+			static function ( ILogisticsProvider $provider, \WC_Order $order ): array {
+				$result = $provider->create_return( $order );
+				return [
+					'message' => \__( '退貨單成立成功', 'power_checkout' ),
+					'data'    => $result,
+				];
+			}
+		);
+	}
+
 	// endregion
 
 	// region helpers
@@ -214,22 +248,15 @@ final class LogisticsApiService extends ApiBase {
 	/**
 	 * 解析請求：取得已啟用的 provider 與訂單
 	 *
+	 * Provider 解析委派 resolve_provider()（未啟用 / 不是物流服務時拋 \Exception 向上傳遞）。
+	 *
 	 * @param \WP_REST_Request $request 請求
 	 *
 	 * @return array{0: ILogisticsProvider, 1: \WC_Order}
-	 * @throws \Exception Provider 未啟用 / 不是物流服務
 	 * @throws \InvalidArgumentException 訂單不存在
 	 */
 	private function resolve( \WP_REST_Request $request ): array {
-		// provider 未啟用 → 403
-		if (!ProviderUtils::is_enabled( self::PROVIDER_ID )) {
-			throw new \Exception( \__( '綠界全方位物流未啟用', 'power_checkout' ) );
-		}
-
-		$provider = ProviderUtils::get_provider( self::PROVIDER_ID );
-		if (!$provider instanceof ILogisticsProvider) {
-			throw new \Exception( \__( '綠界全方位物流未啟用', 'power_checkout' ) );
-		}
+		$provider = $this->resolve_provider( $request );
 
 		// 訂單不存在 → 404
 		$order_id = (int) ( $request['id'] ?? 0 );
@@ -239,6 +266,46 @@ final class LogisticsApiService extends ApiBase {
 		}
 
 		return [ $provider, $order ];
+	}
+
+	/**
+	 * 解析委派的物流 provider（綠界 / PAYUNi 並存可切換）
+	 *
+	 * 1. 請求帶 provider 參數 → 須在 PROVIDER_IDS 且已啟用，否則 403。
+	 * 2. 未帶參數 → 取 PROVIDER_IDS 中第一個啟用的 provider；皆未啟用 → 403。
+	 *
+	 * @param \WP_REST_Request $request 請求
+	 *
+	 * @return ILogisticsProvider
+	 * @throws \Exception Provider 未啟用 / 不是物流服務
+	 */
+	private function resolve_provider( \WP_REST_Request $request ): ILogisticsProvider {
+		$requested = (string) ( $request->get_param( 'provider' ) ?? '' );
+
+		// 指定 provider：須在已知清單且已啟用
+		if ('' !== $requested) {
+			if (!\in_array( $requested, self::PROVIDER_IDS, true ) || !ProviderUtils::is_enabled( $requested )) {
+				throw new \Exception( \__( '指定的物流服務未啟用', 'power_checkout' ) );
+			}
+			$provider = ProviderUtils::get_provider( $requested );
+			if ($provider instanceof ILogisticsProvider) {
+				return $provider;
+			}
+			throw new \Exception( \__( '指定的物流服務未啟用', 'power_checkout' ) );
+		}
+
+		// 未指定：取第一個啟用的 provider
+		foreach ( self::PROVIDER_IDS as $id ) {
+			if (!ProviderUtils::is_enabled( $id )) {
+				continue;
+			}
+			$provider = ProviderUtils::get_provider( $id );
+			if ($provider instanceof ILogisticsProvider) {
+				return $provider;
+			}
+		}
+
+		throw new \Exception( \__( '物流服務未啟用', 'power_checkout' ) );
 	}
 
 	/**

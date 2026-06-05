@@ -1,14 +1,14 @@
 <?php
 /**
- * EcpayLogisticsProvider 整合測試（階段三 — Red Gate）
+ * EcpayLogisticsProvider 整合測試
  *
- * 涵蓋 7 個 logistics feature 場景：
+ * 涵蓋 logistics feature 場景：
  *   - logistics-store-selection  (選店前置驗證 + MOCK 成功)
  *   - logistics-create-shipment  (建單前置 + COD + C2C 寄貨編號)
  *   - logistics-query            (無 ref → 失敗；有 ref → MOCK 成功)
  *   - logistics-print-document   (無 ref → 失敗；有 ref → MOCK HTML)
  *   - logistics-cancel-c2c       (B2C → 失敗；缺 cvs_payment_no → 失敗；C2C 成功)
- *   - create_return              (throw 尚未實作)
+ *   - logistics-create-return    (P2-B：前置驗證 + 超商各家 + 宅配溫層 → 寫 return_ref)
  *
  * 執行指令：
  *   npx wp-env run tests-cli \
@@ -151,7 +151,12 @@ final class EcpayLogisticsProviderTest extends TestCase {
 		// Given: 停用 ecpay_logistics
 		$this->disable_provider( EcpayLogisticsProvider::ID );
 		EcpayLogisticsSettingsDTO::reset();
-		$order    = $this->create_wc_order( [ 'status' => 'pending', 'total' => 1000 ] );
+		$order    = $this->create_wc_order(
+			[
+				'status' => 'pending',
+				'total'  => 1000,
+			]
+			);
 		$provider = EcpayLogisticsProvider::instance();
 
 		// When
@@ -202,7 +207,12 @@ final class EcpayLogisticsProviderTest extends TestCase {
 	public function test_選店_client_reply_url為localhost時失敗_R6(): void {
 		// Given: client_reply_url 為 localhost
 		$this->enable_logistics_b2c( [ 'client_reply_url' => 'http://localhost/callback' ] );
-		$order    = $this->create_wc_order( [ 'status' => 'pending', 'total' => 1000 ] );
+		$order    = $this->create_wc_order(
+			[
+				'status' => 'pending',
+				'total'  => 1000,
+			]
+			);
 		$provider = EcpayLogisticsProvider::instance();
 
 		// When
@@ -221,7 +231,12 @@ final class EcpayLogisticsProviderTest extends TestCase {
 	public function test_選店_server_reply_url為localhost時失敗_R6(): void {
 		// Given: server_reply_url 為 localhost
 		$this->enable_logistics_b2c( [ 'server_reply_url' => 'http://localhost/status-callback' ] );
-		$order    = $this->create_wc_order( [ 'status' => 'pending', 'total' => 1000 ] );
+		$order    = $this->create_wc_order(
+			[
+				'status' => 'pending',
+				'total'  => 1000,
+			]
+			);
 		$provider = EcpayLogisticsProvider::instance();
 
 		// When
@@ -239,7 +254,12 @@ final class EcpayLogisticsProviderTest extends TestCase {
 	 */
 	public function test_選店_sub_type不在enabled_methods時失敗(): void {
 		// Given: enabled_methods 只有 FAMI，不含 OKMART
-		$order    = $this->create_wc_order( [ 'status' => 'pending', 'total' => 1000 ] );
+		$order    = $this->create_wc_order(
+			[
+				'status' => 'pending',
+				'total'  => 1000,
+			]
+			);
 		$provider = EcpayLogisticsProvider::instance();
 
 		// When: 傳入未啟用的 sub_type
@@ -271,7 +291,7 @@ final class EcpayLogisticsProviderTest extends TestCase {
 				$order,
 				[
 					'sub_type'         => 'FAMI',
-					'payment_scenario'  => 'online',
+					'payment_scenario' => 'online',
 				]
 			)
 		);
@@ -293,7 +313,12 @@ final class EcpayLogisticsProviderTest extends TestCase {
 	 */
 	public function test_建單_無temp_id時失敗(): void {
 		// Given: 訂單無 _pc_logistics_temp_id
-		$order    = $this->create_wc_order( [ 'status' => 'pending', 'total' => 1000 ] );
+		$order    = $this->create_wc_order(
+			[
+				'status' => 'pending',
+				'total'  => 1000,
+			]
+			);
 		$provider = EcpayLogisticsProvider::instance();
 
 		// When
@@ -309,14 +334,14 @@ final class EcpayLogisticsProviderTest extends TestCase {
 	 */
 	public function test_建單_COD訂單帶IsCollection_Y(): void {
 		// Given: COD 訂單，已選店
-		$order    = $this->create_wc_order(
+		$order = $this->create_wc_order(
 			[
 				'status'         => 'pending',
 				'total'          => 1000,
 				'payment_method' => 'cod',
 			]
 		);
-		$meta     = new LogisticsMetaKeys( $order );
+		$meta  = new LogisticsMetaKeys( $order );
 		$meta->update_temp_id( '2264' );
 		$meta->update_payment_scenario( 'cod' );
 		$meta->update_sub_type( 'FAMI' );
@@ -373,8 +398,13 @@ final class EcpayLogisticsProviderTest extends TestCase {
 	public function test_建單_C2C成功保存CVSPaymentNo與CVSValidationNo(): void {
 		// Given: C2C account_type，已選店
 		$this->enable_logistics_c2c();
-		$order    = $this->create_wc_order( [ 'status' => 'pending', 'total' => 1000 ] );
-		$meta     = new LogisticsMetaKeys( $order );
+		$order = $this->create_wc_order(
+			[
+				'status' => 'pending',
+				'total'  => 1000,
+			]
+			);
+		$meta  = new LogisticsMetaKeys( $order );
 		$meta->update_temp_id( '9900' );
 		$meta->update_payment_scenario( 'online' );
 		$meta->update_sub_type( 'FAMI' );
@@ -545,14 +575,33 @@ final class EcpayLogisticsProviderTest extends TestCase {
 		$this->assert_order_note_contains( $order, '取消' );
 	}
 
-	// ========== 退貨預留（create_return） ==========
+	// ========== 退貨 / 逆物流（create_return） ==========
 
 	/**
 	 * @test
 	 * @group error
 	 */
-	public function test_退貨_create_return拋例外尚未實作(): void {
-		// Given
+	public function test_退貨_provider未啟用時失敗(): void {
+		// Given: 停用 provider，但訂單有正向物流單
+		$this->disable_provider( EcpayLogisticsProvider::ID );
+		EcpayLogisticsSettingsDTO::reset();
+		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
+		( new LogisticsMetaKeys( $order ) )->update_ref( '1234567890' );
+		$provider = EcpayLogisticsProvider::instance();
+
+		// When
+		$this->try_call( fn() => $provider->create_return( $order ) );
+
+		// Then
+		$this->assert_operation_failed_with_message( '未啟用' );
+	}
+
+	/**
+	 * @test
+	 * @group error
+	 */
+	public function test_退貨_無正向物流單時失敗(): void {
+		// Given: 訂單無 _pc_logistics_ref
 		$order    = $this->create_wc_order( [ 'status' => 'processing' ] );
 		$provider = EcpayLogisticsProvider::instance();
 
@@ -560,7 +609,112 @@ final class EcpayLogisticsProviderTest extends TestCase {
 		$this->try_call( fn() => $provider->create_return( $order ) );
 
 		// Then
-		$this->assert_operation_failed();
-		$this->assertStringContainsString( '尚未實作', $this->lastError?->getMessage() ?? '' );
+		$this->assert_operation_failed_with_message( '尚未成立物流單' );
+	}
+
+	/**
+	 * @test
+	 * @group error
+	 */
+	public function test_退貨_server_reply_url為localhost時失敗_R6(): void {
+		// Given: server_reply_url 為 localhost
+		$this->enable_logistics_b2c( [ 'server_reply_url' => 'http://localhost/status-callback' ] );
+		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
+		$meta  = new LogisticsMetaKeys( $order );
+		$meta->update_ref( '1234567890' );
+		$meta->update_sub_type( 'FAMI' );
+		$provider = EcpayLogisticsProvider::instance();
+
+		// When
+		$this->try_call( fn() => $provider->create_return( $order ) );
+
+		// Then
+		$this->assert_operation_failed_with_message( '必須為公開可訪問的 URL' );
+	}
+
+	/**
+	 * 超商退貨各家成功後寫入逆物流單號
+	 *
+	 * @test
+	 * @dataProvider cvs_sub_type_provider
+	 * @group happy
+	 *
+	 * @param string $sub_type 物流子類型
+	 */
+	public function test_退貨_超商各家成功後寫入return_ref( string $sub_type ): void {
+		// Given: 已成立正向物流單，原物流為某超商子類型
+		$order = $this->create_wc_order(
+			[
+				'status' => 'processing',
+				'total'  => 1000,
+			]
+		);
+		$meta  = new LogisticsMetaKeys( $order );
+		$meta->update_ref( '1234567890' );
+		$meta->update_sub_type( $sub_type );
+		$provider = EcpayLogisticsProvider::instance();
+
+		// When
+		$this->try_call(
+			fn() => $this->queryResult = $provider->create_return( $order )
+		);
+
+		// Then: 操作成功（MOCK），寫入逆物流單號
+		$this->assert_operation_succeeded();
+		$this->assertIsArray( $this->queryResult );
+		$this->assertArrayHasKey( 'return_logistics_id', $this->queryResult );
+		$fresh_order = \wc_get_order( $order->get_id() );
+		$this->assertNotEmpty(
+			( new LogisticsMetaKeys( $fresh_order ) )->get_return_ref(),
+			'_pc_logistics_return_ref 應被寫入'
+		);
+		$this->assert_order_note_contains( $order, '退貨' );
+	}
+
+	/**
+	 * 超商子類型 data provider
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public function cvs_sub_type_provider(): array {
+		return [
+			'全家 FAMI'    => [ 'FAMI' ],
+			'統一 UNIMART' => [ 'UNIMART' ],
+			'萊爾富 HILIFE' => [ 'HILIFE' ],
+		];
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_退貨_宅配帶溫層成功後寫入return_ref(): void {
+		// Given: 已成立正向宅配物流單，溫層冷凍
+		$order = $this->create_wc_order(
+			[
+				'status' => 'processing',
+				'total'  => 1000,
+			]
+		);
+		$meta  = new LogisticsMetaKeys( $order );
+		$meta->update_ref( '1234567890' );
+		$meta->update_sub_type( 'HOME' );
+		$order->update_meta_data( '_pc_logistics_temperature', '0003' );
+		$order->save();
+		$provider = EcpayLogisticsProvider::instance();
+
+		// When
+		$this->try_call(
+			fn() => $this->queryResult = $provider->create_return( $order )
+		);
+
+		// Then
+		$this->assert_operation_succeeded();
+		$this->assertIsArray( $this->queryResult );
+		$fresh_order = \wc_get_order( $order->get_id() );
+		$this->assertNotEmpty(
+			( new LogisticsMetaKeys( $fresh_order ) )->get_return_ref(),
+			'_pc_logistics_return_ref 應被寫入'
+		);
 	}
 }

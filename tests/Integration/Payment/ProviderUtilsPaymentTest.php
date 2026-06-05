@@ -211,7 +211,13 @@ final class ProviderUtilsPaymentTest extends TestCase {
 	 */
 	public function test_update_option_陣列設定會合併而非覆蓋(): void {
 		// Given: 先設定兩個欄位
-		ProviderUtils::update_option( self::PROVIDER_ID, [ 'key_a' => 'value_a', 'key_b' => 'value_b' ] );
+		ProviderUtils::update_option(
+			self::PROVIDER_ID,
+			[
+				'key_a' => 'value_a',
+				'key_b' => 'value_b',
+			]
+			);
 
 		// When: 只更新其中一個欄位
 		ProviderUtils::update_option( self::PROVIDER_ID, 'key_a', 'new_value_a' );

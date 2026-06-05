@@ -177,7 +177,9 @@ final class WC_EcpayLogisticsShipping extends \WC_Shipping_Method {
 		$sub_type = isset($_POST['_pc_logistics_sub_type']) // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		? \sanitize_text_field( \wp_unslash( (string) $_POST['_pc_logistics_sub_type'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		: '';
-		if ('' !== $sub_type) {
+		// 安全：僅寫入已啟用的合法子類型（白名單），杜絕從 $_POST 注入任意值
+		$method = new self();
+		if ('' !== $sub_type && \in_array( $sub_type, $method->get_supported_sub_types(), true )) {
 			$meta->update_sub_type( $sub_type );
 		}
 
@@ -201,5 +203,65 @@ final class WC_EcpayLogisticsShipping extends \WC_Shipping_Method {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * 傳統結帳（classic checkout）：enqueue 選店按鈕腳本 + localize（cart 級選店）
+	 *
+	 * 僅在「傳統結帳頁」（非 block）載入；block 結帳由 BlocksLogisticsIntegration 處理。
+	 * 由 wp_enqueue_scripts hook 觸發（見 ProviderRegister）。
+	 *
+	 * @return void
+	 */
+	public static function enqueue_classic_assets(): void {
+		if (!self::is_classic_checkout()) {
+			return;
+		}
+
+		$handle = 'pc-classic-logistics';
+		\wp_enqueue_script(
+			$handle,
+			\J7\PowerCheckout\Plugin::$url . '/inc/assets/js/classic-logistics.js',
+			[ 'jquery' ],
+			\J7\PowerCheckout\Plugin::$version,
+			true
+		);
+
+		$selected_store = \J7\PowerCheckout\Domains\Logistics\Shared\Helpers\CartLogisticsSession::get_selected_store();
+
+		\wp_localize_script(
+			$handle,
+			'pcClassicLogistics',
+			[
+				'store_selection_url' => \site_url( 'wp-json/power-checkout/v1/logistics/store-selection', 'https' ),
+				'nonce'               => \wp_create_nonce( 'wp_rest' ),
+				'selected_store'      => $selected_store,
+				'cvs_sub_types'       => [ LogisticsSubType::FAMI->value, LogisticsSubType::UNIMART->value, LogisticsSubType::HILIFE->value ],
+				'sub_type_field'      => '_pc_logistics_sub_type',
+				'i18n_select'         => \__( '選擇門市', 'power_checkout' ),
+				'i18n_reselect'       => \__( '重新選擇門市', 'power_checkout' ),
+				'i18n_loading'        => \__( '處理中…', 'power_checkout' ),
+				'i18n_error'          => \__( '無法開啟門市選擇頁，請稍後再試或聯繫商家。', 'power_checkout' ),
+			]
+		);
+	}
+
+	/**
+	 * 是否為傳統結帳頁（非 block）
+	 *
+	 * @return bool
+	 */
+	private static function is_classic_checkout(): bool {
+		if (!\function_exists( 'is_checkout' ) || !\is_checkout()) {
+			return false;
+		}
+		// block 結帳頁含 woocommerce/checkout 區塊 → 交由 BlocksLogisticsIntegration 處理
+		if (\function_exists( 'has_block' )) {
+			$post = \get_post();
+			if ($post instanceof \WP_Post && \has_block( 'woocommerce/checkout', $post )) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

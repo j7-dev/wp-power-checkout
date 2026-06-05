@@ -17,15 +17,22 @@
  *       本檔僅驗證「前端整合可達性 + 端點契約」，付款後狀態流轉由 03-integration callback 測試覆蓋。
  */
 import { test, expect } from '@playwright/test'
-import { wpGet, type ApiOptions } from '../helpers/api-client.js'
+import type { APIRequestContext } from '@playwright/test'
+import { wpGet, createApiContext, type ApiOptions } from '../helpers/api-client.js'
 import { getNonce } from '../helpers/admin-setup.js'
 import { BASE_URL, EP, PROVIDERS } from '../fixtures/test-data.js'
 
 test.describe('綠界 ECPay 前端結帳', () => {
   let opts: ApiOptions
+  let ctx: APIRequestContext
 
-  test.beforeAll(async ({ request }) => {
-    opts = { request, baseURL: BASE_URL, nonce: getNonce() }
+  test.beforeAll(async () => {
+    ctx = await createApiContext(BASE_URL)
+    opts = { request: ctx, baseURL: BASE_URL, nonce: getNonce() }
+  })
+
+  test.afterAll(async () => {
+    await ctx.dispose()
   })
 
   // ─── 結帳頁可達性 ─────────────────────────────────────────

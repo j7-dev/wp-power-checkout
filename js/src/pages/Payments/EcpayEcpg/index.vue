@@ -1,17 +1,18 @@
 <script lang="ts" setup>
 import { Back, InfoFilled } from '@element-plus/icons-vue'
-import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
 import { merge, pick } from 'lodash-es'
+import { computed, reactive, ref, toRaw, watch } from 'vue'
+
+import apiClient from '@/api'
+import Checkbox from '@/components/Checkbox/index.vue'
+import TrimmedInput from '@/components/TrimmedInput.vue'
+import { env } from '@/index'
 import {
 	PAYMENT_METHODS,
 	TFormData,
 } from '@/pages/Payments/EcpayEcpg/Shared/types'
-import Checkbox from '@/components/Checkbox/index.vue'
-import TrimmedInput from '@/components/TrimmedInput.vue'
-import { env } from '@/index'
 
 const gatewayId = 'ecpay_ecpg'
 const isLocal = env?.IS_LOCAL ?? false
@@ -38,11 +39,13 @@ const form = reactive<TFormData>({
 	orderButtonText: '',
 	minAmount: 0,
 	maxAmount: 0,
+
 	// --- API --- //
 	mode: 'prod',
 	merchantId: '',
 	hashKey: '',
 	hashIv: '',
+
 	// --- 付款方式 --- //
 	allowedPayments: [],
 })
@@ -57,10 +60,11 @@ watch(
 				filteredData.mode = 'prod'
 			}
 			merge(form, filteredData)
+
 			// 將 API 回傳資料輸入表單
 		}
 	},
-	{ immediate: true },
+	{ immediate: true }
 )
 
 const isTestMode = computed(() => form.mode === 'test')
@@ -118,10 +122,10 @@ const rules = reactive<FormRules<TFormData>>({
 	</div>
 
 	<el-form
+		ref="formRef"
 		v-loading="isPending"
 		element-loading-background="rgba(255, 255, 255, 0)"
 		:model="form"
-		ref="formRef"
 		label-position="right"
 		label-width="auto"
 		:class="{
@@ -233,15 +237,16 @@ const rules = reactive<FormRules<TFormData>>({
 			<template #label>
 				<span class="flex gap-x-2 items-center">
 					<span>特店編號 MerchantID</span>
-					<el-tooltip
-						content="綠界商家後台分配的特店編號"
-						placement="top"
-					>
+					<el-tooltip content="綠界商家後台分配的特店編號" placement="top">
 						<el-icon><InfoFilled /></el-icon>
 					</el-tooltip>
 				</span>
 			</template>
-			<TrimmedInput v-model="form.merchantId" :disabled="isTestMode" clearable />
+			<TrimmedInput
+				v-model="form.merchantId"
+				:disabled="isTestMode"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hashKey" label="HashKey">

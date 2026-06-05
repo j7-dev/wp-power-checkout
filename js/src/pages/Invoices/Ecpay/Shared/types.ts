@@ -8,11 +8,13 @@ export type TFormData = {
 	// --- 一般設定 --- //
 	title: string
 	description: string
+
 	// --- API --- //
 	mode: string
 	merchant_id: string
 	hash_key: string
 	hash_iv: string
+
 	// --- 自動化 --- //
 	auto_issue_order_statuses: string[]
 	auto_cancel_order_statuses: string[]

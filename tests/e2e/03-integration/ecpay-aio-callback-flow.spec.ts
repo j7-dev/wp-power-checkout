@@ -44,11 +44,34 @@ let atmTradeNo: string | undefined
 let testProductId: number | undefined
 let setupError: string | undefined
 
+import * as fs from 'fs'
+import * as path from 'path'
+
+const AUTH_FILE = path.resolve(import.meta.dirname, '../.auth/admin.json')
+const storageStateOrUndefined = () =>
+  fs.existsSync(AUTH_FILE) ? AUTH_FILE : undefined
+
+// 認證型 context：帶 admin cookie + X-WP-Nonce，供 WC/REST 建單、查詢、刪除等需登入操作。
 async function newCtx() {
   return apiRequest.newContext({
     baseURL: BASE_URL,
     ignoreHTTPSErrors: true,
+    storageState: storageStateOrUndefined(),
     extraHTTPHeaders: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
+  })
+}
+
+// Webhook context：模擬綠界 server-to-server 請求。
+// 關鍵：必須「明確」清掉 playwright.config 的 use.extraHTTPHeaders（X-WP-Nonce:''）與
+// use.storageState（admin cookie）——standalone apiRequest.newContext 仍會繼承專案 use 設定，
+// 只要帶有 X-WP-Nonce header（即使空字串）或登入 cookie，WP REST 就會執行 cookie nonce 驗證並回 403。
+// extraHTTPHeaders:{} 會「取代」（非合併）繼承的 header；空 storageState 清掉 cookie。
+async function newWebhookCtx() {
+  return apiRequest.newContext({
+    baseURL: BASE_URL,
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: {},
+    storageState: { cookies: [], origins: [] },
   })
 }
 
@@ -121,20 +144,28 @@ test.describe('綠界 AIO 幕後通知整合流程', () => {
   })
 
   // ─── 輔助：以 form-urlencoded 送 AIO callback（不帶 WP 認證）────
+  // 刻意忽略傳入的 request fixture，改用自建的 webhook context（無 X-WP-Nonce），
+  // 因為傳入的 fixture 帶有 config 設定的空 X-WP-Nonce header + cookie，
+  // 會觸發 WP cookie nonce 驗證而回 403。綠界 callback 不需 WP 認證。
   async function sendAioCallback(
-    request: import('@playwright/test').APIRequestContext,
+    _request: import('@playwright/test').APIRequestContext,
     endpoint: string,
     params: CmvParams,
   ) {
     // AIO callback 為 Form POST（application/x-www-form-urlencoded）
     const form: Record<string, string> = {}
     for (const [k, v] of Object.entries(params)) form[k] = String(v)
-    const res = await request.post(`${BASE_URL}/wp-json/${endpoint}`, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      form,
-    })
-    const text = await res.text().catch(() => '')
-    return { status: res.status(), text }
+    const ctx = await newWebhookCtx()
+    try {
+      const res = await ctx.post(`${BASE_URL}/wp-json/${endpoint}`, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        form,
+      })
+      const text = await res.text().catch(() => '')
+      return { status: res.status(), text }
+    } finally {
+      await ctx.dispose()
+    }
   }
 
   async function getOrderStatus(

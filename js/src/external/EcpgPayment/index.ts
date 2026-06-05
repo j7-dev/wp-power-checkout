@@ -22,14 +22,15 @@
  */
 
 import { ElMessage } from 'element-plus'
+
 // 註：Element Plus CSS 由主 bundle（js/src/index.ts）統一載入，本模組與其同 bundle，無需重複 import
-import { ECPG_DATA } from '@/utils/env'
 import { loadScript } from '@/external/EcpgPayment/loadScript'
 import {
 	IEcpayPaymentInfo,
 	IEcpgData,
 	ICreatePaymentResponse,
 } from '@/external/EcpgPayment/types'
+import { ECPG_DATA } from '@/utils/env'
 
 /**
  * node-forge CDN（綠界 SDK 前端加密依賴，須在 SDK 之前載入）
@@ -53,7 +54,7 @@ const SUBMIT_BUTTON_ID = 'pc-ecpg-submit'
  * 正常情況由後端 order-received 頁輸出；若缺失則建立並附到頁面主內容，避免 SDK 渲染無處可去。
  *
  * @param containerId 容器 id（來自後端 build_sdk_config，固定 ECPayPayment）
- * @returns 容器元素
+ * @return 容器元素
  */
 const ensureContainer = (containerId: string): HTMLElement => {
 	const existing = document.getElementById(containerId)
@@ -62,6 +63,7 @@ const ensureContainer = (containerId: string): HTMLElement => {
 	}
 	const container = document.createElement('div')
 	container.id = containerId
+
 	// 優先掛在 WooCommerce order-received 區塊，否則退回 body
 	const host =
 		document.querySelector('.woocommerce-order') ||
@@ -76,11 +78,11 @@ const ensureContainer = (containerId: string): HTMLElement => {
  *
  * @param container SDK 渲染容器（#ECPayPayment）
  * @param onClick   點擊處理（取 PayToken 並送後端）
- * @returns 按鈕元素（供 disable / loading 控制）
+ * @return 按鈕元素（供 disable / loading 控制）
  */
 const renderSubmitButton = (
 	container: HTMLElement,
-	onClick: (button: HTMLButtonElement) => void,
+	onClick: (button: HTMLButtonElement) => void
 ): HTMLButtonElement => {
 	const existing = document.getElementById(SUBMIT_BUTTON_ID)
 	if (existing instanceof HTMLButtonElement) {
@@ -98,7 +100,10 @@ const renderSubmitButton = (
 }
 
 /** 切換按鈕 loading / disabled 狀態 */
-const setButtonLoading = (button: HTMLButtonElement, loading: boolean): void => {
+const setButtonLoading = (
+	button: HTMLButtonElement,
+	loading: boolean
+): void => {
 	button.disabled = loading
 	button.textContent = loading ? '處理中…' : '確認付款'
 }
@@ -108,10 +113,12 @@ const setButtonLoading = (button: HTMLButtonElement, loading: boolean): void => 
  *
  * jQuery → node-forge → sdk-1.0.0.js，缺一不可且須照順序（否則 SDK throw）。
  *
- * @returns window.ECPay（載入後注入）
+ * @return window.ECPay（載入後注入）
  * @throws SDK 或依賴載入失敗 / 載入後 window.ECPay 仍不存在
  */
-const loadEcpaySdk = async (sdkUrl: string): Promise<NonNullable<Window['ECPay']>> => {
+const loadEcpaySdk = async (
+	sdkUrl: string
+): Promise<NonNullable<Window['ECPay']>> => {
 	// jQuery：WP bundle handle 已宣告依賴，通常已存在；缺失才補載
 	if (typeof window.jQuery === 'undefined') {
 		await loadScript(JQUERY_URL)
@@ -128,14 +135,14 @@ const loadEcpaySdk = async (sdkUrl: string): Promise<NonNullable<Window['ECPay']
 /**
  * 取得 PayToken 後 POST create-payment，依回應導向 3DS 或顯示結果
  *
- * @param data      ECPG order-received 資料（含 create_payment_url / order_id / order_key）
- * @param payToken  SDK getPayToken 取得的 PayToken 字串
- * @param button    確認付款按鈕（控制 loading）
+ * @param data     ECPG order-received 資料（含 create_payment_url / order_id / order_key）
+ * @param payToken SDK getPayToken 取得的 PayToken 字串
+ * @param button   確認付款按鈕（控制 loading）
  */
 const submitPayment = async (
 	data: IEcpgData,
 	payToken: string,
-	button: HTMLButtonElement,
+	button: HTMLButtonElement
 ): Promise<void> => {
 	try {
 		const resp = await fetch(data.create_payment_url, {
@@ -223,30 +230,30 @@ const startEcpgPayment = async (data: IEcpgData): Promise<void> => {
 				// 渲染成功後才提供「確認付款」按鈕
 				const button = renderSubmitButton(container, (btn) => {
 					setButtonLoading(btn, true)
-					sdk.getPayToken(
-						(paymentInfo: IEcpayPaymentInfo | null, payErr) => {
-							if (payErr != null) {
-								ElMessage.error('取得付款資訊失敗，請確認卡片資訊')
-								setButtonLoading(btn, false)
-								// eslint-disable-next-line no-console
-								console.error('ECPay.getPayToken 失敗', payErr)
-								return
-							}
-							// paymentInfo.PayToken 才是字串，不可送整個物件
-							const payToken = paymentInfo?.PayToken
-							if (!payToken || typeof payToken !== 'string') {
-								ElMessage.error('PayToken 無效，請重新輸入卡片資訊')
-								setButtonLoading(btn, false)
-								return
-							}
-							void submitPayment(data, payToken, btn)
-						},
-					)
+					sdk.getPayToken((paymentInfo: IEcpayPaymentInfo | null, payErr) => {
+						if (payErr != null) {
+							ElMessage.error('取得付款資訊失敗，請確認卡片資訊')
+							setButtonLoading(btn, false)
+							// eslint-disable-next-line no-console
+							console.error('ECPay.getPayToken 失敗', payErr)
+							return
+						}
+
+						// paymentInfo.PayToken 才是字串，不可送整個物件
+						const payToken = paymentInfo?.PayToken
+						if (!payToken || typeof payToken !== 'string') {
+							ElMessage.error('PayToken 無效，請重新輸入卡片資訊')
+							setButtonLoading(btn, false)
+							return
+						}
+						void submitPayment(data, payToken, btn)
+					})
 				})
+
 				// 確保按鈕初始為可點擊
 				setButtonLoading(button, false)
 			},
-			'V2',
+			'V2'
 		)
 	})
 }
@@ -257,10 +264,11 @@ const startEcpgPayment = async (data: IEcpgData): Promise<void> => {
  * 由 js/src/index.ts 呼叫。無資料（非 ECPG order-received 頁 / 未成功取號）時靜默 return，
  * 不污染其他頁面。
  *
- * @returns void
+ * @return void
  */
 const MountEcpgPayment = (): void => {
 	const data = ECPG_DATA
+
 	// 無資料或無 token：非站內付 order-received 頁，不啟動
 	if (!data || !data.token) {
 		return

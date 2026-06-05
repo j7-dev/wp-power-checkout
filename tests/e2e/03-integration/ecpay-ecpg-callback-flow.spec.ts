@@ -35,11 +35,33 @@ let ecpgTradeNo: string | undefined
 let testProductId: number | undefined
 let setupError: string | undefined
 
+import * as fs from 'fs'
+import * as path from 'path'
+
+const AUTH_FILE = path.resolve(import.meta.dirname, '../.auth/admin.json')
+const storageStateOrUndefined = () =>
+  fs.existsSync(AUTH_FILE) ? AUTH_FILE : undefined
+
+// 認證型 context：帶 admin cookie + X-WP-Nonce，供 WC/REST 建單、查詢、刪除等需登入操作。
 async function newCtx() {
   return apiRequest.newContext({
     baseURL: BASE_URL,
     ignoreHTTPSErrors: true,
+    storageState: storageStateOrUndefined(),
     extraHTTPHeaders: { 'X-WP-Nonce': nonce, 'Content-Type': 'application/json' },
+  })
+}
+
+// Webhook context：模擬綠界 server-to-server 請求。
+// 必須明確清掉 config 繼承的 use.extraHTTPHeaders（X-WP-Nonce:''）與 use.storageState（cookie），
+// 否則 WP REST 會執行 cookie nonce 驗證並回 403。
+// extraHTTPHeaders:{} 取代（非合併）繼承的 header；空 storageState 清掉 cookie。
+async function newWebhookCtx() {
+  return apiRequest.newContext({
+    baseURL: BASE_URL,
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: {},
+    storageState: { cookies: [], origins: [] },
   })
 }
 
@@ -89,16 +111,22 @@ test.describe('綠界站內付 2.0（ECPG）ReturnURL 整合流程', () => {
   })
 
   // ─── 輔助：以 JSON POST 送 ECPG ReturnURL（不帶 WP 認證）────
+  // 刻意忽略傳入 request fixture，改用 webhook context（無 X-WP-Nonce），避免 403。
   async function sendEcpgReturn(
-    request: import('@playwright/test').APIRequestContext,
+    _request: import('@playwright/test').APIRequestContext,
     payload: Record<string, unknown>,
   ) {
-    const res = await request.post(`${BASE_URL}/wp-json/${EP.ECPAY_ECPG_RETURN}`, {
-      headers: { 'Content-Type': 'application/json' },
-      data: payload,
-    })
-    const text = await res.text().catch(() => '')
-    return { status: res.status(), text }
+    const ctx = await newWebhookCtx()
+    try {
+      const res = await ctx.post(`${BASE_URL}/wp-json/${EP.ECPAY_ECPG_RETURN}`, {
+        headers: { 'Content-Type': 'application/json' },
+        data: payload,
+      })
+      const text = await res.text().catch(() => '')
+      return { status: res.status(), text }
+    } finally {
+      await ctx.dispose()
+    }
   }
 
   async function getOrderStatus(

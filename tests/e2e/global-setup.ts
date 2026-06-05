@@ -71,6 +71,36 @@ async function globalSetup(_config: FullConfig) {
       // 清除失敗不影響測試
     }
 
+    // ── 3a-2. 建立共用測試商品（WC 10+ REST 建單要求 line_items 帶 product_id）──
+    let productId: number | undefined
+    try {
+      const productRes = await apiContext.post(
+        `${BASE_URL}/wp-json/wc/v3/products`,
+        {
+          headers: authHeaders,
+          data: {
+            name: '[E2E] Test Product',
+            type: 'simple',
+            regular_price: '1000',
+            status: 'publish',
+          },
+        },
+      )
+      if (productRes.ok()) {
+        productId = (await productRes.json()).id
+        console.log(`[Setup] 共用測試商品已建立: #${productId}`)
+      } else {
+        console.warn('[Setup] 建立測試商品失敗:', productRes.status(), await productRes.text().catch(() => ''))
+      }
+    } catch (e) {
+      console.warn('[Setup] 建立測試商品出錯:', (e as Error).message)
+    }
+    // line_items 需帶 product_id（WC 10+），fallback 保留 name/total 供舊站相容
+    const lineItem = (name: string, total: string) =>
+      productId
+        ? { product_id: productId, quantity: 1, total, name }
+        : { name, quantity: 1, total }
+
     // ── 3b. 建立 Gateway 退款測試訂單 ─────────────────────────
     const tradeOrderId = `e2e_trade_${Date.now()}`
     const orderRes = await apiContext.post(
@@ -89,13 +119,7 @@ async function globalSetup(_config: FullConfig) {
             city: 'Taipei',
             country: 'TW',
           },
-          line_items: [
-            {
-              name: '[E2E] Gateway Refund Product',
-              quantity: 1,
-              total: '1000',
-            },
-          ],
+          line_items: [lineItem('[E2E] Gateway Refund Product', '1000')],
           meta_data: [
             { key: '_pc_identity', value: 'e2e_test_session_id' },
             { key: '_pc_payment_identity', value: tradeOrderId },
@@ -130,13 +154,7 @@ async function globalSetup(_config: FullConfig) {
             city: 'Taipei',
             country: 'TW',
           },
-          line_items: [
-            {
-              name: '[E2E] Manual Refund Product',
-              quantity: 1,
-              total: '500',
-            },
-          ],
+          line_items: [lineItem('[E2E] Manual Refund Product', '500')],
         },
       },
     )
@@ -166,13 +184,7 @@ async function globalSetup(_config: FullConfig) {
             city: 'Taipei',
             country: 'TW',
           },
-          line_items: [
-            {
-              name: '[E2E] Invoice Test Product',
-              quantity: 1,
-              total: '800',
-            },
-          ],
+          line_items: [lineItem('[E2E] Invoice Test Product', '800')],
         },
       },
     )
@@ -202,13 +214,7 @@ async function globalSetup(_config: FullConfig) {
             city: 'Taipei',
             country: 'TW',
           },
-          line_items: [
-            {
-              name: '[E2E] Cancel Invoice Product',
-              quantity: 1,
-              total: '600',
-            },
-          ],
+          line_items: [lineItem('[E2E] Cancel Invoice Product', '600')],
           // 預設帶有已開立的發票 meta（模擬已透過 Amego 開立）
           meta_data: [
             {
@@ -251,13 +257,7 @@ async function globalSetup(_config: FullConfig) {
             city: 'Taipei',
             country: 'TW',
           },
-          line_items: [
-            {
-              name: '[E2E] LINE Pay Test Product',
-              quantity: 1,
-              total: '1000',
-            },
-          ],
+          line_items: [lineItem('[E2E] LINE Pay Test Product', '1000')],
           meta_data: [
             { key: '_pc_payment_identity', value: linePayTradeOrderId },
           ],
@@ -292,13 +292,7 @@ async function globalSetup(_config: FullConfig) {
             city: 'Taipei',
             country: 'TW',
           },
-          line_items: [
-            {
-              name: '[E2E] LINE Pay Failed Product',
-              quantity: 1,
-              total: '1000',
-            },
-          ],
+          line_items: [lineItem('[E2E] LINE Pay Failed Product', '1000')],
           meta_data: [
             { key: '_pc_payment_identity', value: linePayFailedTradeOrderId },
           ],
@@ -315,7 +309,7 @@ async function globalSetup(_config: FullConfig) {
       console.warn('[Setup] 建立 LINE Pay 失敗付款測試訂單失敗:', orderLinePayFailedRes.status())
     }
 
-    await context.dispose()
+    await context.close()
   } catch (e) {
     console.warn('[Setup] 建立測試資料時出錯（非致命）:', (e as Error).message)
   } finally {

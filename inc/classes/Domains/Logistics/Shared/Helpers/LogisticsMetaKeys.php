@@ -31,6 +31,9 @@ final class LogisticsMetaKeys {
 	/** @var string 統一物流單號（= 綠界 LogisticsID；成立物流單後寫入；下游主鍵） */
 	private const REF_KEY = '_pc_logistics_ref';
 
+	/** @var string 逆物流（退貨）單號（= 綠界 ReturnLogisticsID；建立退貨單後寫入；逆物流貨態反查用） */
+	private const RETURN_REF_KEY = '_pc_logistics_return_ref';
+
 	/** @var string 選定門市代碼（超商，選店回呼寫入） */
 	private const STORE_ID_KEY = '_pc_logistics_store_id';
 
@@ -165,6 +168,21 @@ final class LogisticsMetaKeys {
 	 */
 	public function update_ref( string $value ): void {
 		$this->update_string( self::REF_KEY, $value );
+	}
+
+	/** @return string 取得逆物流（退貨）單號（ReturnLogisticsID） */
+	public function get_return_ref(): string {
+		return $this->get_string( self::RETURN_REF_KEY );
+	}
+
+	/**
+	 * 儲存逆物流（退貨）單號（ReturnLogisticsID）
+	 *
+	 * @param string $value ReturnLogisticsID
+	 * @return void
+	 */
+	public function update_return_ref( string $value ): void {
+		$this->update_string( self::RETURN_REF_KEY, $value );
 	}
 
 	// endregion
@@ -367,8 +385,10 @@ final class LogisticsMetaKeys {
 	 * 以統一物流單號（LogisticsID）反查訂單
 	 *
 	 * 貨態 callback（ServerReplyURL）只帶 LogisticsID，須反查訂單主鍵（計畫 T6）。
+	 * 逆物流貨態通知帶的是 ReturnLogisticsID，故同時比對正向 REF_KEY 與逆物流 RETURN_REF_KEY，
+	 * 讓正向與逆物流貨態 callback 共用同一反查入口（先查正向，查無再查逆物流）。
 	 *
-	 * @param string $logistics_id 統一物流單號（LogisticsID）
+	 * @param string $logistics_id 統一物流單號（LogisticsID 或 ReturnLogisticsID）
 	 * @return \WC_Order|null
 	 */
 	public static function get_order_by_ref( string $logistics_id ): \WC_Order|null {
@@ -376,14 +396,20 @@ final class LogisticsMetaKeys {
 			return null;
 		}
 
-		$args = [
-			'limit'      => 1,
-			'meta_key'   => self::REF_KEY, // phpcs:ignore
-			'meta_value' => $logistics_id, // phpcs:ignore
-		];
+		foreach ( [ self::REF_KEY, self::RETURN_REF_KEY ] as $meta_key ) {
+			$orders = \wc_get_orders(
+				[
+					'limit'      => 1,
+					'meta_key'   => $meta_key, // phpcs:ignore
+					'meta_value' => $logistics_id, // phpcs:ignore
+				]
+			);
+			$order  = \reset( $orders );
+			if ($order instanceof \WC_Order) {
+				return $order;
+			}
+		}
 
-		$orders = \wc_get_orders( $args );
-		$order  = \reset( $orders );
-		return ( $order instanceof \WC_Order ) ? $order : null;
+		return null;
 	}
 }

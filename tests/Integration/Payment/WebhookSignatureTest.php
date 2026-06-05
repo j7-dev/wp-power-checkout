@@ -81,7 +81,10 @@ final class WebhookSignatureTest extends TestCase {
 					'merchantId'       => 'MERCHANT_TEST',
 					'referenceOrderId' => 'REF_001',
 					'createTime'       => time(),
-					'amount'           => [ 'value' => 10000, 'currency' => 'TWD' ],
+					'amount'           => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
 					'customer'         => [
 						'referenceCustomerId' => 'CUSTOMER_001',
 						'customerId'          => 'SLP_CUSTOMER_001',
@@ -90,7 +93,10 @@ final class WebhookSignatureTest extends TestCase {
 				'payment'          => [
 					'paymentMethod'   => 'CreditCard',
 					'paymentBehavior' => 'Regular',
-					'paidAmount'      => [ 'value' => 10000, 'currency' => 'TWD' ],
+					'paidAmount'      => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
 				],
 			],
 		];
@@ -121,7 +127,10 @@ final class WebhookSignatureTest extends TestCase {
 					'merchantId'       => 'MERCHANT_TEST',
 					'referenceOrderId' => 'REF_001',
 					'createTime'       => time(),
-					'amount'           => [ 'value' => 10000, 'currency' => 'TWD' ],
+					'amount'           => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
 					'customer'         => [
 						'referenceCustomerId' => 'CUSTOMER_001',
 						'customerId'          => 'SLP_CUSTOMER_001',
@@ -130,7 +139,10 @@ final class WebhookSignatureTest extends TestCase {
 				'payment'          => [
 					'paymentMethod'   => 'CreditCard',
 					'paymentBehavior' => 'Regular',
-					'paidAmount'      => [ 'value' => 10000, 'currency' => 'TWD' ],
+					'paidAmount'      => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
 				],
 			]
 		);
@@ -165,7 +177,10 @@ final class WebhookSignatureTest extends TestCase {
 					'merchantId'       => 'MERCHANT_TEST',
 					'referenceOrderId' => 'REF_002',
 					'createTime'       => time(),
-					'amount'           => [ 'value' => 10000, 'currency' => 'TWD' ],
+					'amount'           => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
 					'customer'         => [
 						'referenceCustomerId' => 'CUSTOMER_001',
 						'customerId'          => 'SLP_CUSTOMER_001',
@@ -174,7 +189,10 @@ final class WebhookSignatureTest extends TestCase {
 				'payment'          => [
 					'paymentMethod'   => 'CreditCard',
 					'paymentBehavior' => 'Regular',
-					'paidAmount'      => [ 'value' => 10000, 'currency' => 'TWD' ],
+					'paidAmount'      => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
 				],
 			]
 		);
@@ -279,11 +297,11 @@ final class WebhookSignatureTest extends TestCase {
 	 */
 	public function test_簽章使用timing_safe比較防止timing_attack(): void {
 		// Given: 兩個長度相同但內容不同的簽章
-		$sign_key    = 'key';
-		$payload1    = 'payload1';
-		$payload2    = 'payload2';
-		$sig1        = hash_hmac( 'sha256', $payload1, $sign_key );
-		$fake_sig    = hash_hmac( 'sha256', $payload2, $sign_key );
+		$sign_key = 'key';
+		$payload1 = 'payload1';
+		$payload2 = 'payload2';
+		$sig1     = hash_hmac( 'sha256', $payload1, $sign_key );
+		$fake_sig = hash_hmac( 'sha256', $payload2, $sign_key );
 
 		// When: 使用 hash_equals（timing-safe）比較
 		$is_equal = hash_equals( $sig1, $fake_sig );

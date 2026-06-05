@@ -61,25 +61,43 @@ async function newCtx() {
   })
 }
 
+// Webhook context：模擬綠界 server-to-server 回呼。
+// 必須明確清掉 config 繼承的 use.extraHTTPHeaders（X-WP-Nonce:''）與 use.storageState（cookie），
+// 否則帶 nonce/cookie 會觸發 WP REST cookie nonce 驗證並回 403（rest_cookie_invalid_nonce）。
+async function newWebhookCtx() {
+  return apiRequest.newContext({
+    baseURL: BASE_URL,
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: {},
+    storageState: { cookies: [], origins: [] },
+  })
+}
+
 /**
  * 以 JSON POST 送 status-callback（不帶 WP 認證，模擬 ECPay 回呼）
+ * 刻意忽略傳入的 request fixture，改用 webhook context（無 nonce/cookie），避免 403。
  */
 async function sendStatusCallback(
-  request: import('@playwright/test').APIRequestContext,
+  _request: import('@playwright/test').APIRequestContext,
   payload: Record<string, unknown>,
 ) {
-  const res = await request.post(`${BASE_URL}/wp-json/${LOGISTICS_EP.STATUS_CALLBACK}`, {
-    headers: { 'Content-Type': 'application/json' },
-    data: payload,
-  })
-  const text = await res.text().catch(() => '')
-  let json: AnyRecord | null = null
+  const ctx = await newWebhookCtx()
   try {
-    json = JSON.parse(text) as AnyRecord
-  } catch {
-    // 非 JSON 回應
+    const res = await ctx.post(`${BASE_URL}/wp-json/${LOGISTICS_EP.STATUS_CALLBACK}`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: payload,
+    })
+    const text = await res.text().catch(() => '')
+    let json: AnyRecord | null = null
+    try {
+      json = JSON.parse(text) as AnyRecord
+    } catch {
+      // 非 JSON 回應
+    }
+    return { status: res.status(), text, json }
+  } finally {
+    await ctx.dispose()
   }
-  return { status: res.status(), text, json }
 }
 
 /**

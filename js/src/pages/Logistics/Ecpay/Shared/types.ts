@@ -14,8 +14,10 @@ export type TFormData = {
 	// --- 一般設定 --- //
 	title: string
 	description: string
+
 	// --- API / 模式 --- //
 	mode: `${EEcpayLogisticsMode}`
+
 	// --- 帳號類型與兩組憑證 --- //
 	account_type: `${EEcpayLogisticsAccountType}`
 	b2c_merchant_id: string
@@ -24,6 +26,7 @@ export type TFormData = {
 	c2c_merchant_id: string
 	c2c_hash_key: string
 	c2c_hash_iv: string
+
 	// --- 物流方式與寄件人 --- //
 	enabled_methods: `${EEcpayLogisticsSubType}`[]
 	sender_name: string

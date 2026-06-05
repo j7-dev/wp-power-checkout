@@ -41,11 +41,14 @@ final class LinePayTest extends TestCase {
 				'tradeOrderId'     => $trade_order_id,
 				'status'           => $status,
 				'order'            => [
-					'merchantId'          => 'MERCHANT_TEST',
-					'referenceOrderId'    => 'REF_LINEPAY_001',
-					'createTime'          => time(),
-					'amount'              => [ 'value' => 100000, 'currency' => 'TWD' ],
-					'customer'            => [
+					'merchantId'       => 'MERCHANT_TEST',
+					'referenceOrderId' => 'REF_LINEPAY_001',
+					'createTime'       => time(),
+					'amount'           => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
+					'customer'         => [
 						'referenceCustomerId' => 'CUSTOMER_LINEPAY_001',
 						'customerId'          => 'SLP_CUSTOMER_LINEPAY_001',
 					],
@@ -53,7 +56,10 @@ final class LinePayTest extends TestCase {
 				'payment'          => [
 					'paymentMethod'   => 'LinePay',
 					'paymentBehavior' => 'Regular',
-					'paidAmount'      => [ 'value' => 100000, 'currency' => 'TWD' ],
+					'paidAmount'      => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
 				],
 			]
 		);
@@ -235,7 +241,10 @@ final class LinePayTest extends TestCase {
 					'merchantId'       => 'MERCHANT_TEST',
 					'referenceOrderId' => 'REF_BODY_001',
 					'createTime'       => time(),
-					'amount'           => [ 'value' => 100000, 'currency' => 'TWD' ],
+					'amount'           => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
 					'customer'         => [
 						'referenceCustomerId' => 'C1',
 						'customerId'          => 'SC1',
@@ -244,7 +253,10 @@ final class LinePayTest extends TestCase {
 				'payment'          => [
 					'paymentMethod'   => 'LinePay',
 					'paymentBehavior' => 'Regular',
-					'paidAmount'      => [ 'value' => 100000, 'currency' => 'TWD' ],
+					'paidAmount'      => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
 				],
 			],
 		];
@@ -279,7 +291,10 @@ final class LinePayTest extends TestCase {
 					'merchantId'       => 'MERCHANT_TEST',
 					'referenceOrderId' => 'REF_FAIL_001',
 					'createTime'       => time(),
-					'amount'           => [ 'value' => 100000, 'currency' => 'TWD' ],
+					'amount'           => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
 					'customer'         => [
 						'referenceCustomerId' => 'C1',
 						'customerId'          => 'SC1',
@@ -288,7 +303,10 @@ final class LinePayTest extends TestCase {
 				'payment'          => [
 					'paymentMethod'   => 'LinePay',
 					'paymentBehavior' => 'Regular',
-					'paidAmount'      => [ 'value' => 0, 'currency' => 'TWD' ],
+					'paidAmount'      => [
+						'value'    => 0,
+						'currency' => 'TWD',
+					],
 				],
 			],
 		];
@@ -361,23 +379,34 @@ final class LinePayTest extends TestCase {
 	 */
 	public function test_LinePay_is_successed_or_failed_成功狀態回傳true(): void {
 		// Given: 一個 SUCCEEDED 狀態的 LINE Pay webhook DTO
-		$dto = WebhookPaymentDTO::create( [
-			'referenceOrderId' => 'REF_001',
-			'tradeOrderId'     => 'TRADE_001',
-			'status'           => 'SUCCEEDED',
-			'order'            => [
-				'merchantId'       => 'M1',
+		$dto = WebhookPaymentDTO::create(
+			[
 				'referenceOrderId' => 'REF_001',
-				'createTime'       => time(),
-				'amount'           => [ 'value' => 100000, 'currency' => 'TWD' ],
-				'customer'         => [ 'referenceCustomerId' => 'C1', 'customerId' => 'SC1' ],
-			],
-			'payment'          => [
-				'paymentMethod'   => 'LinePay',
-				'paymentBehavior' => 'Regular',
-				'paidAmount'      => [ 'value' => 100000, 'currency' => 'TWD' ],
-			],
-		] );
+				'tradeOrderId'     => 'TRADE_001',
+				'status'           => 'SUCCEEDED',
+				'order'            => [
+					'merchantId'       => 'M1',
+					'referenceOrderId' => 'REF_001',
+					'createTime'       => time(),
+					'amount'           => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
+					'customer'         => [
+						'referenceCustomerId' => 'C1',
+						'customerId'          => 'SC1',
+					],
+				],
+				'payment'          => [
+					'paymentMethod'   => 'LinePay',
+					'paymentBehavior' => 'Regular',
+					'paidAmount'      => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
+				],
+			]
+			);
 
 		// Then: is_successed_or_failed 應回傳 true
 		$this->assertTrue( $dto->is_successed_or_failed() );
@@ -389,23 +418,34 @@ final class LinePayTest extends TestCase {
 	 */
 	public function test_LinePay_is_successed_or_failed_失敗狀態回傳true(): void {
 		// Given: 一個 FAILED 狀態的 LINE Pay webhook DTO
-		$dto = WebhookPaymentDTO::create( [
-			'referenceOrderId' => 'REF_002',
-			'tradeOrderId'     => 'TRADE_002',
-			'status'           => 'FAILED',
-			'order'            => [
-				'merchantId'       => 'M1',
+		$dto = WebhookPaymentDTO::create(
+			[
 				'referenceOrderId' => 'REF_002',
-				'createTime'       => time(),
-				'amount'           => [ 'value' => 100000, 'currency' => 'TWD' ],
-				'customer'         => [ 'referenceCustomerId' => 'C1', 'customerId' => 'SC1' ],
-			],
-			'payment'          => [
-				'paymentMethod'   => 'LinePay',
-				'paymentBehavior' => 'Regular',
-				'paidAmount'      => [ 'value' => 0, 'currency' => 'TWD' ],
-			],
-		] );
+				'tradeOrderId'     => 'TRADE_002',
+				'status'           => 'FAILED',
+				'order'            => [
+					'merchantId'       => 'M1',
+					'referenceOrderId' => 'REF_002',
+					'createTime'       => time(),
+					'amount'           => [
+						'value'    => 100000,
+						'currency' => 'TWD',
+					],
+					'customer'         => [
+						'referenceCustomerId' => 'C1',
+						'customerId'          => 'SC1',
+					],
+				],
+				'payment'          => [
+					'paymentMethod'   => 'LinePay',
+					'paymentBehavior' => 'Regular',
+					'paidAmount'      => [
+						'value'    => 0,
+						'currency' => 'TWD',
+					],
+				],
+			]
+			);
 
 		// Then: is_successed_or_failed 應回傳 true
 		$this->assertTrue( $dto->is_successed_or_failed() );

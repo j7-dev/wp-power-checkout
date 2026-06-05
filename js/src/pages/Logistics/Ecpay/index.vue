@@ -1,18 +1,19 @@
 <script lang="ts" setup>
 import { Back, InfoFilled } from '@element-plus/icons-vue'
-import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
 import { merge, pick } from 'lodash-es'
-import { TFormData } from '@/pages/Logistics/Ecpay/Shared/types'
+import { computed, reactive, ref, toRaw, watch } from 'vue'
+
+import apiClient from '@/api'
+import TrimmedInput from '@/components/TrimmedInput.vue'
+import { env } from '@/index'
 import {
 	EEcpayLogisticsAccountType,
 	LOGISTICS_ACCOUNT_TYPE_OPTIONS,
 	LOGISTICS_SUB_TYPE_OPTIONS,
 } from '@/pages/Logistics/Ecpay/Shared/enums'
-import TrimmedInput from '@/components/TrimmedInput.vue'
-import { env } from '@/index'
+import { TFormData } from '@/pages/Logistics/Ecpay/Shared/types'
 
 const gatewayId = 'ecpay_logistics'
 const isLocal = env?.IS_LOCAL ?? false
@@ -36,8 +37,10 @@ const form = reactive<TFormData>({
 	// --- 一般設定 --- //
 	title: '',
 	description: '',
+
 	// --- API / 模式 --- //
 	mode: 'prod',
+
 	// --- 帳號類型與兩組憑證 --- //
 	account_type: 'b2c',
 	b2c_merchant_id: '',
@@ -46,6 +49,7 @@ const form = reactive<TFormData>({
 	c2c_merchant_id: '',
 	c2c_hash_key: '',
 	c2c_hash_iv: '',
+
 	// --- 物流方式與寄件人 --- //
 	enabled_methods: [],
 	sender_name: '',
@@ -64,15 +68,16 @@ watch(
 				filteredData.mode = 'prod'
 			}
 			merge(form, filteredData)
+
 			// 將 API 回傳資料輸入表單
 		}
 	},
-	{ immediate: true },
+	{ immediate: true }
 )
 
 const isTestMode = computed(() => form.mode === 'test')
 const isB2c = computed(
-	() => form.account_type === EEcpayLogisticsAccountType.B2C,
+	() => form.account_type === EEcpayLogisticsAccountType.B2C
 )
 
 const onSubmit = async () => {
@@ -130,10 +135,10 @@ const rules = computed<FormRules<TFormData>>(() => {
 	</div>
 
 	<el-form
+		ref="formRef"
 		v-loading="isPending"
 		element-loading-background="rgba(255, 255, 255, 0)"
 		:model="form"
-		ref="formRef"
 		label-position="right"
 		label-width="auto"
 		:class="{
@@ -148,7 +153,12 @@ const rules = computed<FormRules<TFormData>>(() => {
 			<el-input v-model="form.title" clearable />
 		</el-form-item>
 		<el-form-item prop="description" label="描述">
-			<el-input v-model="form.description" type="textarea" :rows="2" clearable />
+			<el-input
+				v-model="form.description"
+				type="textarea"
+				:rows="2"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-divider>物流方式</el-divider>
@@ -270,7 +280,11 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item :required="!isTestMode" prop="b2c_hash_key" label="B2C HashKey">
+			<el-form-item
+				:required="!isTestMode"
+				prop="b2c_hash_key"
+				label="B2C HashKey"
+			>
 				<TrimmedInput
 					v-model="form.b2c_hash_key"
 					:disabled="isTestMode"
@@ -278,7 +292,11 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item :required="!isTestMode" prop="b2c_hash_iv" label="B2C HashIV">
+			<el-form-item
+				:required="!isTestMode"
+				prop="b2c_hash_iv"
+				label="B2C HashIV"
+			>
 				<TrimmedInput
 					v-model="form.b2c_hash_iv"
 					:disabled="isTestMode"
@@ -308,7 +326,11 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item :required="!isTestMode" prop="c2c_hash_key" label="C2C HashKey">
+			<el-form-item
+				:required="!isTestMode"
+				prop="c2c_hash_key"
+				label="C2C HashKey"
+			>
 				<TrimmedInput
 					v-model="form.c2c_hash_key"
 					:disabled="isTestMode"
@@ -316,7 +338,11 @@ const rules = computed<FormRules<TFormData>>(() => {
 				/>
 			</el-form-item>
 
-			<el-form-item :required="!isTestMode" prop="c2c_hash_iv" label="C2C HashIV">
+			<el-form-item
+				:required="!isTestMode"
+				prop="c2c_hash_iv"
+				label="C2C HashIV"
+			>
 				<TrimmedInput
 					v-model="form.c2c_hash_iv"
 					:disabled="isTestMode"

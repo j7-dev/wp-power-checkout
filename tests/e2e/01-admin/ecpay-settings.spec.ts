@@ -22,7 +22,8 @@
  *       若後端尚未啟用對應 provider，相關案例以 test.skip 安全跳過，不誤判為失敗。
  */
 import { test, expect } from '@playwright/test'
-import { wpGet, wpPost, type ApiOptions } from '../helpers/api-client.js'
+import type { APIRequestContext } from '@playwright/test'
+import { wpGet, wpPost, createApiContext, type ApiOptions } from '../helpers/api-client.js'
 import { getNonce } from '../helpers/admin-setup.js'
 import { BASE_URL, EP, PROVIDERS, EDGE } from '../fixtures/test-data.js'
 import { ECPAY_AIO_TEST } from '../helpers/ecpay-checkmacvalue.js'
@@ -32,11 +33,32 @@ type AnyRecord = Record<string, unknown>
 const unwrap = (res: { data: unknown }) =>
   ((res.data as AnyRecord).data ?? res.data) as AnyRecord
 
+/**
+ * /settings 的 gateways / invoices / logistics 實際以「provider_id => DTO」物件回傳
+ * （PHP associative array），非 JSON 陣列。此 helper 取得 provider id 清單，
+ * 同時容忍兩種形態（物件或陣列）。
+ */
+const toIdList = (collection: unknown): string[] => {
+  if (Array.isArray(collection)) {
+    return collection.map((c) => (c as AnyRecord).id as string)
+  }
+  if (collection && typeof collection === 'object') {
+    return Object.keys(collection as AnyRecord)
+  }
+  return []
+}
+
 test.describe('綠界 ECPay 設定頁', () => {
   let opts: ApiOptions
+  let ctx: APIRequestContext
 
-  test.beforeAll(async ({ request }) => {
-    opts = { request, baseURL: BASE_URL, nonce: getNonce() }
+  test.beforeAll(async () => {
+    ctx = await createApiContext(BASE_URL)
+    opts = { request: ctx, baseURL: BASE_URL, nonce: getNonce() }
+  })
+
+  test.afterAll(async () => {
+    await ctx.dispose()
   })
 
   // ─── 未授權 ───────────────────────────────────────────────
@@ -54,8 +76,7 @@ test.describe('綠界 ECPay 設定頁', () => {
       const res = await wpGet(opts, EP.SETTINGS_ALL)
       expect(res.status).toBe(200)
       const data = unwrap(res)
-      const gateways = (data.gateways as AnyRecord[]) ?? []
-      const ids = gateways.map((g) => g.id as string)
+      const ids = toIdList(data.gateways)
 
       // SLP 一定在；ECPay 視後端註冊狀態
       expect(ids).toContain(PROVIDERS.SLP)
@@ -71,8 +92,7 @@ test.describe('綠界 ECPay 設定頁', () => {
       const res = await wpGet(opts, EP.SETTINGS_ALL)
       expect(res.status).toBe(200)
       const data = unwrap(res)
-      const invoices = (data.invoices as AnyRecord[]) ?? []
-      const ids = invoices.map((i) => i.id as string)
+      const ids = toIdList(data.invoices)
 
       expect(ids).toContain(PROVIDERS.AMEGO)
       test.skip(

@@ -7,7 +7,9 @@ export const ROUTER_MAPPER = {
 	ecpay_ecpg: '/payments/ecpay_ecpg',
 	amego: '/invoices/amego',
 	ecpay: '/invoices/ecpay',
+	ecpay_receipt: '/receipts/ecpay_receipt',
 	ecpay_logistics: '/logistics/ecpay_logistics',
+	payuni_logistics: '/logistics/payuni_logistics',
 }
 
 const routes = [
@@ -25,10 +27,17 @@ const routes = [
 		path: '/payments/ecpay_ecpg',
 		component: () => import('@/pages/Payments/EcpayEcpg/index.vue'),
 	},
-	{ path: '/logistics', component: () => import('@/pages/Logistics/index.vue') },
+	{
+		path: '/logistics',
+		component: () => import('@/pages/Logistics/index.vue'),
+	},
 	{
 		path: '/logistics/ecpay_logistics',
 		component: () => import('@/pages/Logistics/Ecpay/index.vue'),
+	},
+	{
+		path: '/logistics/payuni_logistics',
+		component: () => import('@/pages/Logistics/Payuni/index.vue'),
 	},
 	{ path: '/invoices', component: () => import('@/pages/Invoices/index.vue') },
 	{
@@ -38,6 +47,11 @@ const routes = [
 	{
 		path: '/invoices/ecpay',
 		component: () => import('@/pages/Invoices/Ecpay/index.vue'),
+	},
+	{ path: '/receipts', component: () => import('@/pages/Receipts/index.vue') },
+	{
+		path: '/receipts/ecpay_receipt',
+		component: () => import('@/pages/Receipts/Ecpay/index.vue'),
 	},
 	{ path: '/settings', component: () => import('@/pages/Settings.vue') },
 ]

@@ -23,6 +23,7 @@ use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\IssueResponse;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Shared\Enums\EApi;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Shared\Helpers\AesCrypto;
+use J7\PowerCheckout\Domains\Invoice\Ecpay\Shared\Helpers\PiiMasker;
 
 /** 綠界電子發票 API client */
 final class InvoiceApiClient {
@@ -93,7 +94,8 @@ final class InvoiceApiClient {
 				'info',
 				[
 					'api_url' => $api_url,
-					'data'    => $data,
+					// 安全：遮蔽 PII（Email / 手機 / 統編 / 載具 / 姓名 / 地址）後才入 log
+					'data'    => PiiMasker::mask_invoice_data( $data ),
 				],
 			);
 
@@ -131,7 +133,8 @@ final class InvoiceApiClient {
 			EcpayInvoiceProvider::logger(
 				"✅ {$api->label()} {$api->value} 成功 #{$this->order->get_id()}",
 				'info',
-				$api->is_issue() ? $decrypted : [],
+				// 安全：成功回應寫入 order note 前同樣遮蔽 PII（發票號碼等非 PII 保留）
+				$api->is_issue() ? PiiMasker::mask_invoice_data( $decrypted ) : [],
 				0,
 				$this->order
 			);

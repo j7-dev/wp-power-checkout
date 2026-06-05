@@ -1,7 +1,7 @@
 import { registerPaymentMethod } from '@woocommerce/blocks-registry'
-import { __ } from '@wordpress/i18n'
-import { decodeEntities } from '@wordpress/html-entities'
 import { getSetting } from '@woocommerce/settings'
+import { decodeEntities } from '@wordpress/html-entities'
+import { __ } from '@wordpress/i18n'
 
 const id = 'ecpay_ecpg'
 
@@ -25,7 +25,7 @@ const description =
 	decodeEntities(settings.description || '') ||
 	__(
 		'點擊下單後，將於確認頁輸入信用卡資訊（站內安全收單，不離開網站）。',
-		'power_checkout',
+		'power_checkout'
 	)
 
 /**
@@ -57,6 +57,7 @@ const options = {
 	paymentMethodId: id,
 	supports: {
 		features,
+
 		// 站內付 SDK 自行收集卡片資訊（order-received 頁），不使用 WC 內建儲存卡功能
 		showSavedCards: false,
 		showSaveOption: false,

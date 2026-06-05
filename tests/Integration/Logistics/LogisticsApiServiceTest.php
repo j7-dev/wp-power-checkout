@@ -428,4 +428,92 @@ final class LogisticsApiServiceTest extends TestCase {
 		// Then
 		$this->assertSame( 404, $response->get_status() );
 	}
+
+	// ========== return（退貨 / 逆物流） ==========
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_退貨端點_happy回傳return_logistics_id(): void {
+		// Given: 已成立正向物流單（FAMI）
+		$order = $this->create_wc_order(
+			[
+				'status' => 'processing',
+				'total'  => 1000,
+			]
+		);
+		$meta  = new LogisticsMetaKeys( $order );
+		$meta->update_ref( '1234567890' );
+		$meta->update_sub_type( 'FAMI' );
+
+		$request = new \WP_REST_Request( 'POST', "/power-checkout/v1/logistics/{$order->get_id()}/return" );
+		$request->set_param( 'id', (string) $order->get_id() );
+
+		// When
+		$response = LogisticsApiService::instance()->post_logistics_with_id_return_callback( $request );
+
+		// Then
+		$this->assertSame( 200, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertSame( 'success', $data['code'] );
+		$this->assertArrayHasKey( 'return_logistics_id', $data['data'] );
+		$this->assertNotEmpty( $data['data']['return_logistics_id'] );
+	}
+
+	/**
+	 * @test
+	 * @group error
+	 */
+	public function test_退貨端點_provider未啟用回403(): void {
+		// Given: 停用 provider
+		$this->disable_provider( EcpayLogisticsProvider::ID );
+		EcpayLogisticsSettingsDTO::reset();
+		ProviderUtils::$container = [];
+
+		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
+		( new LogisticsMetaKeys( $order ) )->update_ref( '1234567890' );
+
+		$request = new \WP_REST_Request( 'POST', "/power-checkout/v1/logistics/{$order->get_id()}/return" );
+		$request->set_param( 'id', (string) $order->get_id() );
+
+		// When
+		$response = LogisticsApiService::instance()->post_logistics_with_id_return_callback( $request );
+
+		// Then
+		$this->assertSame( 403, $response->get_status() );
+	}
+
+	/**
+	 * @test
+	 * @group error
+	 */
+	public function test_退貨端點_訂單不存在回404(): void {
+		// Given
+		$request = new \WP_REST_Request( 'POST', '/power-checkout/v1/logistics/999999999/return' );
+		$request->set_param( 'id', '999999999' );
+
+		// When
+		$response = LogisticsApiService::instance()->post_logistics_with_id_return_callback( $request );
+
+		// Then
+		$this->assertSame( 404, $response->get_status() );
+	}
+
+	/**
+	 * @test
+	 * @group error
+	 */
+	public function test_退貨端點_無正向物流單回403(): void {
+		// Given: 訂單無 _pc_logistics_ref
+		$order   = $this->create_wc_order( [ 'status' => 'processing' ] );
+		$request = new \WP_REST_Request( 'POST', "/power-checkout/v1/logistics/{$order->get_id()}/return" );
+		$request->set_param( 'id', (string) $order->get_id() );
+
+		// When
+		$response = LogisticsApiService::instance()->post_logistics_with_id_return_callback( $request );
+
+		// Then
+		$this->assertSame( 403, $response->get_status() );
+	}
 }

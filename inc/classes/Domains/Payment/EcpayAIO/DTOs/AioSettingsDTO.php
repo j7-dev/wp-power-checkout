@@ -72,12 +72,38 @@ final class AioSettingsDTO extends DTO implements IGatewaySettings {
 	// region 付款方式與分期設定
 
 	/**
-	 * @var array<string> 允許的付款方式（對齊 EcpayPaymentMethod::value 的 ChoosePayment 全集 D4）
+	 * @var array<string> 允許的付款方式（對齊 EcpayPaymentMethod::value）
 	 *
-	 * 預設全集：Credit / ATM / WebATM / CVS / BARCODE / ApplePay。
-	 * 組裝請求時固定送 ChoosePayment=ALL，再由此白名單反推 IgnorePayment。
+	 * 預設：Credit / ATM / WebATM / CVS / BARCODE / ApplePay（6 種基本付款方式）。
+	 *
+	 * ⚠️ 預設「不」含 TWQR / BNPL / WeiXin —— 此三者需商家先向綠界申請開通，
+	 * 開通後再由本設定頁勾選。組裝請求時固定送 ChoosePayment=ALL，再由此白名單反推 IgnorePayment。
+	 * 銀聯不在此白名單（走 ChoosePayment=Credit + UnionPay），改由 $unionPayEnabled / $unionPay 控制。
 	 */
 	public array $allowedPayments = [ 'Credit', 'ATM', 'WebATM', 'CVS', 'BARCODE', 'ApplePay' ];
+
+	/**
+	 * @var string BNPL 無卡分期貸款業者（''｜'URICH' 裕富｜'ZINGALA' 中租）
+	 *
+	 * 空字串代表不指定（由綠界後台「無卡分期切換設定」決定）。
+	 * Source: developers.ecpay.com.tw/36659.md
+	 */
+	public string $bnplSubPayment = '';
+
+	/**
+	 * @var bool 是否啟用銀聯卡（需先向綠界申請）
+	 *
+	 * 預設 false（不送 UnionPay 參數）。啟用後依 $unionPay 決定行為。
+	 * Source: developers.ecpay.com.tw/2866.md
+	 */
+	public bool $unionPayEnabled = false;
+
+	/**
+	 * @var int 銀聯卡交易選項（0 消費者可選 / 1 強制導向銀聯 / 2 隱藏銀聯）
+	 *
+	 * 僅在 $unionPayEnabled 為 true 時生效。
+	 */
+	public int $unionPay = 0;
 
 	/** @var array<int> 信用卡分期期數 */
 	public array $installmentPeriods = [ 3, 6, 12, 18, 24, 30 ];
@@ -108,12 +134,20 @@ final class AioSettingsDTO extends DTO implements IGatewaySettings {
 			$this->dto_data = StrHelper::trim_invisible_deep( $this->dto_data );
 		}
 
-		$int_keys = [ 'minAmount', 'maxAmount', 'expireDate' ];
+		$int_keys = [ 'minAmount', 'maxAmount', 'expireDate', 'unionPay' ];
 		foreach ( $int_keys as $key ) {
 			if ( ! isset( $this->dto_data[ $key ] ) ) {
 				continue;
 			}
 			$this->dto_data[ $key ] = (int) $this->dto_data[ $key ];
+		}
+
+		// unionPayEnabled 正規化為 bool（admin form 可能送 '1'/'0'/'yes'/'true' 或布林）
+		if ( isset( $this->dto_data['unionPayEnabled'] ) ) {
+			$this->dto_data['unionPayEnabled'] = \filter_var(
+				$this->dto_data['unionPayEnabled'],
+				FILTER_VALIDATE_BOOLEAN
+			);
 		}
 
 		// installmentPeriods 一律正規化為 int（admin form 送來可能是字串，
@@ -164,6 +198,14 @@ final class AioSettingsDTO extends DTO implements IGatewaySettings {
 		// 驗證白名單內每個付款方式皆為綠界允許值
 		foreach ( $this->allowedPayments as $payment_method ) {
 			EcpayPaymentMethod::from( $payment_method );
+		}
+		// BNPL 貸款業者：空字串（不指定）或 URICH / ZINGALA
+		if ( '' !== $this->bnplSubPayment && ! \in_array( $this->bnplSubPayment, [ 'URICH', 'ZINGALA' ], true ) ) {
+			throw new \Exception( "bnplSubPayment 必須為 URICH 或 ZINGALA，收到：{$this->bnplSubPayment}" );
+		}
+		// 銀聯選項：僅 0 / 1 / 2
+		if ( ! \in_array( $this->unionPay, [ 0, 1, 2 ], true ) ) {
+			throw new \Exception( "unionPay 必須為 0、1 或 2，收到：{$this->unionPay}" );
 		}
 	}
 }

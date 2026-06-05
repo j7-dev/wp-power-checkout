@@ -26,6 +26,7 @@ final class Bootstrap {
 		Domains\Settings\Services\SettingTabService::register_hooks();
 		Domains\Settings\Services\DefaultSetting::register_hooks();
 		Domains\Invoice\ProviderRegister::register_hooks();
+		Domains\Receipt\ProviderRegister::register_hooks();
 		Domains\Logistics\ProviderRegister::register_hooks();
 
 		\add_action( 'before_woocommerce_init', [ __CLASS__, 'declare_compatibility' ] );

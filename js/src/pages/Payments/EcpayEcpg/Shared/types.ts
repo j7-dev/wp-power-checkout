@@ -24,11 +24,13 @@ export type TFormData = {
 	orderButtonText: string
 	minAmount: number
 	maxAmount: number
+
 	// --- API --- //
 	mode: string
 	merchantId: string
 	hashKey: string
 	hashIv: string
+
 	// --- 付款方式 --- //
 	allowedPayments: string[]
 }

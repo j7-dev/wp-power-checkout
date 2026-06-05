@@ -32,6 +32,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Logistics\Ecpay\Http;
 
+use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\CreateReturnParams;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\CreateShipmentParams;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\EcpayLogisticsSettingsDTO;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\StoreSelectionParams;
@@ -62,6 +63,18 @@ final class LogisticsApiClient {
 	/** @var string C2C 取消物流單端點路徑（AES-JSON 回應） */
 	private const PATH_CANCEL_C2C = '/Express/v2/CancelC2COrder';
 
+	/** @var string 全家逆物流（退貨）端點路徑（AES-JSON 回應） */
+	private const PATH_RETURN_CVS = '/Express/v2/ReturnCVS';
+
+	/** @var string 統一超商逆物流（退貨）端點路徑（AES-JSON 回應） */
+	private const PATH_RETURN_UNIMART_CVS = '/Express/v2/ReturnUniMartCVS';
+
+	/** @var string 萊爾富逆物流（退貨）端點路徑（AES-JSON 回應） */
+	private const PATH_RETURN_HILIFE_CVS = '/Express/v2/ReturnHilifeCVS';
+
+	/** @var string 宅配逆物流（退貨）端點路徑（AES-JSON 回應） */
+	private const PATH_RETURN_HOME = '/Express/v2/ReturnHome';
+
 	/** @var EcpayLogisticsSettingsDTO 設定 */
 	private readonly EcpayLogisticsSettingsDTO $settings;
 
@@ -70,14 +83,39 @@ final class LogisticsApiClient {
 
 	/** Constructor */
 	public function __construct(
-		/** @var \WC_Order 訂單（用於 order note 記錄） */
-		private readonly \WC_Order $order,
+		/**
+		 * 訂單（用於 order note 記錄）；cart 級選店（下單前）無訂單，故可為 null。
+		 *
+		 * @var \WC_Order|null
+		 */
+		private readonly ?\WC_Order $order = null,
 	) {
 		$this->settings = EcpayLogisticsSettingsDTO::instance();
 		$this->crypto   = new AesCrypto(
 			$this->settings->get_active_hash_key(),
 			$this->settings->get_active_hash_iv()
 		);
+	}
+
+	/**
+	 * 安全寫 order note（cart 級選店無訂單時靜默略過）
+	 *
+	 * @param string $note 訊息
+	 * @return void
+	 */
+	private function add_order_note( string $note ): void {
+		if ($this->order instanceof \WC_Order) {
+			$this->order->add_order_note( $note );
+		}
+	}
+
+	/**
+	 * 取得訂單 id（無訂單時回 0，供 log 用）
+	 *
+	 * @return int
+	 */
+	private function get_order_id(): int {
+		return $this->order instanceof \WC_Order ? $this->order->get_id() : 0;
 	}
 
 	/**
@@ -195,6 +233,84 @@ final class LogisticsApiClient {
 		return $this->request_json( $url, $data );
 	}
 
+	// region 逆物流（退貨）— 依原物流子類型分派四個端點，AES-JSON 雙層檢查
+
+	/**
+	 * 全家逆物流（退貨）ReturnCVS — AES-JSON 雙層檢查
+	 *
+	 * @param CreateReturnParams $params 退貨參數（超商欄位：ServiceType / SenderName / [SenderPhone]）
+	 *
+	 * @return array<string, mixed> 解密後 Data（含 ReturnLogisticsID）
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	public function return_cvs( CreateReturnParams $params ): array {
+		return $this->request_return( self::PATH_RETURN_CVS, $params );
+	}
+
+	/**
+	 * 統一超商逆物流（退貨）ReturnUniMartCVS — AES-JSON 雙層檢查
+	 *
+	 * @param CreateReturnParams $params 退貨參數
+	 *
+	 * @return array<string, mixed> 解密後 Data（含 ReturnLogisticsID）
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	public function return_unimart_cvs( CreateReturnParams $params ): array {
+		return $this->request_return( self::PATH_RETURN_UNIMART_CVS, $params );
+	}
+
+	/**
+	 * 萊爾富逆物流（退貨）ReturnHilifeCVS — AES-JSON 雙層檢查
+	 *
+	 * @param CreateReturnParams $params 退貨參數
+	 *
+	 * @return array<string, mixed> 解密後 Data（含 ReturnLogisticsID）
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	public function return_hilife_cvs( CreateReturnParams $params ): array {
+		return $this->request_return( self::PATH_RETURN_HILIFE_CVS, $params );
+	}
+
+	/**
+	 * 宅配逆物流（退貨）ReturnHome — AES-JSON 雙層檢查
+	 *
+	 * @param CreateReturnParams $params 退貨參數（宅配欄位：Temperature / Distance / Specification）
+	 *
+	 * @return array<string, mixed> 解密後 Data（含 ReturnLogisticsID）
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	public function return_home( CreateReturnParams $params ): array {
+		return $this->request_return( self::PATH_RETURN_HOME, $params );
+	}
+
+	/**
+	 * 共用逆物流請求：注入啟用帳號 MerchantID（綠界逆物流 Data 內亦需）→ 雙層檢查
+	 *
+	 * MOCK 模式回固定 fixture（已是解密後 Data 格式，RtnCode 整數 1，含 ReturnLogisticsID）。
+	 *
+	 * @param string             $path   端點路徑
+	 * @param CreateReturnParams $params 退貨參數
+	 *
+	 * @return array<string, mixed> 解密後 Data（含 ReturnLogisticsID）
+	 * @throws \Exception 傳輸層 / 業務層失敗
+	 */
+	private function request_return( string $path, CreateReturnParams $params ): array {
+		// MOCK 模式：回固定 fixture
+		if (self::is_mock()) {
+			return $this->mock_return_response( $params->LogisticsID );
+		}
+
+		$data = \array_merge(
+			[ 'MerchantID' => $this->settings->get_active_merchant_id() ],
+			$params->to_ecpay_data()
+		);
+
+		$url = $this->settings->api_url . $path;
+		return $this->request_json( $url, $data );
+	}
+
+	// endregion
+
 	/**
 	 * 組裝三層請求結構
 	 *
@@ -237,7 +353,7 @@ final class LogisticsApiClient {
 		if (1 !== $trans_code) {
 			$trans_msg = (string) ( $body['TransMsg'] ?? 'unknown' );
 			$msg       = "綠界全方位物流傳輸層失敗 TransCode={$trans_code}：{$trans_msg}";
-			$this->order->add_order_note( "❌ {$msg}" );
+			$this->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
@@ -249,7 +365,7 @@ final class LogisticsApiClient {
 		if (1 !== $rtn_code) {
 			$rtn_msg = (string) ( $decrypted['RtnMsg'] ?? 'unknown' );
 			$msg     = "綠界全方位物流業務層失敗 RtnCode={$rtn_code}：{$rtn_msg}";
-			$this->order->add_order_note( "❌ {$msg}" );
+			$this->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
@@ -302,7 +418,7 @@ final class LogisticsApiClient {
 		$envelope = $this->build_envelope( $data );
 
 		Plugin::logger(
-			"綠界全方位物流 v2 請求 #{$this->order->get_id()}",
+			"綠界全方位物流 v2 請求 #{$this->get_order_id()}",
 			'info',
 			[ 'url' => $url ]
 		);
@@ -319,7 +435,7 @@ final class LogisticsApiClient {
 
 		if (\is_wp_error( $response )) {
 			$msg = "綠界全方位物流 v2 連線失敗：{$response->get_error_message()}";
-			$this->order->add_order_note( "❌ {$msg}" );
+			$this->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}
 
@@ -411,6 +527,22 @@ final class LogisticsApiClient {
 			'RtnMsg'       => 'OK',
 			'LogisticsID'  => $logistics_id,
 			'CVSPaymentNo' => $cvs_payment_no,
+		];
+	}
+
+	/**
+	 * MOCK：逆物流（退貨）回應（固定 fixture，已是解密後 Data 格式，含 ReturnLogisticsID）
+	 *
+	 * @param string $logistics_id 原正向物流單號
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function mock_return_response( string $logistics_id ): array {
+		return [
+			'RtnCode'           => 1,
+			'RtnMsg'            => 'OK',
+			'LogisticsID'       => $logistics_id,
+			'ReturnLogisticsID' => 'mock_ret_' . $logistics_id,
 		];
 	}
 }

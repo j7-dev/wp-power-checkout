@@ -1,12 +1,35 @@
 /**
  * REST API Client — 封裝 WordPress / WooCommerce API 操作
  */
+import { request as apiRequest } from '@playwright/test'
 import type { APIRequestContext } from '@playwright/test'
+import * as fs from 'fs'
+import * as path from 'path'
 
 export type ApiOptions = {
   request: APIRequestContext
   baseURL: string
   nonce: string
+}
+
+/**
+ * 在 beforeAll 中建立專屬的 APIRequestContext。
+ *
+ * Playwright 禁止在 test 內重用 beforeAll 取得的 worker-scope `{ request }` fixture
+ * （錯誤：Fixture { request } from beforeAll cannot be reused in a test），
+ * 因此各 spec 的 beforeAll 應呼叫本函式自建 context，並於 afterAll dispose。
+ *
+ * 用法：
+ *   let ctx: APIRequestContext
+ *   test.beforeAll(async () => { ctx = await createApiContext(BASE_URL); opts = { request: ctx, baseURL: BASE_URL, nonce: getNonce() } })
+ *   test.afterAll(async () => { await ctx.dispose() })
+ */
+export async function createApiContext(baseURL: string): Promise<APIRequestContext> {
+  // 載入管理員 storageState（cookie），否則帶 X-WP-Nonce 的請求會被 WP 以
+  // rest_cookie_invalid_nonce（403）拒絕——cookie nonce 驗證需 cookie + nonce 同時存在。
+  const authFile = path.resolve(import.meta.dirname, '../.auth/admin.json')
+  const storageState = fs.existsSync(authFile) ? authFile : undefined
+  return apiRequest.newContext({ baseURL, ignoreHTTPSErrors: true, storageState })
 }
 
 const headers = (nonce: string) => ({

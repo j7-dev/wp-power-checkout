@@ -47,7 +47,14 @@ export const PAYMENT_METHODS = [
  *
  * 後端 before_init 會將期數正規化為 int，故以 number 表示。
  */
-export const INSTALLMENT_PERIODS: number[] = [3, 6, 12, 18, 24, 30]
+export const INSTALLMENT_PERIODS: number[] = [
+	3,
+	6,
+	12,
+	18,
+	24,
+	30,
+]
 
 /**
  * 綠界 AIO 後台設定表單資料（對齊 AioSettingsDTO）
@@ -63,11 +70,13 @@ export type TFormData = {
 	minAmount: number
 	maxAmount: number
 	expireDate: number
+
 	// --- API --- //
 	mode: string
 	merchantId: string
 	hashKey: string
 	hashIv: string
+
 	// --- 付款方式與分期 --- //
 	allowedPayments: string[]
 	installmentPeriods: number[]

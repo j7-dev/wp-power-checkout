@@ -175,6 +175,63 @@ final class EcpayAioCallbackTest extends TestCase {
 		$this->assert_order_status( $order, 'processing' );
 	}
 
+	// ========== 金額驗證（High-1：付款通知未驗金額） ==========
+
+	/**
+	 * @test
+	 * @group security
+	 */
+	public function test_RtnCode為1但TradeAmt與訂單總額不符時維持pending不轉處理中(): void {
+		// Given: pending 訂單（總額 1000），但綠界回傳 TradeAmt=1（疑似竄改）
+		$trade_no = 'EC100AMTMISMATCH';
+		$order    = $this->create_ecpay_order( $trade_no );
+		$payload  = $this->sign_payload(
+			[
+				'MerchantID'      => '3002607',
+				'MerchantTradeNo' => $trade_no,
+				'RtnCode'         => '1',
+				'RtnMsg'          => '交易成功',
+				'TradeNo'         => '2301011234560001',
+				'TradeAmt'        => '1', // 與訂單總額 1000 不符
+				'PaymentType'     => 'Credit_CreditCard',
+			]
+		);
+
+		// When
+		AioCallback::instance()->handle_return( $payload );
+
+		// Then: 維持 pending（不可自動轉處理中），order note 告警金額不符
+		$this->assert_order_status( $order, 'pending' );
+		$this->assert_order_note_contains( $order, '金額' );
+	}
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_RtnCode為1且TradeAmt與訂單總額相符時轉處理中(): void {
+		// Given: pending 訂單（總額 1000），TradeAmt=1000 相符
+		$trade_no = 'EC100AMTMATCH';
+		$order    = $this->create_ecpay_order( $trade_no );
+		$payload  = $this->sign_payload(
+			[
+				'MerchantID'      => '3002607',
+				'MerchantTradeNo' => $trade_no,
+				'RtnCode'         => '1',
+				'RtnMsg'          => '交易成功',
+				'TradeNo'         => '2301011234560002',
+				'TradeAmt'        => '1000', // 相符
+				'PaymentType'     => 'Credit_CreditCard',
+			]
+		);
+
+		// When
+		AioCallback::instance()->handle_return( $payload );
+
+		// Then: 轉 processing
+		$this->assert_order_status( $order, 'processing' );
+	}
+
 	// ========== 錯誤處理（Error Handling） ==========
 
 	/**

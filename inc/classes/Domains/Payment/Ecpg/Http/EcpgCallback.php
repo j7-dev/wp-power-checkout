@@ -107,9 +107,25 @@ final class EcpgCallback extends ApiBase {
 			return;
 		}
 
+		// 安全：驗 MerchantID 為本商店（不符 → 安全 log 遮蔽憑證，不處理）。
+		// 對齊物流貨態 callback 的 MerchantID 驗證模式；MerchantID 位於外層明文 envelope。
+		// 維持原 callback 協定（呼叫端仍回 1|OK），避免綠界重送風暴。
+		$settings             = EcpgSettingsDTO::instance();
+		$incoming_merchant_id = (string) ( $params['MerchantID'] ?? '' );
+		if ( $incoming_merchant_id !== $settings->merchantId ) {
+			Plugin::logger(
+				'綠界站內付 2.0 ReturnURL MerchantID 不符（疑似偽造）',
+				'alert',
+				[
+					'incoming_merchant_id' => $incoming_merchant_id,
+					// ⚠️ 安全：絕不記錄 HashKey / HashIV
+				]
+			);
+			return;
+		}
+
 		// 解密 Data（失敗 → 維持 pending、不更新明細）
-		$settings = EcpgSettingsDTO::instance();
-		$crypto   = new AesCrypto( $settings->hashKey, $settings->hashIv );
+		$crypto = new AesCrypto( $settings->hashKey, $settings->hashIv );
 		try {
 			$decrypted = $crypto->decrypt( (string) ( $params['Data'] ?? '' ) );
 		} catch ( \Throwable $e ) {

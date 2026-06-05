@@ -15,7 +15,7 @@ const loadingMap = new Map<string, Promise<void>>()
  * 同一 src 重複呼叫會回傳同一個 Promise（冪等，避免 SPA 重掛或多次 mount 重複載入）。
  *
  * @param src script URL
- * @returns 載入完成（含已快取）resolve；載入失敗 reject
+ * @return 載入完成（含已快取）resolve；載入失敗 reject
  */
 export const loadScript = (src: string): Promise<void> => {
 	const cached = loadingMap.get(src)
@@ -26,7 +26,7 @@ export const loadScript = (src: string): Promise<void> => {
 	const promise = new Promise<void>((resolve, reject) => {
 		// 頁面上若已存在相同 src 的 script（如其他流程已載入），直接視為完成
 		const exist = document.querySelector<HTMLScriptElement>(
-			`script[src="${src}"]`,
+			`script[src="${src}"]`
 		)
 		if (exist) {
 			resolve()

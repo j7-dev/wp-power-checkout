@@ -246,7 +246,14 @@ final class InvoiceMetaKeysTest extends TestCase {
 	public function test_發票參數為json字串格式時自動解析(): void {
 		// Given: 一筆訂單，直接用 WC 的 update_meta_data 儲存 JSON 字串
 		$order    = $this->create_wc_order();
-		$json_str = wp_slash( json_encode( [ 'invoice_type' => 'business', 'tax_id' => '12345678' ] ) );
+		$json_str = wp_slash(
+			json_encode(
+			[
+				'invoice_type' => 'business',
+				'tax_id'       => '12345678',
+			]
+			)
+			);
 		$order->update_meta_data( '_pc_issue_invoice_params', $json_str );
 		$order->save_meta_data();
 

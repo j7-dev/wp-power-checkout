@@ -14,20 +14,28 @@
 export interface IEcpgData {
 	/** 綠界站內付 JS SDK URL（一律正式 domain，環境由 initialize 切換） */
 	sdk_url: string
+
 	/** 特店編號（公開，非機密；HashKey/HashIV 絕不曝露前端） */
 	merchant_id: string
+
 	/** 取得 PayToken 後 POST 回此端點觸發 CreatePayment（order_key 授權，非 nonce） */
 	create_payment_url: string
+
 	/** 測試環境（true → ECPay.initialize('Stage')；false → 'Prod'） */
 	is_test: boolean
+
 	/** SDK 硬編碼渲染容器 id（固定為 ECPayPayment，不可自訂） */
 	container_id: string
+
 	/** 後端 GetTokenbyTrade 取得的交易 Token，供 SDK createPayment 渲染收單 UI */
 	token: string
+
 	/** 冪等鍵 MerchantTradeNo（後端用，前端僅透傳 / 不直接送 create-payment） */
 	merchant_trade_no: string
+
 	/** 訂單 id（POST create-payment 用） */
 	order_id: string
+
 	/** 訂單 order_key（WC 原生擁有權憑證，POST create-payment 授權用） */
 	order_key: string
 }
@@ -36,6 +44,7 @@ export interface IEcpgData {
 export interface ICreatePaymentData {
 	/** CreatePayment 回應巢狀 ThreeDInfo.ThreeDURL 攤平；非空時前端必須導向完成 3DS */
 	three_d_url: string
+
 	/** 是否需 3D 驗證（true → 導向 three_d_url） */
 	need_3ds: boolean
 }
@@ -69,19 +78,19 @@ export interface IEcpaySdk {
 	initialize: (
 		env: 'Stage' | 'Prod',
 		type: number,
-		callback: (errMsg: string | null) => void,
+		callback: (errMsg: string | null) => void
 	) => void
 	createPayment: (
 		token: string,
 		language: string,
 		callback: (errMsg: string | null) => void,
-		version: string,
+		version: string
 	) => void
 	getPayToken: (
 		callback: (
 			paymentInfo: IEcpayPaymentInfo | null,
-			errMsg: string | null,
-		) => void,
+			errMsg: string | null
+		) => void
 	) => void
 	getLanguage?: () => string
 }

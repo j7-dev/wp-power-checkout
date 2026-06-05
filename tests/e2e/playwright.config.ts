@@ -14,7 +14,8 @@ export default defineConfig({
     ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ],
   use: {
-    baseURL: 'https://local-turbo.powerhouse.tw',
+    // 可用 E2E_BASE_URL 覆寫（例如 wp-env：http://localhost:8891）
+    baseURL: process.env.E2E_BASE_URL || 'https://local-turbo.powerhouse.tw',
     ignoreHTTPSErrors: true,
     storageState: '.auth/admin.json',
     extraHTTPHeaders: {

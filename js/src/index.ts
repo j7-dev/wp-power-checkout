@@ -1,11 +1,13 @@
-import { createApp } from 'vue'
-import ElementPlus from 'element-plus'
 import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
-import MountRefundDialog from '@/external/RefundDialog/index'
-import MountInvoiceApp from '@/external/InvoiceApp/index'
+import ElementPlus from 'element-plus'
+import { createApp } from 'vue'
+
 import MountEcpgPayment from '@/external/EcpgPayment/index'
-import router from './router'
+import MountInvoiceApp from '@/external/InvoiceApp/index'
+import MountRefundDialog from '@/external/RefundDialog/index'
+
 import App from './App.vue'
+import router from './router'
 import 'element-plus/dist/index.css'
 import './index.css'
 
@@ -49,5 +51,6 @@ if (form) {
 
 MountRefundDialog()
 MountInvoiceApp()
+
 // 綠界 ECPay 站內付 2.0：僅在 order-received 頁且有 power_checkout_ecpg_data 時啟動（內部自行守門）
 MountEcpgPayment()

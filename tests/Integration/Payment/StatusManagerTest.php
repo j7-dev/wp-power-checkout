@@ -37,11 +37,14 @@ final class StatusManagerTest extends TestCase {
 				'tradeOrderId'     => $trade_order_id,
 				'status'           => $status,
 				'order'            => [
-					'merchantId'          => 'MERCHANT_TEST',
-					'referenceOrderId'    => 'REF_001',
-					'createTime'          => time(),
-					'amount'              => [ 'value' => 10000, 'currency' => 'TWD' ],
-					'customer'            => [
+					'merchantId'       => 'MERCHANT_TEST',
+					'referenceOrderId' => 'REF_001',
+					'createTime'       => time(),
+					'amount'           => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
+					'customer'         => [
 						'referenceCustomerId' => 'CUSTOMER_001',
 						'customerId'          => 'SLP_CUSTOMER_001',
 					],
@@ -49,7 +52,10 @@ final class StatusManagerTest extends TestCase {
 				'payment'          => [
 					'paymentMethod'   => 'CreditCard',
 					'paymentBehavior' => 'Regular',
-					'paidAmount'      => [ 'value' => 10000, 'currency' => 'TWD' ],
+					'paidAmount'      => [
+						'value'    => 10000,
+						'currency' => 'TWD',
+					],
 				],
 			]
 		);

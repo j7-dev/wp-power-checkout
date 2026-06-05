@@ -15,7 +15,8 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { wpGet, wpPost, type ApiOptions } from '../helpers/api-client.js'
+import type { APIRequestContext } from '@playwright/test'
+import { wpGet, wpPost, createApiContext, type ApiOptions } from '../helpers/api-client.js'
 import { getNonce } from '../helpers/admin-setup.js'
 import {
   BASE_URL,
@@ -31,11 +32,33 @@ type AnyRecord = Record<string, unknown>
 const unwrap = (res: { data: unknown }) =>
   ((res.data as AnyRecord).data ?? res.data) as AnyRecord
 
+/**
+ * /settings 的 logistics / gateways 實際以「provider_id => DTO」物件回傳（PHP associative array），
+ * 非 JSON 陣列。取得 provider id 清單，並容忍物件 / 陣列兩種形態。
+ */
+const toIdList = (collection: unknown): string[] => {
+  if (Array.isArray(collection)) {
+    return collection.map((c) => (c as AnyRecord).id as string)
+  }
+  if (collection && typeof collection === 'object') {
+    return Object.keys(collection as AnyRecord)
+  }
+  return []
+}
+
 test.describe('全方位物流設定頁（ecpay_logistics）', () => {
   let opts: ApiOptions
+  let ctx: APIRequestContext
 
-  test.beforeAll(async ({ request }) => {
-    opts = { request, baseURL: BASE_URL, nonce: getNonce() }
+  // 自建 APIRequestContext（含 admin cookie），避免在 test 內重用 beforeAll 取得的 { request } fixture
+  // （Playwright 禁止此行為：Fixture { request } from beforeAll cannot be reused in a test）
+  test.beforeAll(async () => {
+    ctx = await createApiContext(BASE_URL)
+    opts = { request: ctx, baseURL: BASE_URL, nonce: getNonce() }
+  })
+
+  test.afterAll(async () => {
+    await ctx.dispose()
   })
 
   // ─── Smoke ───────────────────────────────────────────────────────────────
@@ -70,13 +93,13 @@ test.describe('全方位物流設定頁（ecpay_logistics）', () => {
       expect(res.status).toBe(200)
       const data = unwrap(res)
 
-      // 嘗試從 logistics 或 gateways 陣列中尋找（後端路由視實作而定）
-      const logistics = (data.logistics ?? data.gateways) as AnyRecord[] | undefined
-      if (!logistics) {
+      // logistics / gateways 為 provider_id => DTO 物件，取 id 清單（容忍物件 / 陣列）
+      const collection = data.logistics ?? data.gateways
+      if (!collection) {
         test.skip(true, 'ecpay_logistics 尚未在 /settings 回應中出現（provider 未啟用）')
         return
       }
-      const ids = logistics.map((g) => g.id as string)
+      const ids = toIdList(collection)
       test.skip(
         !ids.includes(LOGISTICS_PROVIDER.ID),
         'ecpay_logistics 尚未註冊於 ProviderUtils（provider 未啟用）',
@@ -87,15 +110,17 @@ test.describe('全方位物流設定頁（ecpay_logistics）', () => {
 
   // ─── Happy：B2C 憑證 CRUD ──────────────────────────────────────────────
   test.describe('@happy B2C 憑證存取（存 DB，非寫死）', () => {
+    // 注意：物流 DTO 以 account_type 分流，憑證欄位為 b2c_merchant_id / b2c_hash_key / b2c_hash_iv
+    // 與 c2c_*（snake_case，非 payment DTO 的扁平 merchantId / hashKey / hashIv）。
     test('更新 B2C merchantId / hashKey / hashIv 並持久化', async () => {
       const getRes = await wpGet(opts, EP.SETTINGS_SINGLE(LOGISTICS_PROVIDER.ID))
       test.skip(getRes.status !== 200, 'ecpay_logistics provider 尚未註冊')
 
       const res = await wpPost(opts, EP.SETTINGS_UPDATE(LOGISTICS_PROVIDER.ID), {
         account_type: LOGISTICS_ACCOUNT_TYPE.B2C,
-        merchantId: LOGISTICS_B2C_TEST.merchantId,
-        hashKey: LOGISTICS_B2C_TEST.hashKey,
-        hashIv: LOGISTICS_B2C_TEST.hashIv,
+        b2c_merchant_id: LOGISTICS_B2C_TEST.merchantId,
+        b2c_hash_key: LOGISTICS_B2C_TEST.hashKey,
+        b2c_hash_iv: LOGISTICS_B2C_TEST.hashIv,
         mode: 'test',
       })
       expect(res.status).toBe(200)
@@ -105,8 +130,8 @@ test.describe('全方位物流設定頁（ecpay_logistics）', () => {
       // GET 確認持久化
       const verify = await wpGet(opts, EP.SETTINGS_SINGLE(LOGISTICS_PROVIDER.ID))
       const verifyData = unwrap(verify)
-      expect(verifyData.merchantId).toBe(LOGISTICS_B2C_TEST.merchantId)
-      expect(verifyData.hashKey).toBe(LOGISTICS_B2C_TEST.hashKey)
+      expect(verifyData.b2c_merchant_id).toBe(LOGISTICS_B2C_TEST.merchantId)
+      expect(verifyData.b2c_hash_key).toBe(LOGISTICS_B2C_TEST.hashKey)
     })
 
     test('更新 hashKey / hashIv 後再 GET 確認新值存入', async () => {
@@ -117,14 +142,14 @@ test.describe('全方位物流設定頁（ecpay_logistics）', () => {
       const newIv = LOGISTICS_B2C_TEST.hashIv
 
       await wpPost(opts, EP.SETTINGS_UPDATE(LOGISTICS_PROVIDER.ID), {
-        hashKey: newKey,
-        hashIv: newIv,
+        b2c_hash_key: newKey,
+        b2c_hash_iv: newIv,
       })
 
       const after = await wpGet(opts, EP.SETTINGS_SINGLE(LOGISTICS_PROVIDER.ID))
       const afterData = unwrap(after)
-      expect(afterData.hashKey).toBe(newKey)
-      expect(afterData.hashIv).toBe(newIv)
+      expect(afterData.b2c_hash_key).toBe(newKey)
+      expect(afterData.b2c_hash_iv).toBe(newIv)
     })
   })
 
@@ -136,9 +161,9 @@ test.describe('全方位物流設定頁（ecpay_logistics）', () => {
 
       const res = await wpPost(opts, EP.SETTINGS_UPDATE(LOGISTICS_PROVIDER.ID), {
         account_type: LOGISTICS_ACCOUNT_TYPE.C2C,
-        merchantId: LOGISTICS_C2C_TEST.merchantId,
-        hashKey: LOGISTICS_C2C_TEST.hashKey,
-        hashIv: LOGISTICS_C2C_TEST.hashIv,
+        c2c_merchant_id: LOGISTICS_C2C_TEST.merchantId,
+        c2c_hash_key: LOGISTICS_C2C_TEST.hashKey,
+        c2c_hash_iv: LOGISTICS_C2C_TEST.hashIv,
         mode: 'test',
       })
       expect(res.status).toBe(200)
@@ -147,7 +172,7 @@ test.describe('全方位物流設定頁（ecpay_logistics）', () => {
       const verify = await wpGet(opts, EP.SETTINGS_SINGLE(LOGISTICS_PROVIDER.ID))
       const verifyData = unwrap(verify)
       expect(verifyData.account_type).toBe(LOGISTICS_ACCOUNT_TYPE.C2C)
-      expect(verifyData.merchantId).toBe(LOGISTICS_C2C_TEST.merchantId)
+      expect(verifyData.c2c_merchant_id).toBe(LOGISTICS_C2C_TEST.merchantId)
     })
 
     test('從 c2c 切換回 b2c 後憑證更新', async () => {
@@ -156,9 +181,9 @@ test.describe('全方位物流設定頁（ecpay_logistics）', () => {
 
       const res = await wpPost(opts, EP.SETTINGS_UPDATE(LOGISTICS_PROVIDER.ID), {
         account_type: LOGISTICS_ACCOUNT_TYPE.B2C,
-        merchantId: LOGISTICS_B2C_TEST.merchantId,
-        hashKey: LOGISTICS_B2C_TEST.hashKey,
-        hashIv: LOGISTICS_B2C_TEST.hashIv,
+        b2c_merchant_id: LOGISTICS_B2C_TEST.merchantId,
+        b2c_hash_key: LOGISTICS_B2C_TEST.hashKey,
+        b2c_hash_iv: LOGISTICS_B2C_TEST.hashIv,
       })
       expect(res.status).toBe(200)
 

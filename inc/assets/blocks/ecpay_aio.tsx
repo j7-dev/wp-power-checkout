@@ -1,6 +1,6 @@
 import { registerPaymentMethod } from '@woocommerce/blocks-registry'
-import { decodeEntities } from '@wordpress/html-entities'
 import { getSetting } from '@woocommerce/settings'
+import { decodeEntities } from '@wordpress/html-entities'
 
 const id = 'ecpay_aio'
 const settings = getSetting(`${id}_data`, {})

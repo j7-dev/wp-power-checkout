@@ -214,6 +214,7 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/v1` | GET | `/logistics/{order_id}` | Nonce |
 | `power-checkout/v1` | POST | `/logistics/{order_id}/print` | Nonce |
 | `power-checkout/v1` | POST | `/logistics/{order_id}/cancel` | Nonce |
+| `power-checkout/v1` | POST | `/logistics/{order_id}/return` | Nonce |
 | `power-checkout/slp` | POST | `/webhook` | HMAC-SHA256 |
 | `power-checkout/ecpay` | POST | `/aio/return` | CheckMacValue SHA256 |
 | `power-checkout/ecpay` | POST | `/aio/payment-info` | CheckMacValue SHA256 |
@@ -301,7 +302,20 @@ ECPay POSTs JSON to `/wp-json/power-checkout/ecpay/logistics/status-callback`:
 
 C2C only: `cancel_shipment()` (C2C cancel), `_pc_logistics_cvs_payment_no` / `_pc_logistics_cvs_validation_no`.
 
-Second phase (returns, PAYUNi logistics, block checkout) is deferred.
+### Returns / reverse logistics (P2-B — `create_return`)
+
+`ILogisticsProvider::create_return()` builds a reverse-logistics order from an already-shipped order. Preconditions: provider enabled → order exists → has `_pc_logistics_ref` (forward shipment created) → `server_reply_url` is public. Dispatches by the original `_pc_logistics_sub_type`:
+
+| Original sub-type | Return endpoint | Key Data fields |
+|---|---|---|
+| FAMI | `/Express/v2/ReturnCVS` | `ServiceType="4"`, `SenderName`, `[SenderPhone]` |
+| UNIMART | `/Express/v2/ReturnUniMartCVS` | `ServiceType="4"`, `SenderName`, `[SenderPhone]` |
+| HILIFE | `/Express/v2/ReturnHilifeCVS` | `ServiceType="4"`, `SenderName`, `[SenderPhone]` |
+| HOME | `/Express/v2/ReturnHome` | `Temperature`, `Distance`, `Specification` |
+
+All carry `LogisticsID` (original), `GoodsAmount`, `ServerReplyURL` (→ status-callback). On success writes `_pc_logistics_return_ref` (ReturnLogisticsID) + order note. Reverse-logistics status notifications reuse the existing AES-JSON status-callback; `get_order_by_ref()` looks up by both `_pc_logistics_ref` and `_pc_logistics_return_ref`. REST: `POST /logistics/{id}/return`.
+
+PAYUNi logistics and block checkout are deferred.
 
 ---
 
@@ -336,6 +350,7 @@ Second phase (returns, PAYUNi logistics, block checkout) is deferred.
 | `_pc_logistics_cvs_validation_no` | C2C CVSValidationNo (required for cancel shipment) |
 | `_pc_logistics_collection_paid` | COD collection completion flag (`yes`) |
 | `_pc_logistics_processed_status` | Idempotency guard array — elements: `"{LogisticsID}:{LogisticsStatus}"` |
+| `_pc_logistics_return_ref` | Reverse-logistics (return) ID (ECPay ReturnLogisticsID); written by `create_return`; also indexed by `get_order_by_ref` for reverse-logistics status callbacks |
 
 ---
 

@@ -95,7 +95,14 @@ final class EcpayAioRequestParamsTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_全選付款方式時IgnorePayment為空不送出(): void {
-		// Given: allowedPayments 為全集
+		// Given: allowedPayments 顯式設為完整全集（含第二期新增的 TWQR / BNPL / WeiXin，
+		// 銀聯為 Credit+UnionPay 參數不在此列），確保全選時無任何方式被排除
+		ProviderUtils::update_option(
+			AioRedirectGateway::ID,
+			[
+				'allowedPayments' => [ 'Credit', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'TWQR', 'BNPL', 'WeiXin' ],
+			]
+		);
 		$order   = $this->create_wc_order( [ 'total' => 1000 ] );
 		$gateway = new AioRedirectGateway();
 
@@ -183,7 +190,12 @@ final class EcpayAioRequestParamsTest extends TestCase {
 		// Given: 未填憑證、mode=test
 		ProviderUtils::update_option(
 			AioRedirectGateway::ID,
-			[ 'mode' => 'test', 'merchantId' => '', 'hashKey' => '', 'hashIv' => '' ]
+			[
+				'mode'       => 'test',
+				'merchantId' => '',
+				'hashKey'    => '',
+				'hashIv'     => '',
+			]
 		);
 
 		// When
@@ -204,7 +216,12 @@ final class EcpayAioRequestParamsTest extends TestCase {
 		// Given: mode=prod，未填憑證
 		ProviderUtils::update_option(
 			AioRedirectGateway::ID,
-			[ 'mode' => 'prod', 'merchantId' => '', 'hashKey' => '', 'hashIv' => '' ]
+			[
+				'mode'       => 'prod',
+				'merchantId' => '',
+				'hashKey'    => '',
+				'hashIv'     => '',
+			]
 		);
 
 		// When

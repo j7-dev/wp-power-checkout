@@ -144,6 +144,21 @@ final class LogisticsMetaKeysTest extends TestCase {
 		$this->assertContains( '1769543:2067', $result );
 	}
 
+	// ========== 退貨 / 逆物流單號 return_ref ==========
+
+	/**
+	 * @test
+	 * @group happy
+	 */
+	public function test_儲存並讀取逆物流單號return_ref(): void {
+		$order     = $this->create_wc_order();
+		$meta_keys = new LogisticsMetaKeys( $order );
+
+		$meta_keys->update_return_ref( 'RET-1769543' );
+
+		$this->assertSame( 'RET-1769543', $meta_keys->get_return_ref() );
+	}
+
 	// ========== get_order_by_ref 反查 ==========
 
 	/**
@@ -156,6 +171,23 @@ final class LogisticsMetaKeysTest extends TestCase {
 		$meta_keys->update_ref( 'REF-FIND-ME-1769543' );
 
 		$found = LogisticsMetaKeys::get_order_by_ref( 'REF-FIND-ME-1769543' );
+
+		$this->assertInstanceOf( \WC_Order::class, $found );
+		$this->assertSame( $order->get_id(), $found->get_id() );
+	}
+
+	/**
+	 * 逆物流貨態通知帶 ReturnLogisticsID，須能以 return_ref 反查訂單
+	 *
+	 * @test
+	 * @group happy
+	 */
+	public function test_以逆物流單號反查訂單(): void {
+		$order     = $this->create_wc_order();
+		$meta_keys = new LogisticsMetaKeys( $order );
+		$meta_keys->update_return_ref( 'RET-FIND-ME-9988' );
+
+		$found = LogisticsMetaKeys::get_order_by_ref( 'RET-FIND-ME-9988' );
 
 		$this->assertInstanceOf( \WC_Order::class, $found );
 		$this->assertSame( $order->get_id(), $found->get_id() );

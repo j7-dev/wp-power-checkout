@@ -1,14 +1,15 @@
 <script lang="ts" setup>
 import { Back, InfoFilled } from '@element-plus/icons-vue'
-import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import apiClient from '@/api'
 import type { FormRules } from 'element-plus'
 import { merge, pick } from 'lodash-es'
-import { TFormData } from '@/pages/Invoices/Ecpay/Shared/types'
+import { computed, reactive, ref, toRaw, watch } from 'vue'
+
+import apiClient from '@/api'
 import Checkbox from '@/components/Checkbox/index.vue'
 import TrimmedInput from '@/components/TrimmedInput.vue'
 import { env } from '@/index'
+import { TFormData } from '@/pages/Invoices/Ecpay/Shared/types'
 
 const gatewayId = 'ecpay'
 const isLocal = env?.IS_LOCAL ?? false
@@ -32,11 +33,13 @@ const form = reactive<TFormData>({
 	// --- 一般設定 --- //
 	title: '',
 	description: '',
+
 	// --- API --- //
 	mode: 'prod',
 	merchant_id: '',
 	hash_key: '',
 	hash_iv: '',
+
 	// --- 自動化 --- //
 	auto_issue_order_statuses: [],
 	auto_cancel_order_statuses: ['wc-refunded'],
@@ -52,10 +55,11 @@ watch(
 				filteredData.mode = 'prod'
 			}
 			merge(form, filteredData)
+
 			// 將 API 回傳資料輸入表單
 		}
 	},
-	{ immediate: true },
+	{ immediate: true }
 )
 
 const isTestMode = computed(() => form.mode === 'test')
@@ -102,10 +106,10 @@ const rules = reactive<FormRules<TFormData>>({
 	</div>
 
 	<el-form
+		ref="formRef"
 		v-loading="isPending"
 		element-loading-background="rgba(255, 255, 255, 0)"
 		:model="form"
-		ref="formRef"
 		label-position="right"
 		label-width="auto"
 		:class="{
@@ -213,7 +217,11 @@ const rules = reactive<FormRules<TFormData>>({
 					</el-tooltip>
 				</span>
 			</template>
-			<TrimmedInput v-model="form.merchant_id" :disabled="isTestMode" clearable />
+			<TrimmedInput
+				v-model="form.merchant_id"
+				:disabled="isTestMode"
+				clearable
+			/>
 		</el-form-item>
 
 		<el-form-item :required="!isTestMode" prop="hash_key" label="HashKey">

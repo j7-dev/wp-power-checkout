@@ -6,6 +6,7 @@ namespace J7\PowerCheckout\Domains\Settings\Services;
 
 use J7\PowerCheckout\Domains\Invoice\ProviderRegister;
 use J7\PowerCheckout\Domains\Logistics\ProviderRegister as LogisticsProviderRegister;
+use J7\PowerCheckout\Domains\Receipt\ProviderRegister as ReceiptProviderRegister;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\ApiBase;
@@ -70,6 +71,7 @@ final class SettingApiService extends ApiBase {
 				'data'    => [
 					'gateways'  => $gateways,
 					'invoices'  => ProviderRegister::get_registered_provider_dtos(),
+					'receipts'  => ReceiptProviderRegister::get_registered_provider_dtos(),
 					'logistics' => LogisticsProviderRegister::get_registered_provider_dtos(),
 				],
 			],
@@ -111,9 +113,24 @@ final class SettingApiService extends ApiBase {
 	public static function get_providers_with_id_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$provider_id = (string) $request['provider_id'];
 		$provider    = ProviderUtils::get_provider( $provider_id);
+
+		// 已啟用的 provider 才會進入 ProviderUtils::$container（發票 / 物流 provider 停用時不實例化）。
+		// 停用狀態仍是合法可查詢狀態（/settings 列表一律列出該 provider），
+		// 因此找不到實例時不可拋例外（會回 500），改回傳 wp_options 內已持久化的設定，
+		// 與停用後仍可在設定頁讀取既有設定的預期一致。
 		if (!$provider) {
-			throw new \Exception("Can't find Provider with provider_id: {$provider_id}");
+			/** @var array<string, mixed> $stored_settings */
+			$stored_settings = ProviderUtils::get_option( $provider_id);
+			return new \WP_REST_Response(
+				[
+					'code'    => 'success',
+					'message' => "取得 {$provider_id} 設定成功（provider 未啟用，回傳已儲存設定）",
+					'data'    => $stored_settings,
+				],
+				200
+			);
 		}
+
 		/** @var callable $get_settings */
 		$get_settings = [ $provider, 'get_settings' ];
 		/** @var array<string, mixed> $settings */

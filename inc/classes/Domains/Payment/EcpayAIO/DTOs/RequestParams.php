@@ -30,9 +30,18 @@ final class RequestParams extends DTO {
 	/**
 	 * @var array<string> 綠界 AIO 可被 IgnorePayment 排除的付款方式全集
 	 *
-	 * 注意：DigitalPayment 雖可作 ChoosePayment 值，但不可用於 IgnorePayment，故不納入全集。
+	 * 來源：developers.ecpay.com.tw/2862.md（ChoosePayment=ALL 時 IgnorePayment 可排除清單）。
+	 * 注意：
+	 *  - DigitalPayment 雖可作 ChoosePayment 值，但不可用於 IgnorePayment，故不納入全集。
+	 *  - 銀聯（UnionPay）非獨立付款方式值（走 Credit + UnionPay 參數），不可排除，故不納入。
 	 */
-	private const IGNORABLE_PAYMENTS = [ 'Credit', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay' ];
+	private const IGNORABLE_PAYMENTS = [ 'Credit', 'WebATM', 'ATM', 'CVS', 'BARCODE', 'ApplePay', 'TWQR', 'BNPL', 'WeiXin' ];
+
+	/** @var array<string> BNPL 無卡分期可指定的貸款業者（Source: developers.ecpay.com.tw/36659.md） */
+	private const BNPL_SUB_PAYMENTS = [ 'URICH', 'ZINGALA' ];
+
+	/** @var array<int> 銀聯卡交易選項（Source: developers.ecpay.com.tw/2866.md：0 可選 / 1 強制 / 2 隱藏） */
+	private const UNION_PAY_OPTIONS = [ 0, 1, 2 ];
 
 	// region 綠界 AIO 必填參數（屬性名 = 綠界欄位名）
 
@@ -87,6 +96,25 @@ final class RequestParams extends DTO {
 
 	/** @var string 語言（ENG/KOR/JPN/CHI；繁中送空字串使用綠界預設） */
 	public string $Language = '';
+
+	/**
+	 * @var string BNPL 無卡分期貸款業者（URICH 裕富 / ZINGALA 中租）
+	 *
+	 * 空字串代表不指定（由綠界後台「無卡分期切換設定」決定顯示哪家）。
+	 * 僅當 BNPL 在 ALL 流程未被 IgnorePayment 排除時才送出。
+	 * Source: developers.ecpay.com.tw/36659.md
+	 */
+	public string $ChooseSubPayment = '';
+
+	/**
+	 * @var int 銀聯卡交易選項（0 可選 / 1 強制 / 2 隱藏）
+	 *
+	 * 哨兵值 -1 代表「不送 UnionPay 參數」（商家未啟用銀聯，需先向綠界申請）。
+	 * 因綠界合法值含 0，無法以 array_filter 的 0 過濾判斷是否送出，故以 -1 區分。
+	 * 銀聯走 ChoosePayment=Credit + UnionPay；不支援分期 / 定期定額 / 紅利。
+	 * Source: developers.ecpay.com.tw/2866.md
+	 */
+	public int $UnionPay = -1;
 
 	// endregion
 
@@ -156,6 +184,10 @@ final class RequestParams extends DTO {
 			'ClientBackURL'     => $order->get_checkout_order_received_url(),
 			'ExpireDate'        => (string) $settings->expireDate,
 			'Language'          => $language ?? '',
+			// BNPL 貸款業者：僅當 BNPL 未被 IgnorePayment 排除時才有意義（避免送了卻被排除）
+			'ChooseSubPayment'  => self::resolve_bnpl_sub_payment( $settings ),
+			// 銀聯：啟用時送 0/1/2，否則哨兵 -1（不送）
+			'UnionPay'          => $settings->unionPayEnabled ? $settings->unionPay : -1,
 			// 內部用，不送綠界（private 屬性不會進 to_array）
 			'hashKey'           => $settings->hashKey,
 			'hashIv'            => $settings->hashIv,
@@ -204,6 +236,9 @@ final class RequestParams extends DTO {
 			$data['ChoosePayment']     = 'Credit'; // 分期屬 Credit
 			$data['IgnorePayment']     = '';       // Credit-only 不再用 IgnorePayment
 			$data['CreditInstallment'] = $installment;
+			// Credit-only：BNPL 不存在、銀聯不支援分期，清除兩者避免衝突
+			$data['ChooseSubPayment'] = '';
+			$data['UnionPay']         = -1;
 			return $data;
 		}
 
@@ -225,6 +260,9 @@ final class RequestParams extends DTO {
 			$data['Frequency']       = $frequency;
 			$data['ExecTimes']       = $exec_times;
 			$data['PeriodReturnURL'] = $return_url;
+			// Credit-only：BNPL 不存在、銀聯不支援定期定額，清除兩者避免衝突
+			$data['ChooseSubPayment'] = '';
+			$data['UnionPay']         = -1;
 			return $data;
 		}
 
@@ -244,6 +282,23 @@ final class RequestParams extends DTO {
 	private static function build_ignore_payment( array $allowed_payments ): string {
 		$ignored = \array_values( \array_diff( self::IGNORABLE_PAYMENTS, $allowed_payments ) );
 		return \implode( '#', $ignored );
+	}
+
+	/**
+	 * 解析 BNPL 貸款業者（ChooseSubPayment）
+	 *
+	 * 僅當 BNPL 在白名單內（不會被 IgnorePayment 排除）時才回傳設定的 lender；
+	 * 若 BNPL 未勾選，送出 ChooseSubPayment 無意義（綠界頁面不會出現 BNPL），故回空字串。
+	 *
+	 * @param AioSettingsDTO $settings 設定
+	 *
+	 * @return string URICH / ZINGALA / ''（不指定）
+	 */
+	private static function resolve_bnpl_sub_payment( AioSettingsDTO $settings ): string {
+		if ( ! \in_array( EcpayPaymentMethod::BNPL->value, $settings->allowedPayments, true ) ) {
+			return '';
+		}
+		return $settings->bnplSubPayment;
 	}
 
 	/** @return void 初始化前處理：搬出 hashKey / hashIv 到 private 屬性 */
@@ -307,6 +362,8 @@ final class RequestParams extends DTO {
 			'ClientBackURL'     => $this->ClientBackURL,
 			'ExpireDate'        => $this->ExpireDate,
 			'Language'          => $this->Language,
+			// BNPL 貸款業者（空字串會於下方 array_filter 過濾）
+			'ChooseSubPayment'  => $this->ChooseSubPayment,
 			// 信用卡分期 / 定期定額（空字串 / 0 會於下方 array_filter 過濾）
 			'CreditInstallment' => $this->CreditInstallment,
 			'PeriodAmount'      => $this->PeriodAmount,
@@ -321,10 +378,18 @@ final class RequestParams extends DTO {
 		}
 
 		// 移除空字串 / 0 的選填欄位（綠界不傳的欄位不參與 CMV，亦不送 form）
-		return \array_filter(
+		$filtered = \array_filter(
 			$all,
 			static fn( string|int $value ) => '' !== $value && 0 !== $value
 		);
+
+		// UnionPay 需特判：綠界合法值含 0（可選銀聯），不可被上方 array_filter 過濾。
+		// 哨兵 -1 = 不送；0/1/2 = 送出（含 0）。
+		if ( $this->UnionPay >= 0 ) {
+			$filtered['UnionPay'] = $this->UnionPay;
+		}
+
+		return $filtered;
 	}
 
 	/**
@@ -388,6 +453,16 @@ final class RequestParams extends DTO {
 					throw new \Exception( "IgnorePayment 含非法值：{$segment}" );
 				}
 			}
+		}
+
+		// ChooseSubPayment（BNPL 貸款業者）：空字串代表不指定，否則須為 URICH / ZINGALA
+		if ( '' !== $this->ChooseSubPayment && ! \in_array( $this->ChooseSubPayment, self::BNPL_SUB_PAYMENTS, true ) ) {
+			throw new \Exception( "ChooseSubPayment 必須為 URICH 或 ZINGALA，收到：{$this->ChooseSubPayment}" );
+		}
+
+		// UnionPay（銀聯）：-1 代表不送，否則須為 0 / 1 / 2
+		if ( -1 !== $this->UnionPay && ! \in_array( $this->UnionPay, self::UNION_PAY_OPTIONS, true ) ) {
+			throw new \Exception( "UnionPay 必須為 0、1 或 2，收到：{$this->UnionPay}" );
 		}
 
 		// ExpireDate 1-60（ATM 繳費天數）

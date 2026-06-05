@@ -18,8 +18,13 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Logistics;
 
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Http\LogisticsCallback;
+use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\BlocksLogisticsIntegration;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\WC_EcpayLogisticsShipping;
+use J7\PowerCheckout\Domains\Logistics\Payuni\Http\PayuniLogisticsCallback;
+use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Payuni\Services\WC_PayuniLogisticsShipping;
+use J7\PowerCheckout\Domains\Logistics\Shared\Services\CartLogisticsApiService;
 use J7\PowerCheckout\Domains\Logistics\Shared\Services\LogisticsApiService;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -27,9 +32,10 @@ use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 /** Loader 載入物流方式 */
 final class ProviderRegister {
 
-	/** @var array<string, string> $logistics_providers [id, class] */
+	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi 並存可切換） */
 	private static array $logistics_providers = [
-		EcpayLogisticsProvider::ID => EcpayLogisticsProvider::class,
+		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
+		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
 	];
 
 	/** 註冊 hooks @return void */
@@ -48,10 +54,23 @@ final class ProviderRegister {
 			$any_enabled = true;
 		}
 
-		// 有啟用的物流服務才註冊 REST + callback
+		// 任一物流服務啟用才註冊對外 REST
 		if ($any_enabled) {
 			LogisticsApiService::instance();
+			// cart 級選店端點（結帳下單前，無訂單；目前僅綠界支援 RWD 選店）
+			CartLogisticsApiService::register_hooks();
+		}
+
+		// 各 provider 的 callback 各自註冊（端點 namespace 不同：ecpay / payuni）
+		if (ProviderUtils::is_enabled( EcpayLogisticsProvider::ID )) {
 			LogisticsCallback::register_hooks();
+			// 綠界 block 結帳選店整合（enqueue + cart extensions + 下單寫 meta）
+			BlocksLogisticsIntegration::register_hooks();
+			// 綠界 classic 結帳選店按鈕（cart 級選店）
+			\add_action( 'wp_enqueue_scripts', [ WC_EcpayLogisticsShipping::class, 'enqueue_classic_assets' ], 20 );
+		}
+		if (ProviderUtils::is_enabled( PayuniLogisticsProvider::ID )) {
+			PayuniLogisticsCallback::register_hooks();
 		}
 	}
 
@@ -80,12 +99,15 @@ final class ProviderRegister {
 	 * @return array<int|string, string>
 	 */
 	public static function add_shipping_method( array $methods ): array {
-		$methods[ WC_EcpayLogisticsShipping::METHOD_ID ] = WC_EcpayLogisticsShipping::class;
+		$methods[ WC_EcpayLogisticsShipping::METHOD_ID ]  = WC_EcpayLogisticsShipping::class;
+		$methods[ WC_PayuniLogisticsShipping::METHOD_ID ] = WC_PayuniLogisticsShipping::class;
 		return $methods;
 	}
 
 	/**
-	 * Classic 結帳：寫入物流子類型 / 付款情境 meta（委派運送方式）
+	 * Classic 結帳：寫入物流子類型 / 付款情境 meta（委派各運送方式）
+	 *
+	 * 兩運送方式各自以 is_chosen() 把關，只有被選用的那個會寫入 meta。
 	 *
 	 * @param \WC_Order            $order 訂單
 	 * @param array<string, mixed> $data  結帳送出資料
@@ -93,6 +115,7 @@ final class ProviderRegister {
 	 */
 	public static function save_checkout_meta( \WC_Order $order, array $data = [] ): void {
 		WC_EcpayLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_PayuniLogisticsShipping::save_checkout_meta( $order, $data );
 	}
 
 	/** @return BaseSettingsDTO[] 取得 provider 設定 dtos（給 SettingApiService GET /settings） */

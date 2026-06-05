@@ -56,6 +56,10 @@ final class EcpgGatewayTest extends TestCase {
 	public function tear_down(): void {
 		delete_option( ProviderUtils::get_option_name( EcpgGateway::ID ) );
 		EcpgSettingsDTO::reset();
+		// 還原套件預設的 API_MODE=mock（composer test 以 @putenv 設定）。
+		// 本類別個別測試會 putenv 切換 API_MODE，務必還原為 mock，否則會「外洩」到
+		// 後續（字母序在 Payment 之後）依賴 mock 的測試（如 Receipt），使其誤打真 API。
+		putenv( 'API_MODE=mock' );
 		parent::tear_down();
 	}
 
@@ -248,7 +252,7 @@ final class EcpgGatewayTest extends TestCase {
 		$this->assertNotSame( '', $result['three_d_url'] );
 		$this->assertStringContainsString( '3DVerify', $result['three_d_url'] );
 
-		putenv( 'API_MODE' );
+		putenv( 'API_MODE=mock' );
 	}
 
 	/**
@@ -308,7 +312,7 @@ final class EcpgGatewayTest extends TestCase {
 		$this->assertSame( 1, $decrypted['RtnCode'] );
 		$this->assertStringContainsString( $trade_no, (string) $decrypted['Token'] );
 
-		putenv( 'API_MODE' );
+		putenv( 'API_MODE=mock' );
 	}
 
 	/**
@@ -329,7 +333,7 @@ final class EcpgGatewayTest extends TestCase {
 		// Then: 冪等，trade_no 不變
 		$this->assertSame( $first, $second );
 
-		putenv( 'API_MODE' );
+		putenv( 'API_MODE=mock' );
 	}
 
 	// ========== 設定（Settings） ==========

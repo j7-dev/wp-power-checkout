@@ -1,8 +1,9 @@
 <script lang="ts" setup>
-import { computed } from 'vue'
-import Card from '@/components/Card.vue'
 import { useQuery } from '@tanstack/vue-query'
+import { computed } from 'vue'
+
 import apiClient from '@/api'
+import Card from '@/components/Card.vue'
 import { TIGateway } from '@/types'
 
 const { isPending, data, error } = useQuery({

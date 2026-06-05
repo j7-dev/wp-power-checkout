@@ -29,10 +29,13 @@ export enum EEcpayLogisticsAccountType {
 export enum EEcpayLogisticsSubType {
 	/** 全家超商取貨 */
 	FAMI = 'FAMI',
+
 	/** 統一超商（7-11）取貨 */
 	UNIMART = 'UNIMART',
+
 	/** 萊爾富超商取貨 */
 	HILIFE = 'HILIFE',
+
 	/** 宅配（黑貓） */
 	HOME = 'HOME',
 }

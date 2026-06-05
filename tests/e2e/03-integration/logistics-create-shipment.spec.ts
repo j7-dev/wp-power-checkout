@@ -281,9 +281,14 @@ test.describe('全方位物流建物流單整合流程', () => {
   test.describe('@error 訂單不存在', () => {
     test('create-shipment 傳入不存在的訂單 ID → 4xx，不 500', async ({ request }) => {
       const res = await sendCreateShipment(request, 9_999_999)
-      expect(res.status).not.toBe(404) // 端點存在
+      // 後端對「查無訂單」回 404 + {code:'error', message:'找不到訂單'}（合法業務回應，
+      // 與「路由不存在」的 404 語意不同——此處端點確實存在並正確拒絕）。
       expect(res.status).not.toBe(500) // 不 crash
       expect(res.status).toBeGreaterThanOrEqual(400) // 正確回 4xx
+      // 確認為「找不到訂單」業務錯誤，而非路由缺失
+      if (res.json) {
+        expect(String((res.json as AnyRecord).message ?? '')).toMatch(/找不到訂單/)
+      }
     })
 
     test('create-shipment 傳入負數訂單 ID → 不 crash', async ({ request }) => {

@@ -1,6 +1,6 @@
-import { IOrderData } from '@/external/RefundDialog/types'
 import { CheckboxProps } from '@/components/Checkbox/types'
 import { IEcpgData, IEcpaySdk } from '@/external/EcpgPayment/types'
+import { IOrderData } from '@/external/RefundDialog/types'
 
 export {}
 
@@ -43,6 +43,7 @@ declare global {
 				mode: 'test' | 'prod'
 			}[]
 		}
+
 		/**
 		 * 綠界 ECPay 站內付 2.0（ECPG）order-received 頁專屬資料
 		 *
@@ -51,8 +52,10 @@ declare global {
 		 * @see inc/classes/Domains/Payment/Ecpg/Services/EcpgGateway.php build_sdk_config()
 		 */
 		power_checkout_ecpg_data?: IEcpgData
+
 		/** 綠界站內付 2.0 前端 JS SDK 全域物件（由 sdk-1.0.0.js 注入 window） */
 		ECPay?: IEcpaySdk
+
 		/** jQuery（綠界 SDK 依賴；WP 環境通常已載入，型別僅作存在性檢查） */
 		jQuery?: unknown
 	}

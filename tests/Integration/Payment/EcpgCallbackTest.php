@@ -127,6 +127,90 @@ final class EcpgCallbackTest extends TestCase {
 		$this->assertSame( 1, $detail['RtnCode'] );
 	}
 
+	// ========== MerchantID 驗證（High-2：ReturnURL 未驗 MerchantID） ==========
+
+	/**
+	 * @test
+	 * @group security
+	 */
+	public function test_MerchantID不符時維持pending不更新明細(): void {
+		// Given: pending 訂單 + TransCode/RtnCode 皆 1，但外層 MerchantID 為偽造值
+		$trade_no = 'EG200BADMID';
+		$order    = $this->create_ecpg_order( $trade_no );
+		$payload  = $this->build_notify( 1, 1, $trade_no );
+		$payload['MerchantID'] = '9999999'; // 偽造（本商店為 3002607）
+
+		// When
+		EcpgCallback::instance()->handle_return( $payload );
+
+		// Then: 維持 pending，不更新付款明細（拒絕處理偽造來源）
+		$this->assert_order_status( $order, 'pending' );
+		$detail = ( new EcpayMetaKeys( wc_get_order( $order->get_id() ) ) )->get_payment_detail();
+		$this->assertEmpty( $detail );
+	}
+
+	/**
+	 * @test
+	 * @group security
+	 */
+	public function test_MerchantID不符時即使透過REST端點也不洩漏憑證且回1OK(): void {
+		// Given: 偽造 MerchantID 的通知
+		$trade_no = 'EG200BADMID2';
+		$this->create_ecpg_order( $trade_no );
+		$payload  = $this->build_notify( 1, 1, $trade_no );
+		$payload['MerchantID'] = '9999999';
+
+		$request = new \WP_REST_Request( 'POST', '/power-checkout/ecpay/ecpg/return' );
+		$request->set_body_params( $payload );
+
+		// When
+		$response = EcpgCallback::instance()->post_ecpg_return_callback( $request );
+
+		// Then: 仍回 1|OK / 200（照原 callback 協定，避免重送風暴）
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( '1|OK', $response->get_data() );
+		// 回應不洩漏憑證
+		$body = (string) $response->get_data();
+		$this->assertStringNotContainsString( self::HASH_KEY, $body );
+		$this->assertStringNotContainsString( self::HASH_IV, $body );
+	}
+
+	// ========== 金額驗證（High-2：ReturnURL 未驗金額） ==========
+
+	/**
+	 * @test
+	 * @group security
+	 */
+	public function test_RtnCode1但金額與訂單總額不符時維持pending(): void {
+		// Given: pending 訂單（總額 1000），但回傳 TradeAmt=1（疑似竄改）
+		$trade_no = 'EG200AMTMISMATCH';
+		$order    = $this->create_ecpg_order( $trade_no );
+		$payload  = [
+			'MerchantID' => '3002607',
+			'TransCode'  => 1,
+			'TransMsg'   => 'Success',
+			'Data'       => $this->crypto()->encrypt(
+				[
+					'RtnCode'   => 1,
+					'RtnMsg'    => '交易成功',
+					'OrderInfo' => [
+						'MerchantTradeNo' => $trade_no,
+						'TradeNo'         => '2026031215360099',
+						'TradeAmt'        => 1, // 與訂單總額 1000 不符
+						'PaymentType'     => 'Credit',
+					],
+				]
+			),
+		];
+
+		// When
+		EcpgCallback::instance()->handle_return( $payload );
+
+		// Then: 維持 pending（不可自動轉處理中），order note 告警
+		$this->assert_order_status( $order, 'pending' );
+		$this->assert_order_note_contains( $order, '金額' );
+	}
+
 	// ========== 業務層失敗（RtnCode≠1） ==========
 
 	/**
