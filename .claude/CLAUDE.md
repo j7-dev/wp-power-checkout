@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ECPay Logistics** (`ecpay_logistics`) — ECPay AllInOne Logistics v2; convenience store (FAMI/UNIMART/HILIFE) + home delivery (HOME, with temperature); B2C (2000132) + C2C (2000933) account types; COD (IsCollection) + online payment; two-phase store selection (TempTrade → CreateByTempTrade); AES-JSON callback
 - **Amego** — Taiwan e-invoice issuance/void
 - **ECPay Invoice** (`ecpay`) — Taiwan e-invoice B2C/B2B via ECPay; AES-128-CBC; parallel with Amego, switchable from admin
+- **ezPay Invoice** (`ezpay`) — Taiwan e-invoice B2C/B2B via NewebPay ezPay; AES-256-CBC (PKCS#7 blocksize=32 + ZERO_PADDING + hex lowercase); CheckCode SHA256; issue/void/allowance (open+void)/query; parallel with Amego & ECPay Invoice, switchable from admin
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
 
 ---
@@ -125,6 +126,11 @@ inc/classes/
 │   │   │   ├── Http/InvoiceApiClient.php  # AES-128-CBC
 │   │   │   ├── DTOs/                      # EcpayInvoiceSettingsDTO, IssueParams, CancelParams, IssueResponse
 │   │   │   └── Shared/                    # AesCrypto, Enums (EApi, ETaxType, ECarrierType)
+│   │   ├── Ezpay/                   # EzpayInvoiceProvider (IInvoiceService + ISupportsAllowance + ISupportsQuery, ID: ezpay)
+│   │   │   ├── Services/EzpayInvoiceProvider.php
+│   │   │   ├── Http/InvoiceApiClient.php  # AES-256-CBC (PKCS#7 blocksize=32 + ZERO_PADDING + hex); CheckCode SHA256; test: cinv.ezpay.com.tw / prod: inv.ezpay.com.tw
+│   │   │   ├── DTOs/                      # EzpaySettingsDTO, IssueParams, CancelParams, IssueResponse, AllowanceParams, AllowanceInvalidParams, AllowanceResponse, QueryParams, QueryResponse
+│   │   │   └── Shared/                    # Helpers (AesCrypto, CheckCodeService, UrlEncoder, PiiMasker), Enums (EApi, ETaxType, ECarrierType, ECategory)
 │   │   └── Shared/                  # IInvoiceService interface, InvoiceApiService (REST /invoices)
 │   └── Settings/
 │       └── Services/                # WC settings tab, REST /settings CRUD, default address format
@@ -188,12 +194,12 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 
 ## Testing Infrastructure
 
-- Base class: `J7\PowerCheckoutTests\Shared\WC_UnitTestCase` extends `WP_UnitTestCase`
-- API mode enum: `Api::MOCK | Api::SANDBOX | Api::PROD` — controlled by `API_MODE` env var
-- `@Create` PHP attribute on test classes auto-instantiates fixture helpers (Order, Product, User, Requester)
-- Fixtures accessed via `$this->get_container(HelperClass::class)`
-- Test DB configured in `phpunit.xml` (`WP_DB_HOST`, `WP_ABSPATH`) — points to a separate WP install
-- Tests directory: `inc/tests/` with `Domains/` mirroring `inc/classes/Domains/`
+- Active test suite: `tests/Integration/` — namespace `Tests\Integration\`, base class `Tests\Integration\TestCase extends WP_UnitTestCase`, bootstrap `tests/bootstrap.php`
+- Config: `phpunit.xml.dist` — **group whitelist**: only `smoke` / `happy` / `error` / `edge` / `security` groups are collected; tests must be annotated with at least one group to run
+- Additional test categories used: `integration`, `invoice`, `<provider>` (e.g. `ezpay`)
+- API mode: controlled by `API_MODE` env var (`mock` / `sandbox` / `prod`)
+- Pure-logic offline verification (no WP bootstrap): `tests/offline/ezpay-pure-harness.php` — used when LocalWP DB constraints prevent `WP_UnitTestCase` from running locally
+- Legacy directory `inc/tests/` exists but is **not** referenced by `phpunit.xml.dist`; treat as inactive
 - E2E tests: `tests/e2e/` (Playwright) with separate `package.json` — admin, frontend, integration suites
 
 ---
@@ -319,6 +325,18 @@ PAYUNi logistics and block checkout are deferred.
 
 ---
 
+## ezPay Invoice Flow (ezpay)
+
+1. `issue()` → `InvoiceApiClient::issue()` → POST `invoice_issue` v1.5 (AES-256-CBC encrypted + CheckCode verified) → `Status=1` means immediate issuance → writes `pc_issued_data` (includes `invoice_trans_no` + `random_num`)
+2. `cancel()` → POST `invoice_invalid` v1.0 → writes `pc_cancelled_data`
+3. **Allowance (open)**: triggered by WC refund hook → `allowance()` → POST `allowance_issue` v1.3 → writes `allowance_data` (includes `allowance_no`) to `pc_issued_data`
+4. **Allowance (void)**: `allowance_invalid()` → POST `allowanceInvalid` v1.0
+5. **Query**: `query()` → POST `invoice_search` v1.3 → `UploadStatus` indicates upload to Ministry of Finance
+6. Encryption differs from ECPay: **AES-256-CBC** with PKCS#7 blocksize=32 + `OPENSSL_ZERO_PADDING` + `bin2hex` lowercase; **not** interchangeable with ECPay's AES-128-CBC + base64
+7. CheckCode: SHA256 of 5 fields ksort + HashIV/HashKey wrap → uppercase → `hash_equals` comparison
+
+---
+
 ## Order Meta Keys
 
 | Key | Purpose |
@@ -326,7 +344,7 @@ PAYUNi logistics and block checkout are deferred.
 | `pc_payment_identity` | tradeOrderId (idempotency guard) — SLP |
 | `pc_payment_detail` | Payment details (admin display) — SLP |
 | `pc_refund_detail` | Refund details — SLP |
-| `pc_issued_data` | Invoice issuance response |
+| `pc_issued_data` | Invoice issuance response (ezPay: includes `invoice_trans_no` + `random_num`; allowance_data includes `allowance_no`) |
 | `pc_cancelled_data` | Invoice void response |
 | `pc_provider_id` | Which invoice provider was used |
 | `pc_issue_params` | Checkout-submitted invoice info |

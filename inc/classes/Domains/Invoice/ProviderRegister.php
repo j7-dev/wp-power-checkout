@@ -7,6 +7,7 @@ namespace J7\PowerCheckout\Domains\Invoice;
 use J7\PowerCheckout\Domains\Invoice\Amego\Http\ApiClient;
 use J7\PowerCheckout\Domains\Invoice\Amego\Services\AmegoProvider;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
+use J7\PowerCheckout\Domains\Invoice\Ezpay\Services\EzpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
@@ -31,6 +32,7 @@ final class ProviderRegister {
 	private static array $invoice_providers = [
 		AmegoProvider::ID        => AmegoProvider::class,
 		EcpayInvoiceProvider::ID => EcpayInvoiceProvider::class,
+		EzpayInvoiceProvider::ID => EzpayInvoiceProvider::class,
 	];
 
 

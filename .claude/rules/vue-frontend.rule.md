@@ -109,6 +109,7 @@ Memory mode router (`createMemoryHistory`):
 /invoices                               → Invoice list
 /invoices/amego                         → Amego settings
 /invoices/ecpay                         → ECPay Invoice settings
+/invoices/ezpay                         → ezPay Invoice settings (js/src/pages/Invoices/Ezpay/index.vue)
 /settings                               → Global settings (placeholder)
 ```
 

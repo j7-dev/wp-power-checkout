@@ -8,6 +8,7 @@ export const ROUTER_MAPPER = {
 	newebpay_mpg: '/payments/newebpay_mpg',
 	amego: '/invoices/amego',
 	ecpay: '/invoices/ecpay',
+	ezpay: '/invoices/ezpay',
 	ecpay_receipt: '/receipts/ecpay_receipt',
 	ecpay_logistics: '/logistics/ecpay_logistics',
 	payuni_logistics: '/logistics/payuni_logistics',
@@ -52,6 +53,10 @@ const routes = [
 	{
 		path: '/invoices/ecpay',
 		component: () => import('@/pages/Invoices/Ecpay/index.vue'),
+	},
+	{
+		path: '/invoices/ezpay',
+		component: () => import('@/pages/Invoices/Ezpay/index.vue'),
 	},
 	{ path: '/receipts', component: () => import('@/pages/Receipts/index.vue') },
 	{

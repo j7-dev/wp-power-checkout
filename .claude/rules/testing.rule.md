@@ -1,6 +1,6 @@
 ---
 globs:
-  - "inc/tests/**/*.php"
+  - "tests/Integration/**/*.php"
   - "tests/e2e/**/*.ts"
 ---
 
@@ -10,10 +10,14 @@ globs:
 
 ### Infrastructure
 
-- Base class: `J7\PowerCheckoutTests\Shared\WC_UnitTestCase` (extends `WP_UnitTestCase`)
-- Test directory: `inc/tests/` mirrors `inc/classes/` structure
-- Namespace: `J7\PowerCheckoutTests\`
-- Test DB config: `phpunit.xml` (`WP_DB_HOST`, `WP_ABSPATH`)
+- Active test directory: `tests/Integration/` — this is the authoritative suite used by `composer test`
+- Base class: `Tests\Integration\TestCase` (extends `WP_UnitTestCase`)
+- Namespace: `Tests\Integration\`
+- Bootstrap: `tests/bootstrap.php`; DB config: `tests/wp-tests-config.php`
+- Config file: `phpunit.xml.dist` (note: **not** `phpunit.xml`)
+- **Group whitelist** (phpunit.xml.dist `<groups><include>`): only `smoke` / `happy` / `error` / `edge` / `security` are collected — every test must carry at least one of these annotations to be executed
+- Additional classification groups used alongside: `integration`, `invoice`, provider name (e.g. `ezpay`)
+- Legacy directory `inc/tests/` is **not** referenced by the active config; do not add new tests there
 
 ### API Mode
 
@@ -29,23 +33,6 @@ Tests run in one of three modes controlled by `API_MODE` env var:
 composer test              # API_MODE=mock (default, safe for CI)
 composer test:sandbox      # API_MODE=sandbox
 composer test:prod         # API_MODE=prod (use with caution)
-```
-
-### @Create Attribute
-
-Test classes use `@Create` PHP attribute to auto-instantiate fixture helpers:
-
-```php
-#[Create(Order::class)]
-#[Create(Product::class)]
-#[Create(User::class)]
-#[Create(Requester::class)]
-final class SomeTest extends WC_UnitTestCase {
-    public function test_something(): void {
-        $order = $this->get_container(Order::class);
-        // $order is pre-created fixture
-    }
-}
 ```
 
 ### Running Single Tests
