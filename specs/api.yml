@@ -229,8 +229,8 @@ components:
       properties:
         provider:
           type: string
-          enum: [amego, ecpay]
-          description: 電子發票 Provider ID（amego = 光貿；ecpay = 綠界電子發票）
+          enum: [amego, ecpay, ezpay]
+          description: 電子發票 Provider ID（amego = 光貿；ecpay = 綠界電子發票；ezpay = ezPay 電子發票，藍新 NewebPay）
           example: "amego"
         invoiceType:
           type: string

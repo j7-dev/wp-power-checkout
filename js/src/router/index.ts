@@ -5,6 +5,7 @@ export const ROUTER_MAPPER = {
 	shopline_payment_redirect: '/payments/shopline_payment_redirect',
 	ecpay_aio: '/payments/ecpay_aio',
 	ecpay_ecpg: '/payments/ecpay_ecpg',
+	newebpay_mpg: '/payments/newebpay_mpg',
 	amego: '/invoices/amego',
 	ecpay: '/invoices/ecpay',
 	ecpay_receipt: '/receipts/ecpay_receipt',
@@ -26,6 +27,10 @@ const routes = [
 	{
 		path: '/payments/ecpay_ecpg',
 		component: () => import('@/pages/Payments/EcpayEcpg/index.vue'),
+	},
+	{
+		path: '/payments/newebpay_mpg',
+		component: () => import('@/pages/Payments/NewebpayMpg/index.vue'),
 	},
 	{
 		path: '/logistics',

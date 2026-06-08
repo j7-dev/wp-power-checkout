@@ -45,10 +45,11 @@ Enum ecpay_aio_rtn_code {
   "10100073" [note: 'CVS/BARCODE 取號成功（取得繳費代碼/條碼，尚未付款）→ 不改狀態']
 }
 
-// 電子發票 Provider 值域（Amego + 綠界發票兩者並存，後台可切換）
+// 電子發票 Provider 值域（Amego + 綠界發票 + ezPay 三者並存，後台可切換）
 Enum invoice_provider {
   amego [note: '光貿電子發票（gateway id=amego，md5 簽章）']
-  ecpay [note: '綠界電子發票 B2C/B2B（gateway id=ecpay，AES-128-CBC）']
+  ecpay [note: '綠界電子發票 B2C/B2B（gateway id=ecpay，AES-128-CBC + base64）']
+  ezpay [note: 'ezPay 電子發票 B2C/B2B（藍新 NewebPay，gateway id=ezpay，AES-256-CBC + hex + CheckCode SHA256）']
 }
 
 // ---- Logistics（綠界全方位物流 v2 / AllInOne）----
@@ -281,6 +282,31 @@ Table wp_options_ecpay_invoice_settings {
   '''
 }
 
+Table wp_options_ezpay_invoice_settings {
+  option_name varchar [pk, note: 'woocommerce_ezpay_settings']
+  enabled varchar [note: 'yes / no']
+  title varchar [note: '前台顯示標題（預設「ezPay 電子發票」）']
+  description text [note: '前台顯示描述']
+  icon varchar [note: '圖示 URL']
+  method_title varchar [note: '標題']
+  method_description varchar [note: '描述']
+  mode provider_mode [note: 'test / prod（test=cinv.ezpay.com.tw，prod=inv.ezpay.com.tw）']
+  merchant_id varchar [note: 'ezPay 商店代號 MerchantID（憑證存 DB；傳輸時帶 MerchantID_ 明文）']
+  hash_key varchar [note: 'ezPay HashKey 32 bytes（憑證存 DB）']
+  hash_iv varchar [note: 'ezPay HashIV 16 bytes（憑證存 DB）']
+  auto_issue_order_statuses json [note: '自動開立發票的訂單狀態列表（預設 ["wc-processing"]）']
+  auto_cancel_order_statuses json [note: '自動作廢發票的訂單狀態列表（預設 ["wc-refunded"]）']
+  auto_allowance_on_refund varchar [note: '部分退款時自動開立折讓（yes / no，預設 no）']
+
+  Note: '''
+    ezPay 電子發票（藍新 NewebPay）B2C/B2B 設定，與 Amego、綠界發票並列為 Invoice Provider
+    儲存在 wp_options，option_name = woocommerce_ezpay_settings（發票 provider id = ezpay）
+    加密 AES-256-CBC（HashKey 32 bytes / HashIV 16 bytes / PKCS#7 blocksize 32 / hex），回應 CheckCode SHA256 驗章
+    憑證一律存 DB，禁止寫死正式憑證（測試帳號由 ezPay 測試平台 cinv.ezpay.com.tw 申請取得）
+    對應 .feature: invoice/invoice-issue、invoice/invoice-cancel（ezPay provider 情境）、invoice/ezpay-invoice-allowance、invoice/ezpay-invoice-query
+  '''
+}
+
 Table wp_options_ecpay_logistics_settings {
   option_name varchar [pk, note: 'woocommerce_ecpay_logistics_settings']
   enabled varchar [note: 'yes / no']
@@ -366,15 +392,17 @@ Table wc_order_meta_ecpay_payment {
 Table wc_order_meta_invoice {
   order_id bigint [ref: > wc_orders.id, note: '訂單 ID']
   _pc_issue_invoice_params json [note: '結帳頁填寫的發票資訊（invoiceType, individual, carrier, companyId 等）']
-  _pc_issued_invoice_data json [note: '發票開立回傳資料 array（含 invoice_number 等）']
+  _pc_issued_invoice_data json [note: '發票開立回傳資料 array（含 invoice_number 等；ezPay 另含 invoice_trans_no / random_num）']
   _pc_cancelled_invoice_data json [note: '發票作廢回傳資料 array']
-  _pc_invoice_provider_id invoice_provider [note: '使用的發票 Provider ID（amego ｜ ecpay）']
+  _pc_allowance_data json [note: '開立折讓回傳資料 array（部分退款折讓單；ezPay 含 allowance_no）']
+  _pc_invoice_provider_id invoice_provider [note: '使用的發票 Provider ID（amego ｜ ecpay ｜ ezpay）']
 
   Note: '''
-    電子發票相關的 Order Meta（Amego 與綠界 ECPay 發票共用同一組 meta key）
-    對應 .feature: invoice/invoice-issue、invoice/invoice-cancel
-    透過 Invoice\Shared\Helpers\MetaKeys 類別存取
-    _pc_invoice_provider_id 值域對應 Enum invoice_provider（amego ｜ ecpay）
+    電子發票相關的 Order Meta（Amego、綠界 ECPay、ezPay 發票共用同一組 meta key）
+    對應 .feature: invoice/invoice-issue、invoice/invoice-cancel、invoice/ezpay-invoice-allowance、invoice/ezpay-invoice-query
+    透過 Invoice\Shared\Helpers\MetaKeys 類別存取（provider-agnostic，ezPay 沿用不新增 meta key）
+    _pc_invoice_provider_id 值域對應 Enum invoice_provider（amego ｜ ecpay ｜ ezpay）
+    ezPay 的 InvoiceTransNo / InvoiceNumber / RandomNum 存於 _pc_issued_invoice_data JSON 內，AllowanceNo 存於 _pc_allowance_data
     作廢成功時清除 _pc_issue_invoice_params、_pc_issued_invoice_data、_pc_invoice_provider_id
   '''
 }

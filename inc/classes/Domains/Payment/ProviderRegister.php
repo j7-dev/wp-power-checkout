@@ -18,6 +18,7 @@ final class ProviderRegister {
 		ShoplinePayment\Services\RedirectGateway::ID => ShoplinePayment\Services\RedirectGateway::class,
 		EcpayAIO\Services\AioRedirectGateway::ID     => EcpayAIO\Services\AioRedirectGateway::class,
 		Ecpg\Services\EcpgGateway::ID                => Ecpg\Services\EcpgGateway::class,
+		NewebpayMpg\Services\MpgRedirectGateway::ID  => NewebpayMpg\Services\MpgRedirectGateway::class,
 	];
 
 	/** Register hooks */

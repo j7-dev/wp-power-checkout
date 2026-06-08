@@ -157,3 +157,103 @@
       那麼 回應狀態碼為 200
       而且 訂單 #100 的 _pc_issued_invoice_data 有值
       而且 訂單 #100 的 _pc_invoice_provider_id 為 "ecpay"
+
+  規則: ezPay 發票 provider 開立（B2C/B2B）
+    # ezPay = 藍新 NewebPay 旗下品牌；AES-256-CBC PostData_ + CheckCode SHA256 驗章。
+    # 沿用統一 IInvoiceService + 既有 /invoices/issue 端點，僅 provider id 不同。
+    # invoice_issue Version=1.5；即時開立 Status=1 回應才帶 InvoiceNumber。
+
+    場景: 以 ezPay provider 開立 B2C 個人雲端發票成功
+      假設 "ezpay" 已啟用
+      而且 ezPay 發票設定如下：
+        | key         | value                            |
+        | merchant_id | 3502275                          |
+        | hash_key    | abcdefghijklmnopqrstuvwxyz123456 |
+        | hash_iv     | 1234567890abcdef                 |
+        | mode        | test                             |
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 ezPay API 開立發票回傳成功，InvoiceNumber 為 "DS12223139"
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，參數為：
+        | key         | value      |
+        | provider    | ezpay      |
+        | invoiceType | individual |
+        | individual  | cloud      |
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_issued_invoice_data 有值
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ezpay"
+      而且 _pc_issued_invoice_data 包含 "invoice_number" 為 "DS12223139"
+      而且 _pc_issued_invoice_data 包含 "invoice_trans_no"
+      而且 _pc_issued_invoice_data 包含 "random_num"
+
+    場景: 以 ezPay provider 開立 B2C 手機條碼載具發票成功
+      # 結帳表單 individual=barcode → ezPay CarrierType=0（手機條碼載具），CarrierNum 須 rawurlencode
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 ezPay API 開立發票回傳成功
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，參數為：
+        | key         | value      |
+        | provider    | ezpay      |
+        | invoiceType | individual |
+        | individual  | barcode    |
+        | carrier     | /ABC1234   |
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_issued_invoice_data 有值
+      而且 送出的 PostData 中 CarrierType 為 "0"
+
+    場景: 以 ezPay provider 開立 B2C 捐贈發票成功
+      # 結帳表單 invoiceType=donate → ezPay LoveCode；載具與捐贈互斥（CarrierType 須空）
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 ezPay API 開立發票回傳成功
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，參數為：
+        | key         | value  |
+        | provider    | ezpay  |
+        | invoiceType | donate |
+        | donateCode  | 7788   |
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_issued_invoice_data 有值
+      而且 送出的 PostData 中 LoveCode 為 "7788"
+      而且 送出的 PostData 中 CarrierType 為空
+
+    場景: 以 ezPay provider 開立 B2B 公司統編發票成功
+      # B2B → Category=B2B，ItemPrice/ItemAmt 為未稅金額（與 B2C 含稅不同）；BuyerUBN 必填、PrintFlag 必填 Y
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 ezPay API 開立發票回傳成功
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，參數為：
+        | key         | value    |
+        | provider    | ezpay    |
+        | invoiceType | company  |
+        | companyName | 測試公司 |
+        | companyId   | 87654321 |
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_issued_invoice_data 有值
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ezpay"
+      而且 送出的 PostData 中 Category 為 "B2B"
+      而且 送出的 PostData 中 BuyerUBN 為 "87654321"
+
+  規則: 前置（參數）- ezPay 載具與捐贈互斥
+
+    場景: 同時帶載具與捐贈碼時開立失敗
+      # ezPay 規定 CarrierType 有值時 LoveCode 必為空；違反會被 ezPay 平台拒絕
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，參數同時帶 carrier 與 donateCode
+      那麼 開立失敗，錯誤為"載具與捐贈不可同時指定"
+
+  規則: 後置（回應）- ezPay 回應須通過 CheckCode 驗章
+    # ezPay 回應帶 CheckCode（SHA256），驗算 5 欄位（InvoiceTransNo/MerchantID/MerchantOrderNo/RandomNum/TotalAmt）A-Z 排序 + HashIV/HashKey 夾後比對
+
+    場景: CheckCode 驗章失敗時不寫入開立資料
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 ezPay API 回傳的 CheckCode 與本地計算不符
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，provider 為 "ezpay"
+      那麼 開立失敗
+      而且 訂單 #100 的 _pc_issued_invoice_data 未被寫入

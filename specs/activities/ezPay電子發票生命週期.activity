@@ -1,0 +1,53 @@
+[ACTIVITY] ezPay 電子發票生命週期
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+[ACTOR] ezPay -> {specs/actors/ezPay.md}
+
+[STEP:1] @顧客 {specs/features/invoice/invoice-issue.feature}
+  %% 顧客在結帳頁填寫發票資訊（個人/公司/捐贈 + 載具/統編），存入 _pc_issue_invoice_params（provider-agnostic 共用表單，ezPay 啟用即套用）
+
+[STEP:2] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+  %% 訂單狀態變更（預設 processing）觸發 woocommerce_order_status_{status} hook，呼叫 ezPay Provider issue()
+[DECISION:2a] 訂單是否已開立發票（冪等檢查 _pc_issued_invoice_data）
+  [BRANCH:2a:已開立] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+    %% 已有 issued_data → 直接回傳，不重複呼叫 ezPay API
+  [BRANCH:2a:未開立] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+    %% 組業務參數（依 Category 算 B2C 含稅 / B2B 未稅金額；載具/捐贈互斥）→ AES-256-CBC 加密 PostData_ → POST /Api/invoice_issue（Version 1.5, Status=1）
+[MERGE:2a]
+
+[STEP:3] @ezPay {specs/features/invoice/invoice-issue.feature}
+  %% ezPay 回應 { Status, Message, Result }；驗證 CheckCode（SHA256）
+[DECISION:3a] 開立結果（Status + CheckCode 驗章）
+  [BRANCH:3a:成功] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+    %% Status=SUCCESS 且 CheckCode 通過 → 寫入 _pc_issued_invoice_data（含 invoice_number / invoice_trans_no / random_num）+ _pc_invoice_provider_id=ezpay
+  [BRANCH:3a:失敗] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+    %% Status 為錯誤碼或 CheckCode 不符 → 不寫入開立資料，記錄 order note
+[MERGE:3a]
+
+[STEP:4] @管理員 {specs/features/invoice/ezpay-invoice-query.feature}
+  %% 管理員於後台發票 MetaBox 查詢發票明細（invoice_search，唯讀），確認 InvoiceStatus / UploadStatus 財政部上傳結果
+
+[STEP:5] @顧客 {specs/features/invoice/ezpay-invoice-allowance.feature}
+  %% 顧客退貨，管理員對訂單做部分退款
+[DECISION:5a] 退款類型（部分 vs 全額）
+  [BRANCH:5a:部分退款] @WooCommerce {specs/features/invoice/ezpay-invoice-allowance.feature}
+    %% woocommerce_order_refunded hook：部分退款 + 已開發票 + provider 支援折讓 + auto_allowance_on_refund=yes → 開立折讓 allowance_issue（Version 1.3），寫入 _pc_allowance_data
+  [BRANCH:5a:全額退款] @WooCommerce {specs/features/invoice/invoice-cancel.feature}
+    %% 全額退款 → 走作廢發票邏輯（見 STEP:6），不開折讓
+[MERGE:5a]
+
+[STEP:6] @管理員 {specs/features/invoice/invoice-cancel.feature}
+  %% 管理員手動作廢，或訂單進入 refunded 狀態自動觸發 cancel()（冪等檢查 _pc_cancelled_invoice_data）
+[DECISION:6a] 是否可作廢（ezPay 業務規則）
+  [BRANCH:6a:可作廢] @ezPay {specs/features/invoice/invoice-cancel.feature}
+    %% 未開折讓 + 已上傳財政部 + 期限內 → invoice_invalid（Version 1.0）成功 → 清除 issued_data，寫入 _pc_cancelled_invoice_data
+  [BRANCH:6a:不可作廢] @WooCommerce {specs/features/invoice/invoice-cancel.feature}
+    %% 已開折讓(LIB10007) / 未上傳財政部(LIB10009) / 跨期(LIB10008) → 作廢失敗，保留 issued_data，記錄 order note
+[MERGE:6a]
+[END]
+
+%% ezPay 沿用 provider-agnostic 共用層：結帳表單(InvoiceParams/InvoiceApp)、order meta(MetaKeys)、REST 端點(/invoices/issue|cancel)、退款自動折讓 hook 全部共用，無需新增。
+%% 載具映射：結帳 individual=barcode→CarrierType=0；moica→CarrierType=1；cloud→ezPay 電子發票載具 CarrierType=2；paper→PrintFlag=Y；invoiceType=donate→LoveCode；company→Category=B2B。
+%% touch_issue（等待觸發/預約自動開立）與 allowance_touch_issue（折讓兩段式確認）非首期範圍。
+%% 折讓 / 查詢目前無 REST 端點：折讓走退款自動 hook，查詢走後台 MetaBox；若需手動折讓 UI 須新增端點（實作期決策）。

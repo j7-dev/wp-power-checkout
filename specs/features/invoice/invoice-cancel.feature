@@ -91,3 +91,31 @@
       而且 訂單 #100 的 _pc_cancelled_invoice_data 有值
       而且 訂單 #100 的 _pc_issued_invoice_data 已被清除
       而且 訂單 #100 的 _pc_invoice_provider_id 已被清除
+
+  規則: ezPay 發票 provider 作廢
+    # ezPay invoice_invalid Version=1.0；以 InvoiceNumber + InvalidReason（限中文6字/英文20字）作廢。
+    # 沿用統一 IInvoiceService + 既有 /invoices/cancel 端點，僅 provider id 不同。
+
+    場景: 以 ezPay provider 作廢發票成功
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ezpay"
+      而且 訂單 #100 已開立 ezPay 發票且尚未作廢
+      而且 ezPay API 作廢發票回傳成功
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/cancel/100
+      那麼 回應狀態碼為 200
+      而且 訂單 #100 的 _pc_cancelled_invoice_data 有值
+      而且 訂單 #100 的 _pc_issued_invoice_data 已被清除
+      而且 訂單 #100 的 _pc_invoice_provider_id 已被清除
+
+    場景: 作廢已開過折讓的 ezPay 發票時失敗
+      # ezPay 規則：已開折讓的發票須先作廢折讓才能作廢發票（LIB10007）
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ezpay"
+      而且 訂單 #100 已開立 ezPay 發票且已開過折讓
+      而且 ezPay API 作廢發票回傳錯誤代碼 "LIB10007"
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/cancel/100
+      那麼 作廢失敗
+      而且 訂單 #100 的 _pc_issued_invoice_data 未被清除
+      而且 訂單 #100 留下作廢失敗的 order note
