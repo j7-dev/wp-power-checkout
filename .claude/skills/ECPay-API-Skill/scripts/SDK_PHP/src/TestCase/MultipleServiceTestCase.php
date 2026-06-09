@@ -9,82 +9,81 @@ use Ecpay\Sdk\Factories\Factory;
 use Faker\Factory as FakerFactory;
 use Ecpay\Sdk\Services\CheckMacValueService;
 
-class MultipleServiceTestCase extends TestCase
-{
-    use StageInfo;
+class MultipleServiceTestCase extends TestCase {
 
-    /**
-     * Factory
-     *
-     * @var Factory
-     */
-    protected $factory;
+	use StageInfo;
 
-    /**
-     * fzaninotto/faker
-     *
-     * @var Generator
-     */
-    protected $faker;
+	/**
+	 * Factory
+	 *
+	 * @var Factory
+	 */
+	protected $factory;
 
-    /**
-     * Sets up the fixture, for example, open a network connection.
-     * This method is called before a test is executed.
-     */
-    protected function setUp()
-    {
-        parent::setUp();
-        $this->setFactory($this->getSha256CmvFactory());
-        $this->faker = FakerFactory::create();
-    }
+	/**
+	 * fzaninotto/faker
+	 *
+	 * @var Generator
+	 */
+	protected $faker;
 
-    /**
-     * 建立類別
-     *
-     * @param  string $class
-     * @return mixed
-     */
-    protected function create($class)
-    {
-        return $this->factory->create($class);
-    }
+	/**
+	 * Sets up the fixture, for example, open a network connection.
+	 * This method is called before a test is executed.
+	 */
+	protected function setUp() {
+		parent::setUp();
+		$this->setFactory($this->getSha256CmvFactory());
+		$this->faker = FakerFactory::create();
+	}
 
-    /**
-     * 取得 MD5 壓碼工廠
-     *
-     * @return Factory
-     */
-    protected function getMd5CmvFactory()
-    {
-        return new Factory([
-            'hashIv' => $this->stageOtpHashIv,
-            'hashKey' => $this->stageOtpHashKey,
-            'hashMethod' => CheckMacValueService::METHOD_MD5,
-        ]);
-    }
+	/**
+	 * 建立類別
+	 *
+	 * @param  string $class
+	 * @return mixed
+	 */
+	protected function create( $class ) {
+		return $this->factory->create($class);
+	}
 
-    /**
-     * 取得 SHA256 壓碼工廠
-     *
-     * @return Factory
-     */
-    protected function getSha256CmvFactory()
-    {
-        return new Factory([
-            'hashIv' => $this->stageOtpHashIv,
-            'hashKey' => $this->stageOtpHashKey,
-            'hashMethod' => CheckMacValueService::METHOD_SHA256,
-        ]);
-    }
+	/**
+	 * 取得 MD5 壓碼工廠
+	 *
+	 * @return Factory
+	 */
+	protected function getMd5CmvFactory() {
+		return new Factory(
+			[
+				'hashIv'     => $this->stageOtpHashIv,
+				'hashKey'    => $this->stageOtpHashKey,
+				'hashMethod' => CheckMacValueService::METHOD_MD5,
+			]
+			);
+	}
 
-    /**
-     * 設定工廠
-     *
-     * @param  Factory $factory
-     * @return void
-     */
-    protected function setFactory(Factory $factory)
-    {
-        $this->factory = $factory;
-    }
+	/**
+	 * 取得 SHA256 壓碼工廠
+	 *
+	 * @return Factory
+	 */
+	protected function getSha256CmvFactory() {
+		return new Factory(
+			[
+				'hashIv'     => $this->stageOtpHashIv,
+				'hashKey'    => $this->stageOtpHashKey,
+				'hashMethod' => CheckMacValueService::METHOD_SHA256,
+			]
+			);
+	}
+
+	/**
+	 * 設定工廠
+	 *
+	 * @param  Factory $factory
+	 * @return void
+	 */
+	protected function setFactory( Factory $factory ) {
+		$this->factory = $factory;
+	}
 }

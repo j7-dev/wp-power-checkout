@@ -6,134 +6,128 @@ use Exception;
 use Ecpay\Sdk\Traits\HashInfo;
 use Ecpay\Sdk\Exceptions\RtnException;
 
-class AesService
-{
-    use HashInfo;
+class AesService {
 
-    /**
-     * Cipher method
-     *
-     * @var string
-     */
-    protected $method = 'AES-128-CBC';
+	use HashInfo;
 
-    /**
-     * Bitwise disjunction flag
-     *
-     * @var int
-     */
-    protected $options = OPENSSL_RAW_DATA;
+	/**
+	 * Cipher method
+	 *
+	 * @var string
+	 */
+	protected $method = 'AES-128-CBC';
 
-    public function __construct($key, $iv)
-    {
-        $this->setHashKey($key);
-        $this->setHashIv($iv);
-    }
+	/**
+	 * Bitwise disjunction flag
+	 *
+	 * @var int
+	 */
+	protected $options = OPENSSL_RAW_DATA;
 
-    /**
-     * AES 解密
-     *
-     * @param  string $source
-     * @return array
-     *
-     * @throws RtnException
-     */
-    public function decrypt($source)
-    {
-        $jsonDecoded = [];
-        $base64Decoded = base64_decode($source);
-        $decrypted = openssl_decrypt(
-            $base64Decoded,
-            $this->method,
-            $this->getHashKey(),
-            $this->options,
-            $this->getHashIv()
-        );
-        if ($decrypted === false) {
-            throw new RtnException(109);
-        }
+	public function __construct( $key, $iv ) {
+		$this->setHashKey($key);
+		$this->setHashIv($iv);
+	}
 
-        $urlDecoded = urldecode($decrypted);
-        $jsonDecoded = json_decode($urlDecoded, true);
-        if (is_null($jsonDecoded)) {
-            throw new RtnException(111);
-        }
+	/**
+	 * AES 解密
+	 *
+	 * @param  string $source
+	 * @return array
+	 *
+	 * @throws RtnException
+	 */
+	public function decrypt( $source ) {
+		$jsonDecoded   = [];
+		$base64Decoded = base64_decode($source);
+		$decrypted     = openssl_decrypt(
+			$base64Decoded,
+			$this->method,
+			$this->getHashKey(),
+			$this->options,
+			$this->getHashIv()
+		);
+		if ($decrypted === false) {
+			throw new RtnException(109);
+		}
 
-        return $jsonDecoded;
-    }
+		$urlDecoded  = urldecode($decrypted);
+		$jsonDecoded = json_decode($urlDecoded, true);
+		if (is_null($jsonDecoded)) {
+			throw new RtnException(111);
+		}
 
-    /**
-     * 解密資料
-     *
-     * @param  array $source
-     * @return array
-     *
-     * @throws RtnException
-     */
-    public function decryptData($source)
-    {
-        $field = $this->getFieldName();
-        if (isset($source[$field])) {
-            $source[$field] = $this->decrypt($source[$field]);
-        }
+		return $jsonDecoded;
+	}
 
-        return $source;
-    }
+	/**
+	 * 解密資料
+	 *
+	 * @param  array $source
+	 * @return array
+	 *
+	 * @throws RtnException
+	 */
+	public function decryptData( $source ) {
+		$field = $this->getFieldName();
+		if (isset($source[ $field ])) {
+			$source[ $field ] = $this->decrypt($source[ $field ]);
+		}
 
-    /**
-     * AES 加密
-     *
-     * @param  array $source
-     * @return string
-     *
-     * @throws RtnException
-     */
-    public function encrypt($source)
-    {
-        $dataBase64Encode = '';
-        try {
-            $jsonEncoded = json_encode($source);
-            $urlEncoded = urlencode($jsonEncoded);
-            $encrypted = openssl_encrypt(
-                $urlEncoded,
-                $this->method,
-                $this->getHashKey(),
-                $this->options,
-                $this->getHashIv()
-            );
-            $dataBase64Encode = base64_encode($encrypted);
-        } catch (Exception $e) {
-            throw new RtnException(110);
-        }
+		return $source;
+	}
 
-        return $dataBase64Encode;
-    }
+	/**
+	 * AES 加密
+	 *
+	 * @param  array $source
+	 * @return string
+	 *
+	 * @throws RtnException
+	 */
+	public function encrypt( $source ) {
+		$dataBase64Encode = '';
+		try {
+			$jsonEncoded      = json_encode($source);
+			$urlEncoded       = urlencode($jsonEncoded);
+			$encrypted        = openssl_encrypt(
+				$urlEncoded,
+				$this->method,
+				$this->getHashKey(),
+				$this->options,
+				$this->getHashIv()
+			);
+			$dataBase64Encode = base64_encode($encrypted);
+		} catch (Exception $e) {
+			throw new RtnException(110);
+		}
 
-    /**
-     * 加密資料
-     *
-     * @param  array $source
-     * @return array
-     *
-     * @throws RtnException
-     */
-    public function encryptData($source)
-    {
-        $field = $this->getFieldName();
-        if (isset($source[$field])) {
-            $source[$field] = $this->encrypt($source[$field]);
-        }
+		return $dataBase64Encode;
+	}
 
-        return $source;
-    }
+	/**
+	 * 加密資料
+	 *
+	 * @param  array $source
+	 * @return array
+	 *
+	 * @throws RtnException
+	 */
+	public function encryptData( $source ) {
+		$field = $this->getFieldName();
+		if (isset($source[ $field ])) {
+			$source[ $field ] = $this->encrypt($source[ $field ]);
+		}
 
-    /**
-     * 取得加密欄位名稱
-     *
-     * @return string
-     */
-    public function getFieldName()
-    {
-        return 'Data';
-    }
+		return $source;
+	}
+
+	/**
+	 * 取得加密欄位名稱
+	 *
+	 * @return string
+	 */
+	public function getFieldName() {
+		return 'Data';
+	}
 }
