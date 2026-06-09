@@ -20,6 +20,7 @@ inc/assets/blocks/
   ecpay_aio.tsx                    # Active -- ECPay AIO redirect gateway
   ecpay_ecpg.tsx                   # Active -- ECPay ECPG embedded gateway
   payuni_upp.tsx                   # Active -- PAYUNi UPP V2 redirect gateway
+  payuni_uni_embed.tsx             # Active -- PAYUNi UNi Embed V3 embedded gateway
   types/types.d.ts                 # Shared type declarations
 ```
 

@@ -224,7 +224,7 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 	 * @param int $refund_id 退款 id
 	 * @return void
 	 */
-	public function handle_payment_gateway_refund( int $order_id, int $refund_id ): void {
+	public function process_gateway_refund( int $order_id, int $refund_id ): void {
 		if ( ! $this->is_this_gateway( $order_id ) ) {
 			return;
 		}

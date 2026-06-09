@@ -47,7 +47,11 @@ class MpgGatewayIntegrationTest extends WC_UnitTestCase {
 		parent::set_up();
 		\update_option(
 			'woocommerce_newebpay_mpg_settings',
-			[ 'mode' => 'test', 'allowedPayments' => [ 'CREDIT' ], 'version' => '2.3' ]
+			[
+				'mode'            => 'test',
+				'allowedPayments' => [ 'CREDIT' ],
+				'version'         => '2.3',
+			]
 		);
 		$this->gateway = new MpgRedirectGateway();
 		$order         = $this->get_order();
@@ -169,13 +173,25 @@ class MpgGatewayIntegrationTest extends WC_UnitTestCase {
 	 */
 	public function test_endpoint_switching(): void {
 		// test
-		\update_option( 'woocommerce_newebpay_mpg_settings', [ 'mode' => 'test', 'allowedPayments' => [ 'CREDIT' ] ] );
+		\update_option(
+			'woocommerce_newebpay_mpg_settings',
+			[
+				'mode'            => 'test',
+				'allowedPayments' => [ 'CREDIT' ],
+			]
+			);
 		$this->assertStringContainsString( 'ccore.newebpay.com', MpgSettingsDTO::instance()->endpoint );
 
 		// prod
 		\update_option(
 			'woocommerce_newebpay_mpg_settings',
-			[ 'mode' => 'prod', 'allowedPayments' => [ 'CREDIT' ], 'merchantId' => 'MS9', 'hashKey' => \str_repeat( 'K', 32 ), 'hashIv' => \str_repeat( 'I', 16 ) ]
+			[
+				'mode'            => 'prod',
+				'allowedPayments' => [ 'CREDIT' ],
+				'merchantId'      => 'MS9',
+				'hashKey'         => \str_repeat( 'K', 32 ),
+				'hashIv'          => \str_repeat( 'I', 16 ),
+			]
 		);
 		$endpoint = MpgSettingsDTO::instance()->endpoint;
 		$this->assertStringContainsString( 'core.newebpay.com', $endpoint );

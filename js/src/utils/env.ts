@@ -1,4 +1,5 @@
 import { IEcpgData } from '@/external/EcpgPayment/types'
+import { IPayuniUniData } from '@/external/PayuniUniEmbed/types'
 
 const env = window?.power_checkout_data?.env
 
@@ -20,3 +21,13 @@ export const APP1_SELECTOR = env?.APP1_SELECTOR
  * 僅在「訂單以 ecpay_ecpg 結帳且已成功取得交易 token」的 order-received 頁存在，否則為 undefined。
  */
 export const ECPG_DATA: IEcpgData | undefined = window?.power_checkout_ecpg_data
+
+/**
+ * PAYUNi UNi Embed V3（內嵌式信用卡）order-received 頁專屬資料
+ *
+ * 由 PayuniUniEmbedGateway::before_order_received 透過 wp_localize_script 掛在 Vue bundle handle 上，
+ * 僅在「訂單以 payuni_uni_embed 結帳且已成功 token_get 取得 SDK_TOKEN」的 order-received 頁存在，
+ * 否則為 undefined。模組內不直接讀 window，集中於此取得（比照 ECPG_DATA）。
+ */
+export const PAYUNI_UNI_DATA: IPayuniUniData | undefined =
+	window?.power_checkout_payuni_uni_data

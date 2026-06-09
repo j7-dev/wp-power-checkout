@@ -128,7 +128,7 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 	 */
 	public function test_選店回呼_ResultData解密失敗時記log並回應(): void {
 		// Given: 以錯誤 HashKey 加密的 ResultData（無法被正確帳號解密）
-		$wrong_crypto   = new AesCrypto( 'WRONGKEY12345678', 'WRONGIV123456789' );
+		$wrong_crypto        = new AesCrypto( 'WRONGKEY12345678', 'WRONGIV123456789' );
 		$invalid_result_data = $wrong_crypto->encrypt(
 			[
 				'TempLogisticsID' => '9999',
@@ -274,13 +274,13 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 	 */
 	public function test_選店回呼_成功解密後寫入門市meta四欄(): void {
 		// Given: 正確加密的 ResultData，含 TempLogisticsID + 門市資訊
-		$order        = $this->create_wc_order( [ 'status' => 'pending' ] );
-		$result_data  = $this->build_result_data(
+		$order       = $this->create_wc_order( [ 'status' => 'pending' ] );
+		$result_data = $this->build_result_data(
 			[
-				'TempLogisticsID' => '2264',
-				'CVSStoreID'      => '991182',
-				'CVSStoreName'    => '全家測試門市',
-				'CVSAddress'      => '台北市中山區測試路1號',
+				'TempLogisticsID'  => '2264',
+				'CVSStoreID'       => '991182',
+				'CVSStoreName'     => '全家測試門市',
+				'CVSAddress'       => '台北市中山區測試路1號',
 				'LogisticsSubType' => 'FAMI',
 			]
 		);
@@ -317,10 +317,10 @@ final class LogisticsSelectionCallbackTest extends TestCase {
 		$order       = $this->create_wc_order( [ 'status' => 'pending' ] );
 		$result_data = $this->build_result_data(
 			[
-				'TempLogisticsID' => '8800',
-				'CVSStoreID'      => 'UNIMART001',
-				'CVSStoreName'    => '7-11 測試門市',
-				'CVSAddress'      => '新北市板橋區測試路99號',
+				'TempLogisticsID'  => '8800',
+				'CVSStoreID'       => 'UNIMART001',
+				'CVSStoreName'     => '7-11 測試門市',
+				'CVSAddress'       => '新北市板橋區測試路99號',
 				'LogisticsSubType' => 'UNIMART',
 			]
 		);

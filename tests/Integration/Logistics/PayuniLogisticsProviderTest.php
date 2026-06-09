@@ -232,8 +232,8 @@ final class PayuniLogisticsProviderTest extends TestCase {
 	 */
 	public function test_解析選店_MapJson門市資訊正確解出(): void {
 		// Given: 商店端用測試金鑰加密一個含 MapJson 的 ship_map 回呼
-		$crypto   = new PayuniCrypto( self::HASH_KEY, self::HASH_IV );
-		$map_json = wp_json_encode(
+		$crypto       = new PayuniCrypto( self::HASH_KEY, self::HASH_IV );
+		$map_json     = wp_json_encode(
 			[
 				'StoreType' => 'SEVEN',
 				'StoreID'   => '916712',
@@ -248,7 +248,7 @@ final class PayuniLogisticsProviderTest extends TestCase {
 				'MapJson' => $map_json,
 			]
 		);
-		$raw = [
+		$raw          = [
 			'MerID'       => self::MER_ID,
 			'EncryptInfo' => $encrypt_info,
 			'HashInfo'    => $crypto->hash_info( $encrypt_info ),

@@ -424,7 +424,7 @@ final class PayuniRefundTest extends TestCase {
 	 */
 	public function test_缺TradeNo時退款失敗並刪除refund(): void {
 		// Given: payment_detail 刻意不含 TradeNo（僅有 PaymentType=1）
-		$order = $this->create_wc_order(
+		$order     = $this->create_wc_order(
 			[
 				'status'         => 'processing',
 				'payment_method' => PayuniUppGateway::ID,
@@ -494,7 +494,7 @@ final class PayuniRefundTest extends TestCase {
 	 */
 	public function test_手動退款無標記不發API(): void {
 		// Given: 建立「手動」退款（refunded_payment=false，預設值）
-		$order = $this->create_payuni_order( payment_type: 1 );
+		$order         = $this->create_payuni_order( payment_type: 1 );
 		$manual_refund = wc_create_refund(
 			[
 				'order_id' => $order->get_id(),
@@ -569,11 +569,11 @@ final class PayuniRefundTest extends TestCase {
 		$result = $client->parse_response(
 			\json_encode(
 				[
-					'Status'      => 'SUCCESS',
-					'MerID'       => self::MER_ID,
-					'Version'     => '1.0',
+					'Status'  => 'SUCCESS',
+					'MerID'   => self::MER_ID,
+					'Version' => '1.0',
 					// EncryptInfo 解密後：包含 Status/Message/TradeNo/CloseType
-					'_parsed'     => [
+					'_parsed' => [
 						'Status'    => 'SUCCESS',
 						'Message'   => '退款成功',
 						'TradeNo'   => 'UNI20260601001',
@@ -717,7 +717,7 @@ final class PayuniRefundTest extends TestCase {
 	 */
 	public function test_payment_detail為空時退款失敗(): void {
 		// Given: 未設定 payment_detail 的 PAYUNi 訂單（callback 可能漏單）
-		$order = $this->create_wc_order(
+		$order   = $this->create_wc_order(
 			[
 				'status'         => 'processing',
 				'payment_method' => PayuniUppGateway::ID,

@@ -120,8 +120,8 @@ class SettingTabService {
 			]
 		);
 
-		$obj_name  = Plugin::$snake . '_data'; // power_checkout_data
-		$post_id   = \get_the_ID();
+		$obj_name      = Plugin::$snake . '_data'; // power_checkout_data
+		$post_id       = \get_the_ID();
 		$raw_permalink = $post_id ? \get_permalink( $post_id ) : '';
 		$permalink     = \is_string($raw_permalink) ? $raw_permalink : '';
 

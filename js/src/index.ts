@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 
 import MountEcpgPayment from '@/external/EcpgPayment/index'
 import MountInvoiceApp from '@/external/InvoiceApp/index'
+import MountPayuniUniEmbed from '@/external/PayuniUniEmbed/index'
 import MountRefundDialog from '@/external/RefundDialog/index'
 
 import App from './App.vue'
@@ -54,3 +55,6 @@ MountInvoiceApp()
 
 // 綠界 ECPay 站內付 2.0：僅在 order-received 頁且有 power_checkout_ecpg_data 時啟動（內部自行守門）
 MountEcpgPayment()
+
+// PAYUNi UNi Embed V3 站內付：僅在 order-received 頁且有 power_checkout_payuni_uni_data 時啟動（內部自行守門）
+MountPayuniUniEmbed()

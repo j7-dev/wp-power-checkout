@@ -1,0 +1,55 @@
+[ACTIVITY] PAYUNi 統一金流 UNi Embed V3 內嵌付款流程（統一抽象 IPaymentProvider）
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] PAYUNi -> {specs/actors/PAYUNi.md}
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+
+[INITIAL]
+
+[STEP:1] @顧客 結帳頁選 PAYUNi 內嵌信用卡並下單 {specs/features/payment/payuni-uni-embed-checkout.feature}
+  %% 顧客在結帳頁（classic / block checkout）選擇 PAYUNi UNi Embed（payuni_uni_embed）並下單。WooCommerce 於 before_process_payment 呼叫 token_get（Version 3.0）取得 SDK_TOKEN（10 分鐘有效），回傳 order-received URL。
+  %% ⚠️ V3：token_get 階段不送訂單資料（僅 MerID + Timestamp + IFrameDomain），不在此階段送 MerTradeNo / TradeAmt。SDK_TOKEN 寫入 _pc_payuni_uni_sdk_token 供前端讀取。
+
+[STEP:2] @顧客 在 order-received 頁內嵌元件輸入卡片資訊 {specs/ui/PAYUNi內嵌付款元件.md}
+  %% 前端載入 uni-payment.js（JS SDK Ver 2.0），以 SDK_TOKEN createSession，渲染 iframe 卡號 / 有效期限 / CVC 輸入框（容器 id put_card_no / put_card_exp / put_card_cvc）。顧客輸入卡片，SDK onUpdate 驗證欄位，getTradeResult 取得卡號綁定 TOKEN 結果（V3：僅綁定不授權）。
+
+[STEP:3] @顧客 前端送出綁定結果觸發後端幕後授權 {specs/features/payment/payuni-uni-embed-create-payment.feature}
+  %% 前端把綁定結果 POST 回後端 create-payment 端點（order_key 驗證，比照 ECPG）。後端以原 SDK_TOKEN 呼叫 merchant_trade（請求 Version 1.0 / 回傳 Version 1.2），此階段才送 MerTradeNo（寫入 _pc_payuni_uni_trade_no）+ TradeAmt + ProdDesc。
+
+[DECISION:3a] 授權回應類型
+  [BRANCH:3a:需3D驗證] @WooCommerce {specs/features/payment/payuni-uni-embed-create-payment.feature}
+    %% merchant_trade 回傳 3D 導頁 URL（或 API3D=1 強制 3D）→ 前端導向銀行 3D 驗證頁。
+  [BRANCH:3a:非3D直接授權] @PAYUNi {specs/features/payment/payuni-uni-embed-callback.feature}
+    %% 非 3D：merchant_trade 同步回 Status=SUCCESS + 加密授權結果，無 3D 跳轉。交易結果仍以 NotifyURL 為準。
+[MERGE:3a]
+
+[STEP:4] @PAYUNi NotifyURL 幕後通知付款結果 {specs/features/payment/payuni-uni-embed-callback.feature}
+  %% PAYUNi 以 Form POST 將授權結果送至 NotifyURL（3D 完成後）。WooCommerce 驗證外層 HashInfo（SHA256，timing-safe）、解密 EncryptInfo（AES-256-GCM）、比對 MerTradeNo 反查訂單、比對 TradeAmt 防竄改、冪等檢查（以 MerTradeNo 為 key）。
+
+[DECISION:4a] 付款結果狀態（TradeStatus）
+  [BRANCH:4a:付款成功] @WooCommerce {specs/features/payment/payuni-uni-embed-callback.feature}
+    %% TradeStatus=1 已付款 → 訂單轉「處理中」，寫入 _pc_payuni_uni_payment_detail，回應 PAYUNi HTTP 200。
+  [BRANCH:4a:付款失敗] @WooCommerce {specs/features/payment/payuni-uni-embed-callback.feature}
+    %% TradeStatus=2 付款失敗 / 3 付款取消 → 訂單維持「等待付款」，記錄 order note，回應 HTTP 200。
+  [BRANCH:4a:待確認] @WooCommerce {specs/features/payment/payuni-uni-embed-callback.feature}
+    %% TradeStatus=8 訂單待確認（含 UNKNOWN / UNAPPROVED）→ 訂單維持「等待付款」，記錄 order note，回應 HTTP 200。建議後續以 /api/trade/query 查詢確認。
+[MERGE:4a]
+
+[STEP:5] @顧客 綁定買方信用卡 Token（記憶卡號 / 約定卡） {specs/features/payment/payuni-uni-embed-token-management.feature}
+  %% 顧客於內嵌元件勾選記憶卡號 / 約定信用卡（UseTokenType + CreditToken）。授權成功後 PAYUNi 回傳 CreditHash + CreditLife，寫入 _pc_payuni_uni_credit_hash / _pc_payuni_uni_credit_life。
+  %% ⚠️ 只保存 PAYUNi 回傳的 Token Hash 與有效日期，絕不保存卡號 / CVC。Token 失效 / 過期由本 feature 處理。
+
+[STEP:6] @WooCommerce 訂單轉處理中觸發既有發票自動開立 {specs/features/invoice/invoice-issue.feature}
+  %% 訂單轉「處理中」觸發既有發票自動開立（Amego / 綠界發票 / ezPay，依後台啟用的 provider）。
+
+[STEP:7] @管理員 後台訂單交易管理 {specs/features/payment/payuni-uni-embed-trade-management.feature}
+  %% 管理員於後台訂單頁手動操作：交易查詢補單（/api/trade/query）、信用卡請款（/api/trade/close CloseType=1）、取消授權（/api/trade/cancel）。
+
+[FINAL]
+
+%% 退款流程未建模於此 Activity——退款由管理員在後台訂單頁觸發，見 payuni-uni-embed-refund.feature。
+%%   信用卡退款走 PAYUNi /api/trade/close（CloseType=2）；UNi Embed 僅信用卡，無非信用卡分支。
+%% 統一抽象 IPaymentProvider：本 gateway extends AbstractPaymentGateway implements IPaymentProvider（process_payment / process_refund / query_trade / capture / void_auth / get_settings / get_supported_payment_methods）。與既有金流一致。詳見 specs/open-issue/payuni-uni-embed-execution-plan.md。
+%%   加密複用 Payuni/Shared/Helpers/PayuniCrypto（AES-256-GCM + SHA256），不開第 3 份副本（與 UPP 同 Payment namespace）。
+%%   憑證 GAP：正式 MerID/HashKey/HashIV 尚未提供——sandbox 先行（V3 官方公開測試金鑰），prod 後補，存 woocommerce_payuni_uni_embed_settings 不寫死。
+%%   續期扣款邊界：UNi Embed 僅負責首次綁卡；後續續期收款走 UPP /api/credit 體系（共用，不在此 Activity 重新建模）。

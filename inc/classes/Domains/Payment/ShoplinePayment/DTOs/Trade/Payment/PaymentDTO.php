@@ -57,14 +57,14 @@ class PaymentDTO extends DTO {
 	 */
 	public static function create( array $args ): static {
 		/** @var array<string, mixed> $order_data */
-		$order_data      = $args['order'] ?? [];
+		$order_data = $args['order'] ?? [];
 		/** @var array<string, mixed> $payment_data */
 		$payment_data    = $args['payment'] ?? [];
 		$args['order']   = Webhook\Order::create( $order_data );
 		$args['payment'] = Webhook\Payment::create( $payment_data );
 		if (isset($args['paymentMsg']) && \is_array($args['paymentMsg'])) {
 			/** @var array<string, mixed> $payment_msg_data */
-			$payment_msg_data = $args['paymentMsg'];
+			$payment_msg_data   = $args['paymentMsg'];
 			$args['paymentMsg'] = new Components\ErrorMessage( $payment_msg_data );
 		}
 		return new static( $args );

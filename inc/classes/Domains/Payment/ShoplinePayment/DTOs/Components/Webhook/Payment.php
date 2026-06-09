@@ -79,7 +79,7 @@ final class Payment extends DTO {
 		}
 		if ( isset( $args['paymentMethodOptions'] ) && \is_array( $args['paymentMethodOptions'] ) ) {
 			/** @var array<string, mixed> $pmo_data */
-			$pmo_data = $args['paymentMethodOptions'];
+			$pmo_data                     = $args['paymentMethodOptions'];
 			$args['paymentMethodOptions'] = PaymentMethodOptions::create( $pmo_data );
 		}
 		return new self( $args );

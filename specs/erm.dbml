@@ -387,6 +387,30 @@ Table wc_order_meta_ecpay_payment {
   '''
 }
 
+// ==================== WC_Order Meta: 金流（PAYUNi UNi Embed V3 內嵌式）====================
+
+Table wc_order_meta_payuni_uni_payment {
+  order_id bigint [ref: > wc_orders.id, note: '訂單 ID']
+  _pc_payuni_uni_trade_no varchar [note: 'MerTradeNo 冪等鍵（前綴 PCE；merchant_trade 階段才產生，NotifyURL 以此反查訂單）。⚠️ V3：token_get 階段不送訂單，MerTradeNo 在 merchant_trade 才送']
+  _pc_payuni_uni_sdk_token varchar [note: 'token_get 取得的 SDK_TOKEN（10 分鐘有效，供前端 uniPayment SDK + 後端 merchant_trade 共用同一個）']
+  _pc_payuni_uni_payment_detail json [note: 'merchant_trade / NotifyURL 解密後付款結果（AES-256-GCM 解密後的授權結果，含 TradeNo / Gateway=9 / PaymentType=1 / AuthCode / TradeStatus 等）']
+  _pc_payuni_uni_capture_status varchar [note: "信用卡請款 / 取消授權狀態（''｜'captured'｜'voided'）"]
+  _pc_payuni_uni_credit_hash varchar [note: '買方 Token Hash（CreditHash，授權成功且帶 CreditToken 才壓碼）。⚠️ 僅存 hash，絕不存卡號 / CVC']
+  _pc_payuni_uni_credit_life varchar [note: '買方 Token 有效日期（CreditLife，MMYY 格式）']
+
+  Note: '''
+    PAYUNi UNi Embed V3（內嵌式信用卡）金流相關的 Order Meta
+    與既有 PAYUNi UPP 的 _pc_payuni_* meta key 隔離，前綴一律 _pc_payuni_uni_
+    對應 .feature: payment/payuni-uni-embed-checkout、payuni-uni-embed-create-payment、
+                   payuni-uni-embed-callback、payuni-uni-embed-refund、
+                   payuni-uni-embed-trade-management、payuni-uni-embed-token-management
+    透過 Payment\\PayuniUniEmbed\\Shared\\Helpers\\(MetaKeys) 類別存取（HPOS 相容，禁用 get_post_meta）
+    加密複用 Payment\\Payuni\\Shared\\Helpers\\PayuniCrypto（AES-256-GCM + SHA256 HashInfo，與 UPP 完全相同）
+    _pc_payuni_uni_trade_no 為冪等鍵：NotifyURL 幕後通知以 MerTradeNo 反查訂單，已 processing 則 skip（重送防護）
+    安全硬約束：僅保存 PAYUNi 回傳的 Token Hash 與有效日期，絕不保存卡號 / CVC
+  '''
+}
+
 // ==================== WC_Order Meta: 發票 ====================
 
 Table wc_order_meta_invoice {
@@ -452,5 +476,6 @@ Table wc_order_item_meta {
 
 Ref: wc_order_meta_payment.order_id > wc_orders.id
 Ref: wc_order_meta_ecpay_payment.order_id > wc_orders.id
+Ref: wc_order_meta_payuni_uni_payment.order_id > wc_orders.id
 Ref: wc_order_meta_invoice.order_id > wc_orders.id
 Ref: wc_order_meta_logistics.order_id > wc_orders.id

@@ -431,13 +431,13 @@ final class InvoiceApiClient {
 	 */
 	private function mock_query_response(): array {
 		return [
-			'RtnCode'      => 1,
-			'RtnMsg'       => '查詢成功',
-			'IIS_Number'   => 'AG00000001',
-			'IIS_Identifier' => '0000000000',
-			'IIS_Invoice_Date' => \gmdate( 'Y-m-d' ),
-			'IIS_Random_Number' => '1234',
-			'IIS_Sales_Amount'  => 100,
+			'RtnCode'            => 1,
+			'RtnMsg'             => '查詢成功',
+			'IIS_Number'         => 'AG00000001',
+			'IIS_Identifier'     => '0000000000',
+			'IIS_Invoice_Date'   => \gmdate( 'Y-m-d' ),
+			'IIS_Random_Number'  => '1234',
+			'IIS_Sales_Amount'   => 100,
 			'IIS_Invalid_Status' => '0',
 			'IIS_Award_Flag'     => '0',
 		];

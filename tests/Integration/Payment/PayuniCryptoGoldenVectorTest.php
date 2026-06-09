@@ -170,8 +170,8 @@ final class PayuniCryptoGoldenVectorTest extends TestCase {
 	public function test_等價性_Payment版與Logistics版hash_info輸出相同(): void {
 		$params = $this->golden_params();
 
-		$payment_crypto    = $this->payment_crypto();
-		$logistics_crypto  = $this->logistics_crypto();
+		$payment_crypto   = $this->payment_crypto();
+		$logistics_crypto = $this->logistics_crypto();
 
 		// 各自加密同一份資料
 		$payment_encrypt   = $payment_crypto->encrypt( $params );
@@ -204,7 +204,10 @@ final class PayuniCryptoGoldenVectorTest extends TestCase {
 	 * @group payment
 	 */
 	public function test_等價性_Payment版解密Logistics版密文(): void {
-		$params = [ 'MerID' => 'CROSS_TEST', 'TradeAmt' => '1000' ];
+		$params = [
+			'MerID'    => 'CROSS_TEST',
+			'TradeAmt' => '1000',
+		];
 
 		$logistics_encrypt_info = $this->logistics_crypto()->encrypt( $params );
 		$decrypted_by_payment   = $this->payment_crypto()->decrypt( $logistics_encrypt_info );
@@ -228,13 +231,13 @@ final class PayuniCryptoGoldenVectorTest extends TestCase {
 		$encrypt_info = $crypto->encrypt( $this->golden_params() );
 
 		// 解析出 cipher + tag，竄改 tag 部分後重新 hex encode
-		$combined  = hex2bin( $encrypt_info );
+		$combined = hex2bin( $encrypt_info );
 		$this->assertIsString( $combined );
 
-		$sep_pos   = strpos( $combined, ':::' );
+		$sep_pos = strpos( $combined, ':::' );
 		$this->assertNotFalse( $sep_pos );
 
-		$cipher_b64  = substr( $combined, 0, $sep_pos );
+		$cipher_b64 = substr( $combined, 0, $sep_pos );
 		// 竄改：將 AuthTag base64 替換為 base64('AAAAAAAAAAAAAAAA')（16 bytes 全零）
 		$tampered_combined = $cipher_b64 . ':::' . base64_encode( str_repeat( "\x00", 16 ) );
 		$tampered_info     = bin2hex( $tampered_combined );

@@ -169,7 +169,7 @@ final class ProviderRegister {
 			return;
 		}
 		/** @var callable $callable */
-		$callable                        = [ $class_name, 'instance' ];
+		$callable = [ $class_name, 'instance' ];
 		/** @var \J7\PowerCheckout\Shared\Abstracts\BaseService $instance */
 		$instance                        = \call_user_func( $callable );
 		ProviderUtils::$container[ $id ] = $instance;
@@ -268,12 +268,12 @@ final class ProviderRegister {
 
 		$invoice_providers          = ProviderUtils::get_providers( \array_keys( self::$invoice_providers));
 		$invoice_providers_settings = \array_map(
-			 static function ( $p ): array {
+			static function ( $p ): array {
 				if ($p instanceof IInvoiceService) {
 					return $p::get_settings();
 				}
 				return [];
-			 },
+			},
 			$invoice_providers
 			);
 		$is_admin                   = \is_admin();

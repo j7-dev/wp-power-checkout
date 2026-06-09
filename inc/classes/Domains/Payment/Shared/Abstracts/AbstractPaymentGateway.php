@@ -99,7 +99,7 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway implements IPa
 		// 註冊 power checkout 的 payment gateway
 		\add_filter( 'power_checkout_payment_gateway_ids', fn( array $gateway_ids ) => [ ...$gateway_ids, $this->id ] );
 
-		\add_action('woocommerce_order_refunded', [ $this, 'handle_payment_gateway_refund' ], 10, 2);
+		\add_action('woocommerce_order_refunded', [ static::class, 'handle_payment_gateway_refund' ], 10, 2);
 
 		// 訂閱收款
 		// \add_action( 'woocommerce_scheduled_subscription_payment_dummy', array( $this, 'process_subscription_payment' ), 10, 2 );
@@ -404,15 +404,42 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway implements IPa
 	}
 
 	/**
-	 * 退款邏輯，API 發送
-	 * 退款創建時觸發
+	 * 退款邏輯，API 發送（退款創建 woocommerce_order_refunded 時觸發）
 	 *
-	 * @param int $order_id 訂單 id
+	 * ⚠️ 設計為 static：因 PAYUNi UNi Embed 等子類需以靜態形式覆寫此 handler
+	 *    （PHP 限制 static / instance 不可同名混用）。本 static 方法以 late static binding
+	 *    建立「被呼叫的 gateway 類別」實例（new static()），再委派至 instance method
+	 *    process_gateway_refund，使既有 5 個 gateway（SLP / AIO / ECPG / MPG / UPP）的 instance
+	 *    退款邏輯（依賴 $this，含 is_this_gateway 守衛）完全不需改動內部，僅由
+	 *    handle_payment_gateway_refund 改名為 process_gateway_refund。
+	 *
+	 * ⚠️ 必須用 new static()（被呼叫類別）而非 wc_get_payment_gateway_by_order（訂單實際 gateway）：
+	 *    後者會在「以 A gateway 處理 B gateway 訂單」時誤路由到 B gateway 並執行退款，
+	 *    破壞各 gateway「非本 gateway 訂單不處理」的 is_this_gateway 守衛（見 *RefundTest 之
+	 *    「非本 gateway 訂單 handle 不處理退款」場景）。new static() 保留呼叫端多型，
+	 *    由子類 process_gateway_refund 內的 is_this_gateway 自行過濾。
+	 *
+	 * @param int $order_id  訂單 id
 	 * @param int $refund_id 退款 id
-	 *
 	 * @return void
 	 */
-	public function handle_payment_gateway_refund( int $order_id, int $refund_id ): void {
+	public static function handle_payment_gateway_refund( int $order_id, int $refund_id ): void {
+		// late static binding：被呼叫的 gateway 類別（hook 以 [static::class] 註冊；
+		// 測試 / API 以 $gateway->handle_payment_gateway_refund 實例呼叫，static 皆為該 gateway 類別）。
+		// new static() 安全：所有具體 gateway 子類皆為 final 且建構子無必填參數（與父類一致）。
+		( new static() )->process_gateway_refund( $order_id, $refund_id ); // @phpstan-ignore new.static
+	}
+
+	/**
+	 * 退款邏輯實作（instance，子類覆寫；由 static handle_payment_gateway_refund 委派）
+	 *
+	 * 預設 no-op；各 gateway 覆寫此方法實作實際退款 API 發送（可安全使用 $this）。
+	 *
+	 * @param int $order_id  訂單 id
+	 * @param int $refund_id 退款 id
+	 * @return void
+	 */
+	public function process_gateway_refund( int $order_id, int $refund_id ): void {
 	}
 
 	/** 初始化 */

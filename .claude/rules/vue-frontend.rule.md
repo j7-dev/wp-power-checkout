@@ -27,6 +27,11 @@ Entry point `js/src/index.ts` creates four independent instances:
    - Loads ECPay JS SDK, renders card form (`#ECPayPayment`), sends PayToken to `ecpg/create-payment`, handles 3DS redirect
    - Not a Vue app — plain TypeScript module called from `index.ts`
 
+5. **PayuniUniEmbed** -- `MountPayuniUniEmbed()` from `external/PayuniUniEmbed/`
+   - Mounts on order-received page for PAYUNi UNi Embed V3 embedded payment
+   - Fetches SDK token, renders PAYUNi iframe, sends buyer credential to `uni-embed/create-payment`, handles 3DS redirect
+   - Not a Vue app — plain TypeScript module called from `index.ts`
+
 ## Composition API Only
 
 ```vue
@@ -105,6 +110,7 @@ Memory mode router (`createMemoryHistory`):
 /payments/ecpay_aio                     → ECPay AIO settings
 /payments/ecpay_ecpg                    → ECPay ECPG settings
 /payments/payuni_upp                    → PAYUNi UPP settings (js/src/pages/Payments/PayuniUpp/index.vue)
+/payments/payuni_uni_embed              → PAYUNi UNi Embed settings (js/src/pages/Payments/PayuniUniEmbed/index.vue)
 /logistics                              → Logistics list (js/src/pages/Logistics/index.vue)
 /logistics/ecpay_logistics              → ECPay Logistics settings (js/src/pages/Logistics/Ecpay/index.vue)
 /invoices                               → Invoice list

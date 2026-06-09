@@ -17,6 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ECPay Invoice** (`ecpay`) — Taiwan e-invoice B2C/B2B via ECPay; AES-128-CBC; parallel with Amego, switchable from admin
 - **ezPay Invoice** (`ezpay`) — Taiwan e-invoice B2C/B2B via NewebPay ezPay; AES-256-CBC (PKCS#7 blocksize=32 + ZERO_PADDING + hex lowercase); CheckCode SHA256; issue/void/allowance (open+void)/query; parallel with Amego & ECPay Invoice, switchable from admin
 - **PAYUNi UPP** (`payuni_upp`) — Redirect-based payment (UNiPaypage V2.0); AES-256-GCM + `hex(base64(cipher):::base64(tag))` + SHA256 HashInfo; supports credit card (one-time/installment), ATM, CVS, icash Pay, LINE Pay, JKoPay, Apple Pay, Google Pay; single NotifyURL endpoint; credit card API refund/capture/void_auth; query trade
+- **PAYUNi UNi Embed** (`payuni_uni_embed`) — Embedded payment (UNi Embed V3, iframe 站內付); AES-256-GCM (reuses PayuniCrypto); two-phase: token_get (`/api/iframe/token_get`) then merchant_trade (`/api/iframe/merchant_trade`); 3DS support; credit card only; single NotifyURL endpoint; credit card API refund/capture/void_auth; buyer token (credit_hash/credit_life) stored but never card number/CVC; parallel with payuni_upp
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
 
 ---
@@ -73,6 +74,7 @@ This plugin has **two separate frontend build pipelines**:
    - `MountRefundDialog()` creates a Vue instance on order detail pages
    - `MountInvoiceApp()` creates Vue instances on order detail pages (admin MetaBox) AND checkout page (frontend invoice form)
    - `MountEcpgPayment()` from `js/src/external/EcpgPayment/` — mounts on order-received page for ECPay ECPG embedded payment (loads SDK, triggers CreatePayment with PayToken, handles 3DS redirect)
+   - `MountPayuniUniEmbed()` from `js/src/external/PayuniUniEmbed/` — mounts on order-received page for PAYUNi UNi Embed V3 (fetches SDK token, renders iframe, triggers merchant_trade, handles 3DS redirect)
    - Stack: Vue 3 + Element Plus + TanStack Vue Query + Vue Router 4 (memory mode, `createMemoryHistory`)
 
 2. **React WC Blocks** (`vite.config.block.ts` → `inc/assets/dist/blocks/`)
@@ -113,6 +115,17 @@ inc/classes/
 │   │   │   ├── DTOs/                           # PayuniSettingsDTO, PayuniRequestParams
 │   │   │   ├── Managers/StatusManager.php      # TradeStatus: 0=取號→payment_info, 1=已付款→processing, 2/3/8=pending
 │   │   │   └── Shared/                         # Helpers (PayuniCrypto, PayuniMetaKeys, PayuniTradeNo, ItemName), Enums (PayuniPaymentMethod, PayuniTradeStatus)
+│   │   ├── PayuniUniEmbed/          # PAYUNi UNi Embed V3 embedded gateway (ID: payuni_uni_embed)
+│   │   │   ├── Services/PayuniUniEmbedGateway.php  # before_process_payment=token_get; before_order_received=localize SDK; create-payment REST; refund/capture/void_auth/query_trade
+│   │   │   ├── Http/TokenGetClient.php              # /api/iframe/token_get V3.0 (MerID+Timestamp+IFrameDomain only)
+│   │   │   ├── Http/MerchantTradeClient.php         # /api/iframe/merchant_trade (幕後授權 + 3DS; TradeAmt 後端算)
+│   │   │   ├── Http/PayuniUniEmbedFrontendApi.php   # REST power-checkout/payuni/uni-embed/create-payment (order_key auth)
+│   │   │   ├── Http/PayuniUniEmbedCallback.php      # NotifyURL power-checkout/payuni/uni-embed/notify (AES-256-GCM + HashInfo; always 200)
+│   │   │   ├── Http/UniDoActionClient.php           # Credit card close/cancel (/api/trade/close + /api/trade/cancel)
+│   │   │   ├── Http/UniQueryTradeClient.php         # Trade query (/api/trade/query)
+│   │   │   ├── DTOs/PayuniUniEmbedSettingsDTO.php
+│   │   │   ├── Managers/StatusManager.php           # TradeStatus: 1=processing (amount+Gateway=9 guard), 2/3/8=pending
+│   │   │   └── Shared/                              # Helpers (PayuniUniEmbedMetaKeys, PayuniUniEmbedTradeNo, ItemName), Enums (PayuniUniEmbedTradeStatus, PayuniUniEmbedPaymentMethod); uses Payuni/Shared/Helpers/PayuniCrypto (no third copy)
 │   │   └── Shared/                  # AbstractPaymentGateway implements IPaymentProvider, PaymentApiService (REST /refund)
 │   │       └── Interfaces/IPaymentProvider.php # Payment 領域統一介面（7 methods，extends IGateway；mirrors ILogisticsProvider）
 │   ├── Logistics/
@@ -239,6 +252,8 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/ecpay` | POST | `/logistics/status-callback` | MerchantID verified inside |
 | `power-checkout/ecpay` | POST | `/logistics/selection-callback` | open (ClientReplyURL) |
 | `power-checkout/payuni` | POST | `/upp/notify` | AES-256-GCM + HashInfo SHA256 (verified inside; always HTTP 200) |
+| `power-checkout/payuni` | POST | `/uni-embed/create-payment` | order_key hash_equals (in body) |
+| `power-checkout/payuni` | POST | `/uni-embed/notify` | AES-256-GCM + HashInfo SHA256 (verified inside; always HTTP 200) |
 
 Nonce auth requires `X-WP-Nonce` header (`wp_create_nonce('wp_rest')`).
 ECPay callbacks use `permission_callback: __return_true`; auth is verified inside callback.
@@ -317,6 +332,36 @@ Admin order actions (credit card only):
 Encryption: **AES-256-GCM** `hex(base64(cipher):::base64(tag))`; `HashInfo = strtoupper(sha256(HashKey+EncryptInfo+HashIV))`; distinct from ECPay AES-128-CBC and ezPay AES-256-CBC. `PayuniCrypto` (Payment namespace) is a same-source copy of Logistics `PayuniCrypto`; both must stay in sync.
 
 Environment: sandbox `https://sandbox-api.payuni.com.tw/api/upp` / prod `https://api.payuni.com.tw/api/upp`; test mode uses official public test vector keys.
+
+---
+
+## PAYUNi UNi Embed Payment Flow (payuni_uni_embed)
+
+1. `before_process_payment()` writes idempotency key `_pc_payuni_uni_trade_no` (format `PCE{order_id}`) → calls `TokenGetClient::get_token()` (`/api/iframe/token_get` V3.0, inner payload: MerID + Timestamp + IFrameDomain only) → stores SDK token in `_pc_payuni_uni_sdk_token` → returns order-received URL
+2. `before_order_received()` localizes SDK token + REST endpoint to page; frontend `MountPayuniUniEmbed()` loads PAYUNi iframe SDK, renders embedded card form, customer submits card details → SDK returns buyer credential
+3. Frontend POSTs buyer credential to `/wp-json/power-checkout/payuni/uni-embed/create-payment` (auth: `order_key` `hash_equals`)
+4. Backend calls `MerchantTradeClient::merchant_trade()` (`/api/iframe/merchant_trade` V1.0, TradeAmt computed server-side) → if `ThreeDURL` non-empty, returns `three_d_url` → frontend redirects to 3DS; stores `credit_hash` + `credit_life` (buyer token, never card number/CVC)
+5. PAYUNi sends server-to-server POST to `/wp-json/power-checkout/payuni/uni-embed/notify` (NotifyURL)
+6. Callback verification chain: outer `Status=SUCCESS` → `MerID` timing-safe compare → `EncryptInfo`/`HashInfo` present → `HashInfo` `hash_equals` verify → AES-256-GCM decrypt → lookup order by `_pc_payuni_uni_trade_no` → idempotency → `StatusManager`
+7. `StatusManager::update_order_status()` maps `TradeStatus`: `1`(paid) → amount guard + Gateway=9 guard → `payment_complete()` → processing; `2`/`3`/`8` → pending + order note
+8. All NotifyURL paths (including `\Throwable`) always return HTTP 200
+
+Refund support (determined by `PaymentType` in `_pc_payuni_uni_payment_detail`):
+
+| Payment Method | API Refund |
+|---|---|
+| Credit Card (PaymentType=1) | Yes — Close CloseType=2 (`/api/trade/close`); wpdb TRANSACTION + ROLLBACK on failure |
+| Others | No — `WP_Error('refund_unsupported')`, manual via PAYUNi admin |
+
+Admin order actions (credit card only):
+
+| Action | API |
+|---|---|
+| 查詢補單 (`pc_payuni_uni_query_trade`) | `/api/trade/query` — if TradeStatus=1 + DataSource=A + not processing → `StatusManager` |
+| 請款 (`pc_payuni_uni_capture`) | Close CloseType=1; writes `_pc_payuni_uni_capture_status='captured'` |
+| 取消授權 (`pc_payuni_uni_cancel_auth`) | `/api/trade/cancel`; writes `_pc_payuni_uni_capture_status='voided'` |
+
+Encryption: same **AES-256-GCM** as UPP (`PayuniCrypto` shared, no third copy); environment: sandbox `https://sandbox-api.payuni.com.tw` / prod `https://api.payuni.com.tw`.
 
 ---
 
@@ -414,6 +459,12 @@ PAYUNi logistics and block checkout are deferred.
 | `_pc_payuni_payment_detail` | PAYUNi payment result detail from NotifyURL decrypted inner payload (includes `TradeNo`, `PaymentType` — used for refund routing) |
 | `_pc_payuni_payment_info` | ATM/CVS get-code info (BankType, PayNo, Store, ExpireDate etc.); written on TradeStatus=0 |
 | `_pc_payuni_capture_status` | Credit card capture/void status (`''` / `'captured'` / `'voided'`) |
+| `_pc_payuni_uni_trade_no` | MerTradeNo idempotency key (format `PCE{order_id}`); written by `before_process_payment`; primary key for NotifyURL order lookup — UNi Embed |
+| `_pc_payuni_uni_sdk_token` | SDK iframe token from token_get; stored for frontend use |
+| `_pc_payuni_uni_payment_detail` | Payment result detail from NotifyURL decrypted inner payload (includes `TradeNo`, `PaymentType` — used for refund routing) — UNi Embed |
+| `_pc_payuni_uni_capture_status` | Credit card capture/void status (`''` / `'captured'` / `'voided'`) — UNi Embed |
+| `_pc_payuni_uni_credit_hash` | Buyer token (buyer credit card hash); **not** card number or CVC |
+| `_pc_payuni_uni_credit_life` | Buyer credit card expiry (MMYY format) |
 
 ---
 
@@ -421,7 +472,7 @@ PAYUNi logistics and block checkout are deferred.
 
 | Hook | Purpose |
 |---|---|
-| `woocommerce_payment_gateways` | Inject SLP / ECPay AIO / ECPay ECPG / NewebPay MPG / PAYUNi UPP gateways |
+| `woocommerce_payment_gateways` | Inject SLP / ECPay AIO / ECPay ECPG / NewebPay MPG / PAYUNi UPP / PAYUNi UNi Embed gateways |
 | `before_woocommerce_init` | Declare HPOS + Blocks compatibility |
 | `wc_payment_gateways_initialized` | Populate ProviderUtils::$container |
 | `woocommerce_order_status_{status}` | Auto issue/void invoices |

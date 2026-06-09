@@ -38,7 +38,7 @@ class BlocksIntegration extends \Automattic\WooCommerce\Blocks\Payments\Integrat
 		if ($this->name !== $this->gateway->id) {
 			throw new \Exception('AbstractBlocksIntegration 的 name 必須與付款方式 id 相同');
 		}
-		$option = \get_option("woocommerce_{$this->name}_settings", []);
+		$option         = \get_option("woocommerce_{$this->name}_settings", []);
 		$this->settings = \is_array($option) ? $option : [];
 	}
 

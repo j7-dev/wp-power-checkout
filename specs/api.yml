@@ -30,6 +30,13 @@ info:
     - `logistics/status-callback`：綠界貨態 JSON POST（AES-JSON 三層），驗 MerchantID + 比對 LogisticsID + 防重；
       回應**必須是 AES 加密 JSON 三層結構**（非 1|OK），否則綠界隔 60 分重送最多 3 次。
 
+    ## PAYUNi UNi Embed V3 端點（power-checkout/payuni 命名空間）
+    PAYUNi UNi Embed（內嵌式信用卡，gateway id=payuni_uni_embed）的前端 API / callback 不使用 WordPress 認證（`permission_callback` 一律 `__return_true`），授權在 callback 內以協定機制把關：
+    - `uni-embed/create-payment`：前端 uniPayment SDK 綁卡取得結果後送回，以 **WooCommerce `order_key`** 比對擁有權（非 nonce，因支援訪客結帳）；後端據此以原 SDK_TOKEN 呼叫 PAYUNi `/api/iframe/merchant_trade` 幕後授權。
+    - `uni-embed/notify`：NotifyURL 幕後 Form POST，以 **HashInfo（SHA256，timing-safe）+ AES-256-GCM 解密 EncryptInfo**（AuthTag 驗證）把關；驗證鏈 = HashInfo → 解密 → MerTradeNo 反查訂單 → TradeAmt 防竄改 → 冪等。所有路徑（含解密 / 驗證失敗與 `\Throwable`）一律回 **HTTP 200**（避免 PAYUNi 重送）。
+    - 加密規則與 PAYUNi UPP 完全相同（AES-256-GCM + SHA256 HashInfo），複用 `Payuni/Shared/Helpers/PayuniCrypto`。
+    - 信用卡退款 / 請款 / 取消授權 / 查詢補單沿用既有 `power-checkout/v1` `/refund` 與後台 order action（呼叫 PAYUNi `/api/trade/close`、`/api/trade/cancel`、`/api/trade/query`）。
+
     ## 錯誤處理
     所有端點的錯誤以 Exception 形式拋出，WordPress REST API 框架統一捕獲後回傳 HTTP 500 + 錯誤訊息。
   version: "1.3.0"
@@ -45,6 +52,8 @@ servers:
     description: 綠界 ECPay 幕後通知 / 前端 API 命名空間（AIO / ECPG / 物流 callback）
   - url: /wp-json/power-checkout/v1/logistics
     description: 綠界全方位物流管理 API 命名空間（統一抽象 ILogisticsProvider）
+  - url: /wp-json/power-checkout/payuni
+    description: PAYUNi 幕後通知 / 前端 API 命名空間（UNi Embed create-payment / NotifyURL）
 
 tags:
   - name: Settings
@@ -59,6 +68,8 @@ tags:
     description: 綠界 ECPay 幕後通知（AIO ReturnURL / PaymentInfoURL、ECPG ReturnURL）與站內付前端 API
   - name: Logistics
     description: 綠界全方位物流 v2（選店 / 成立物流單 / 查詢 / 列印 / 取消 / 貨態 callback），統一抽象 ILogisticsProvider
+  - name: PAYUNi
+    description: PAYUNi UNi Embed V3（內嵌式信用卡）前端 SDK 綁卡觸發 merchant_trade 與 NotifyURL 幕後通知
 
 components:
   securitySchemes:
@@ -551,6 +562,72 @@ components:
         Data:
           type: string
           description: AES 加密的 { RtnCode, RtnMsg }
+
+    # ===== PAYUNi UNi Embed V3（內嵌式信用卡，gateway id=payuni_uni_embed）=====
+    PayuniUniEmbedCreatePaymentRequest:
+      type: object
+      description: |
+        前端 uniPayment SDK 收卡綁定（getTradeResult）後送回，觸發後端以原 SDK_TOKEN 呼叫
+        PAYUNi `/api/iframe/merchant_trade` 幕後授權（此階段才送 MerTradeNo + TradeAmt + ProdDesc）。
+      required: [order_id, order_key]
+      properties:
+        order_id:
+          type: integer
+          description: WooCommerce 訂單 ID
+          example: 100
+        order_key:
+          type: string
+          description: WooCommerce 訂單 order_key（擁有權憑證，timing-safe 比對 $order->get_order_key()）
+          example: "wc_order_abc123"
+
+    PayuniUniEmbedCreatePaymentResponse:
+      type: object
+      description: merchant_trade 結果（response format：{ code, message, data }）
+      required: [code, message, data]
+      properties:
+        code:
+          type: string
+          enum: [success, error]
+          example: "success"
+        message:
+          type: string
+          example: "需完成 3D 驗證"
+        data:
+          type: object
+          nullable: true
+          properties:
+            three_d_url:
+              type: string
+              description: 3D 驗證導向 URL（merchant_trade 回應的 URL 欄位；API3D=1 強制 3D 或銀行要求時出現）
+            need_3ds:
+              type: boolean
+              description: 是否需導向 3D 驗證；非 3D 直接授權成功時為 false，等待 NotifyURL 幕後確認
+
+    PayuniUniEmbedNotifyPayload:
+      type: object
+      description: |
+        PAYUNi UNi Embed 付款結果幕後通知（NotifyURL）— Form POST（application/x-www-form-urlencoded）。
+        外層 5 欄；EncryptInfo 為 AES-256-GCM 密文（hex(base64(cipher):::base64(tag))）。
+        驗證鏈：HashInfo（SHA256，timing-safe）→ AES-256-GCM 解密 EncryptInfo（AuthTag 驗證）→
+        以 MerTradeNo 反查訂單 → 比對 TradeAmt 防竄改 → 冪等（已 processing 則 skip）。
+      required: [MerID, Version, EncryptInfo, HashInfo]
+      properties:
+        MerID:
+          type: string
+          description: 商店代號（須驗證為本商店）
+        Version:
+          type: string
+          description: 回傳版本（merchant_trade / NotifyURL 固定 "1.2"）
+          example: "1.2"
+        EncryptInfo:
+          type: string
+          description: |
+            AES-256-GCM 密文（格式 hex(base64(cipher):::base64(tag))）。解密後含
+            MerTradeNo / Gateway=9 / TradeNo / TradeAmt / TradeStatus（1=已付款 / 2=失敗 / 3=取消 / 8=待確認）/
+            PaymentType=1（信用卡）/ AuthCode / CreditHash / CreditLife 等。
+        HashInfo:
+          type: string
+          description: SHA256(HashKey + EncryptInfo + HashIV) 大寫；timing-safe 驗證
 
 security:
   - wpNonce: []
@@ -1436,3 +1513,104 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LogisticsAesJsonResponse"
+
+  # ==================== PAYUNi UNi Embed V3 ====================
+  # 注意：以下端點的 base URL 為 /wp-json/power-checkout/payuni
+
+  /uni-embed/create-payment:
+    post:
+      tags: [PAYUNi]
+      summary: PAYUNi UNi Embed 幕後授權（前端 SDK 綁卡後觸發 merchant_trade）
+      description: |
+        UNi Embed 前端 uniPayment SDK 收卡綁定（getTradeResult）完成後，將 { order_id, order_key }
+        POST 至此端點，後端以原 SDK_TOKEN（_pc_payuni_uni_sdk_token）呼叫 PAYUNi
+        `/api/iframe/merchant_trade`（請求 Version 1.0 / 回傳 1.2）進行幕後授權，此階段才送
+        MerTradeNo + TradeAmt + ProdDesc；解析回應的 3D 導頁 URL（API3D=1 強制 3D 或銀行要求）後回傳，
+        前端據此導向銀行 3D 驗證頁。
+
+        驗證機制：**order_key**（非 nonce）。因內嵌式支援訪客結帳，WP REST nonce 綁定登入 session 不穩定，
+        改以 WooCommerce 原生「持有訂單即授權」憑證比對 $order->get_order_key()（timing-safe）。
+
+        授權與驗證流程：
+        1. order_id 取訂單；不存在 → 404。
+        2. order_key 比對失敗或為空 → 403「訂單驗證失敗」。
+        3. 訂單付款方式非 payuni_uni_embed → 400「此訂單非 PAYUNi 內嵌式付款」。
+        4. 訂單缺少 _pc_payuni_uni_sdk_token（未走過 token_get）→ 流程異常拒絕。
+        5. 呼叫 merchant_trade（AES-256-GCM 加密 EncryptInfo + SHA256 HashInfo）→ AES-256-GCM 解密 +
+           HashInfo 驗證後判定授權結果 → 回 { code, message, data:{ three_d_url, need_3ds } }。
+
+        例外（傳輸層 / 業務層失敗）一律 catch，回 { code:"error" } + 通用錯誤訊息，不外洩內部細節
+        （細節寫 order note / log）。
+      operationId: payuniUniEmbedCreatePayment
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/payuni
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayuniUniEmbedCreatePaymentRequest"
+      responses:
+        "200":
+          description: 授權建立成功（含是否需 3DS）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayuniUniEmbedCreatePaymentResponse"
+        "400":
+          description: |
+            授權失敗，錯誤訊息依情境：
+            - "此訂單非 PAYUNi 內嵌式付款"（付款方式不符）
+            - "授權失敗，請稍後再試或聯繫商家"（PAYUNi 傳輸層 / 業務層失敗，細節已寫 order note / log）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayuniUniEmbedCreatePaymentResponse"
+        "403":
+          description: 訂單驗證失敗（order_key 不符）
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayuniUniEmbedCreatePaymentResponse"
+        "404":
+          description: 找不到訂單
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayuniUniEmbedCreatePaymentResponse"
+
+  /uni-embed/notify:
+    post:
+      tags: [PAYUNi]
+      summary: PAYUNi UNi Embed 付款結果通知（NotifyURL）
+      description: |
+        接收 PAYUNi UNi Embed 的付款結果幕後通知（3D 完成後 Form POST，application/x-www-form-urlencoded）。
+        不需要 WordPress 認證（`permission_callback` 一律 `__return_true`），授權在 callback 內以協定機制把關。
+
+        驗證鏈：
+        1. 外層 HashInfo（SHA256，timing-safe，hash_equals）驗證；失敗 → 拒絕不更新訂單。
+        2. AES-256-GCM 解密 EncryptInfo（AuthTag 驗證失敗即拒絕，不更新訂單）。
+        3. 以 MerTradeNo（_pc_payuni_uni_trade_no）反查訂單；找不到 → 拒絕。
+        4. 比對 TradeAmt 與本地訂單金額（防止竄改）；不符 → 拒絕。
+        5. 冪等：以 MerTradeNo 為 key，已 processing 則 skip（PAYUNi 重送防護）。
+
+        狀態映射（TradeStatus）：
+        - "1"（已付款）→ 訂單轉「處理中」，寫入 _pc_payuni_uni_payment_detail（+ CreditHash / CreditLife 若有）。
+        - "2"（付款失敗）/ "3"（付款取消）→ 維持「等待付款」並記錄 order note。
+        - "8"（待確認，含 UNKNOWN / UNAPPROVED）→ 維持「等待付款」並記錄 order note。
+
+        原則：所有路徑（含解密 / 驗證失敗與 \Throwable）一律回應 **HTTP 200**，避免 PAYUNi 重送。
+      operationId: payuniUniEmbedNotify
+      security: []
+      servers:
+        - url: /wp-json/power-checkout/payuni
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/PayuniUniEmbedNotifyPayload"
+      responses:
+        "200":
+          description: 始終回應 HTTP 200（無論驗證 / 解密成敗）

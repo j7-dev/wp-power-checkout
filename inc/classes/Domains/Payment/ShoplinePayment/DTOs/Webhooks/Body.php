@@ -39,7 +39,7 @@ final class Body extends DTO {
 	 * @param array<string, mixed> $args 參數
 	 */
 	public static function create( array $args ): self {
-		$type         = EventType::from( (string) $args['type']);
+		$type = EventType::from( (string) $args['type']);
 		/** @var array<string, mixed> $raw_data */
 		$raw_data     = $args['data'] ?? [];
 		$data         = $type->get_manager()->get_dto($raw_data);

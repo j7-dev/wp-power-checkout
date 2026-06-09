@@ -61,7 +61,7 @@ final class EcpayAioCallbackTest extends TestCase {
 	 * @return array<string, string>
 	 */
 	private function sign_payload( array $params ): array {
-		$cmv                    = CheckMacValueService::get_check_value( $params, self::HASH_KEY, self::HASH_IV, 'sha256' );
+		$cmv                     = CheckMacValueService::get_check_value( $params, self::HASH_KEY, self::HASH_IV, 'sha256' );
 		$params['CheckMacValue'] = $cmv;
 		return $params;
 	}
@@ -273,8 +273,8 @@ final class EcpayAioCallbackTest extends TestCase {
 			'MerchantTradeNo' => 'EC100TIMING',
 			'RtnCode'         => '1',
 		];
-		$cmv1 = CheckMacValueService::get_check_value( $params, self::HASH_KEY, self::HASH_IV, 'sha256' );
-		$cmv2 = CheckMacValueService::get_check_value( $params, self::HASH_KEY, self::HASH_IV, 'sha256' );
+		$cmv1   = CheckMacValueService::get_check_value( $params, self::HASH_KEY, self::HASH_IV, 'sha256' );
+		$cmv2   = CheckMacValueService::get_check_value( $params, self::HASH_KEY, self::HASH_IV, 'sha256' );
 
 		// Then: hash_equals timing-safe 比對相等
 		$this->assertTrue( hash_equals( $cmv1, $cmv2 ) );

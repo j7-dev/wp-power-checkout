@@ -95,8 +95,8 @@ class MpgCallbackTest extends WC_UnitTestCase {
 
 		// CheckCode（固定順序）
 		$result['CheckCode'] = $valid_check_code
-			? $crypto->generate_check_code( $result )
-			: 'DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF';
+		? $crypto->generate_check_code( $result )
+		: 'DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF';
 
 		$payload    = [
 			'Status'  => $status,
@@ -134,8 +134,8 @@ class MpgCallbackTest extends WC_UnitTestCase {
 	 * @return void
 	 */
 	public function test_notify_invalid_trade_sha_no_update(): void {
-		$body              = $this->build_notify_body();
-		$body['TradeSha']  = 'TAMPERED_SHA';
+		$body             = $this->build_notify_body();
+		$body['TradeSha'] = 'TAMPERED_SHA';
 
 		( new MpgCallback() )->handle_notify( $body );
 
@@ -178,7 +178,7 @@ class MpgCallbackTest extends WC_UnitTestCase {
 		$settings = MpgSettingsDTO::instance();
 		$crypto   = new TradeInfoCrypto( $settings->hashKey, $settings->hashIv );
 
-		$result = [
+		$result              = [
 			'MerchantID'      => $settings->merchantId,
 			'Amt'             => 100,
 			'TradeNo'         => 'X',
@@ -187,7 +187,13 @@ class MpgCallbackTest extends WC_UnitTestCase {
 			'RespondCode'     => '00',
 		];
 		$result['CheckCode'] = $crypto->generate_check_code( $result );
-		$json                = \wp_json_encode( [ 'Status' => 'SUCCESS', 'Message' => 'ok', 'Result' => $result ] );
+		$json                = \wp_json_encode(
+			[
+				'Status'  => 'SUCCESS',
+				'Message' => 'ok',
+				'Result'  => $result,
+			]
+			);
 		$trade_info          = $crypto->encrypt( (string) $json );
 
 		$request = new \WP_REST_Request( 'POST', '/power-checkout/newebpay/mpg/notify' );
@@ -264,12 +270,21 @@ class MpgCallbackTest extends WC_UnitTestCase {
 	public function test_vacc_payment_complete_to_processing(): void {
 		// 先取號
 		$get_code = $this->build_notify_body(
-			[ 'PaymentType' => 'VACC', 'RespondCode' => '', 'CodeNo' => '1234567890123456' ]
+			[
+				'PaymentType' => 'VACC',
+				'RespondCode' => '',
+				'CodeNo'      => '1234567890123456',
+			]
 		);
 		( new MpgCallback() )->handle_notify( $get_code );
 
 		// 後續付款完成
-		$paid = $this->build_notify_body( [ 'PaymentType' => 'VACC', 'RespondCode' => '00' ] );
+		$paid = $this->build_notify_body(
+			[
+				'PaymentType' => 'VACC',
+				'RespondCode' => '00',
+			]
+			);
 		( new MpgCallback() )->handle_notify( $paid );
 
 		$order = \wc_get_order( $this->get_order()->get_id() );

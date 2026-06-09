@@ -23,6 +23,7 @@ namespace Tests\Integration\Payment;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\AioRedirectGateway;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Services\EcpgGateway;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Services\MpgRedirectGateway;
+use J7\PowerCheckout\Domains\Payment\PayuniUniEmbed\Services\PayuniUniEmbedGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -47,6 +48,7 @@ final class PaymentProviderContractTest extends TestCase {
 		[ '綠界 AIO 轉址金流', AioRedirectGateway::class, 'ecpay_aio' ],
 		[ '綠界 ECPG 站內付', EcpgGateway::class, 'ecpay_ecpg' ],
 		[ '藍新金流 MPG 轉址', MpgRedirectGateway::class, 'newebpay_mpg' ],
+		[ 'PAYUNi UNi Embed V3 內嵌式', PayuniUniEmbedGateway::class, 'payuni_uni_embed' ],
 	];
 
 	/**
@@ -252,7 +254,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_Shopline_Payment_query_trade_回傳陣列(): void {
 		// Given: 一筆測試訂單 + Shopline Payment gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => 'shopline_payment_redirect' ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => 'shopline_payment_redirect',
+			]
+			);
 		$gateway = $this->make_gateway( RedirectGateway::class );
 
 		// When: 呼叫 query_trade（AbstractPaymentGateway 安全預設 → 回 []）
@@ -271,7 +278,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_AIO_query_trade_回傳陣列(): void {
 		// Given: 一筆測試訂單 + 綠界 AIO gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => AioRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => AioRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( AioRedirectGateway::class );
 
 		// When: 呼叫 query_trade
@@ -290,7 +302,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_ECPG_query_trade_回傳陣列(): void {
 		// Given: 一筆測試訂單 + 綠界 ECPG gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => EcpgGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => EcpgGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( EcpgGateway::class );
 
 		// When: 呼叫 query_trade
@@ -309,7 +326,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_藍新金流_MPG_query_trade_回傳陣列(): void {
 		// Given: 一筆測試訂單 + 藍新金流 MPG gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => MpgRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( MpgRedirectGateway::class );
 
 		// When: 呼叫 query_trade
@@ -328,7 +350,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_Shopline_Payment_capture_為安全no_op(): void {
 		// Given: 一筆測試訂單 + Shopline Payment gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => 'shopline_payment_redirect' ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => 'shopline_payment_redirect',
+			]
+			);
 		$gateway = $this->make_gateway( RedirectGateway::class );
 
 		// When / Then: 呼叫 capture 不應 throw（AbstractPaymentGateway 預設 no-op + order note）
@@ -349,7 +376,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_AIO_capture_為安全no_op(): void {
 		// Given: 一筆測試訂單 + 綠界 AIO gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => AioRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => AioRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( AioRedirectGateway::class );
 
 		// When / Then: 呼叫 capture 不應 throw
@@ -370,7 +402,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_ECPG_capture_為安全no_op(): void {
 		// Given: 一筆測試訂單 + 綠界 ECPG gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => EcpgGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => EcpgGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( EcpgGateway::class );
 
 		// When / Then: 呼叫 capture 不應 throw
@@ -391,7 +428,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_藍新金流_MPG_capture_為安全no_op(): void {
 		// Given: 一筆測試訂單 + 藍新金流 MPG gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => MpgRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( MpgRedirectGateway::class );
 
 		// When / Then: 呼叫 capture 不應 throw
@@ -412,7 +454,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_Shopline_Payment_void_auth_為安全no_op(): void {
 		// Given: 一筆測試訂單 + Shopline Payment gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => 'shopline_payment_redirect' ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => 'shopline_payment_redirect',
+			]
+			);
 		$gateway = $this->make_gateway( RedirectGateway::class );
 
 		// When / Then: 呼叫 void_auth 不應 throw（AbstractPaymentGateway 預設 no-op + order note）
@@ -433,7 +480,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_AIO_void_auth_為安全no_op(): void {
 		// Given: 一筆測試訂單 + 綠界 AIO gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => AioRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => AioRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( AioRedirectGateway::class );
 
 		// When / Then: 呼叫 void_auth 不應 throw
@@ -454,7 +506,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_ECPG_void_auth_為安全no_op(): void {
 		// Given: 一筆測試訂單 + 綠界 ECPG gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => EcpgGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => EcpgGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( EcpgGateway::class );
 
 		// When / Then: 呼叫 void_auth 不應 throw
@@ -475,7 +532,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_藍新金流_MPG_void_auth_為安全no_op(): void {
 		// Given: 一筆測試訂單 + 藍新金流 MPG gateway 實例
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => MpgRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( MpgRedirectGateway::class );
 
 		// When / Then: 呼叫 void_auth 不應 throw
@@ -571,7 +633,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_AIO_無金額退款回false(): void {
 		// Given: 一筆訂單，退款金額為 null（模擬無退款金額情境）
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => AioRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => AioRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( AioRedirectGateway::class );
 
 		// When: amount=null → 提前 return false
@@ -590,7 +657,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_綠界_ECPG_無金額退款回false(): void {
 		// Given: 一筆訂單，退款金額為 null
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => EcpgGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => EcpgGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( EcpgGateway::class );
 
 		// When: amount=null → 提前 return false
@@ -609,7 +681,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_藍新金流_MPG_無金額退款回false(): void {
 		// Given: 一筆訂單，退款金額為 null
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => MpgRedirectGateway::ID ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+			]
+			);
 		$gateway = $this->make_gateway( MpgRedirectGateway::class );
 
 		// When: amount=null → 提前 return false
@@ -628,7 +705,12 @@ final class PaymentProviderContractTest extends TestCase {
 	 */
 	public function test_Shopline_Payment_無金額退款回false(): void {
 		// Given: 一筆訂單，退款金額為 null
-		$order   = $this->create_wc_order( [ 'status' => 'processing', 'payment_method' => 'shopline_payment_redirect' ] );
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => 'shopline_payment_redirect',
+			]
+			);
 		$gateway = $this->make_gateway( RedirectGateway::class );
 
 		// When: amount=null → 提前 return false
@@ -799,5 +881,174 @@ final class PaymentProviderContractTest extends TestCase {
 		// Then: 回傳陣列且不為空
 		$this->assertIsArray( $settings );
 		$this->assertNotEmpty( $settings, 'MpgRedirectGateway::get_settings() 應回傳非空陣列' );
+	}
+
+	// ========== PAYUNi UNi Embed V3 IPaymentProvider 契約（Smoke / Happy） ==========
+	// 以下為新 gateway 擴充；實作類別尚未存在 → Red 狀態
+
+	/**
+	 * PAYUNi UNi Embed V3 必須實作 IPaymentProvider 介面
+	 *
+	 * @test
+	 * @group smoke
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_冒煙_PAYUNi_UNi_Embed_實作_IPaymentProvider_介面(): void {
+		$gateway = $this->make_gateway( PayuniUniEmbedGateway::class );
+
+		$this->assertInstanceOf(
+			IPaymentProvider::class,
+			$gateway,
+			'PayuniUniEmbedGateway 應實作 IPaymentProvider 介面'
+		);
+	}
+
+	/**
+	 * PAYUNi UNi Embed 具備 IPaymentProvider 的 7 個方法
+	 * 7 methods：before_process_payment / before_order_received / process_refund /
+	 *            query_trade / capture / void_auth / get_supported_payment_methods
+	 *
+	 * @test
+	 * @group happy
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_PAYUNi_UNi_Embed_具備IPaymentProvider七個方法(): void {
+		$gateway = $this->make_gateway( PayuniUniEmbedGateway::class );
+
+		$this->assertTrue( \method_exists( $gateway, 'before_process_payment' ), 'PayuniUniEmbedGateway 缺少 before_process_payment 方法' );
+		$this->assertTrue( \method_exists( $gateway, 'before_order_received' ), 'PayuniUniEmbedGateway 缺少 before_order_received 方法' );
+		$this->assertTrue( \method_exists( $gateway, 'process_refund' ), 'PayuniUniEmbedGateway 缺少 process_refund 方法' );
+		$this->assertTrue( \method_exists( $gateway, 'query_trade' ), 'PayuniUniEmbedGateway 缺少 query_trade 方法' );
+		$this->assertTrue( \method_exists( $gateway, 'capture' ), 'PayuniUniEmbedGateway 缺少 capture 方法' );
+		$this->assertTrue( \method_exists( $gateway, 'void_auth' ), 'PayuniUniEmbedGateway 缺少 void_auth 方法' );
+		$this->assertTrue( \method_exists( $gateway, 'get_supported_payment_methods' ), 'PayuniUniEmbedGateway 缺少 get_supported_payment_methods 方法' );
+	}
+
+	/**
+	 * PAYUNi UNi Embed 呼叫 query_trade 回傳陣列（預設安全值）
+	 *
+	 * @test
+	 * @group happy
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_PAYUNi_UNi_Embed_query_trade_回傳陣列(): void {
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => PayuniUniEmbedGateway::ID,
+			]
+			);
+		$gateway = $this->make_gateway( PayuniUniEmbedGateway::class );
+
+		$result = $gateway->query_trade( $order );
+
+		$this->assertIsArray( $result, 'query_trade 應回傳 array' );
+	}
+
+	/**
+	 * PAYUNi UNi Embed 呼叫 capture 為安全 no-op（不 throw）
+	 *
+	 * @test
+	 * @group happy
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_PAYUNi_UNi_Embed_capture_為安全no_op(): void {
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => PayuniUniEmbedGateway::ID,
+			]
+			);
+		$gateway = $this->make_gateway( PayuniUniEmbedGateway::class );
+
+		try {
+			$gateway->capture( $order );
+			$this->assertTrue( true, 'capture 不應拋出例外' );
+		} catch ( \Throwable $e ) {
+			$this->fail( "capture 不應拋出例外，但拋出：{$e->getMessage()}" );
+		}
+	}
+
+	/**
+	 * PAYUNi UNi Embed 呼叫 void_auth 為安全 no-op（不 throw）
+	 *
+	 * @test
+	 * @group happy
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_PAYUNi_UNi_Embed_void_auth_為安全no_op(): void {
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => PayuniUniEmbedGateway::ID,
+			]
+			);
+		$gateway = $this->make_gateway( PayuniUniEmbedGateway::class );
+
+		try {
+			$gateway->void_auth( $order );
+			$this->assertTrue( true, 'void_auth 不應拋出例外' );
+		} catch ( \Throwable $e ) {
+			$this->fail( "void_auth 不應拋出例外，但拋出：{$e->getMessage()}" );
+		}
+	}
+
+	/**
+	 * PAYUNi UNi Embed 呼叫 get_supported_payment_methods 回傳陣列
+	 * UNi Embed 僅支援信用卡，應包含 'Credit'
+	 *
+	 * @test
+	 * @group happy
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_PAYUNi_UNi_Embed_get_supported_payment_methods_回傳陣列(): void {
+		$gateway = $this->make_gateway( PayuniUniEmbedGateway::class );
+		$methods = $gateway->get_supported_payment_methods();
+
+		$this->assertIsArray( $methods, 'get_supported_payment_methods 應回傳 array' );
+		$this->assertContains( 'Credit', $methods, 'UNi Embed 支援信用卡，應包含 Credit' );
+	}
+
+	/**
+	 * PAYUNi UNi Embed 無金額退款回 false（不 throw）
+	 *
+	 * @test
+	 * @group happy
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_PAYUNi_UNi_Embed_無金額退款回false(): void {
+		$order   = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => PayuniUniEmbedGateway::ID,
+			]
+			);
+		$gateway = $this->make_gateway( PayuniUniEmbedGateway::class );
+
+		$result = $gateway->process_refund( $order->get_id(), null, '' );
+
+		$this->assertFalse( $result, '無退款金額時應回傳 false' );
+	}
+
+	/**
+	 * PAYUNi UNi Embed get_settings 回傳非空陣列
+	 *
+	 * @test
+	 * @group edge
+	 * @group payuni_uni_embed
+	 * @group payment
+	 */
+	public function test_PAYUNi_UNi_Embed_get_settings_回傳陣列(): void {
+		$settings = PayuniUniEmbedGateway::get_settings( true );
+
+		$this->assertIsArray( $settings );
+		$this->assertNotEmpty( $settings, 'PayuniUniEmbedGateway::get_settings() 應回傳非空陣列' );
 	}
 }

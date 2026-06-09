@@ -40,7 +40,7 @@ final class PaymentInstrument extends DTO {
 		}
 		if ( isset( $args['billing'] ) && \is_array( $args['billing'] ) ) {
 			/** @var array<string, mixed> $billing_data */
-			$billing_data = $args['billing'];
+			$billing_data    = $args['billing'];
 			$args['billing'] = Billing::create( $billing_data );
 		}
 		return new self( $args );

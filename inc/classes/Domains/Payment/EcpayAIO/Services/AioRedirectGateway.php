@@ -221,7 +221,7 @@ final class AioRedirectGateway extends AbstractPaymentGateway implements IGatewa
 	 * @param int $refund_id 退款 id
 	 * @return void
 	 */
-	public function handle_payment_gateway_refund( int $order_id, int $refund_id ): void {
+	public function process_gateway_refund( int $order_id, int $refund_id ): void {
 		if ( ! $this->is_this_gateway( $order_id ) ) {
 			return;
 		}
@@ -285,7 +285,7 @@ final class AioRedirectGateway extends AbstractPaymentGateway implements IGatewa
 	 * ATM/CVS/BARCODE/WebATM/ApplePay 與非綠界訂單不顯示。
 	 *
 	 * @param array<string, string> $actions 既有訂單操作
-	 * @param \WC_Order|null         $order   訂單（WC 於 order detail 頁傳入）
+	 * @param \WC_Order|null        $order   訂單（WC 於 order detail 頁傳入）
 	 * @return array<string, string>
 	 */
 	public static function add_order_actions( array $actions, ?\WC_Order $order = null ): array {
@@ -356,8 +356,8 @@ final class AioRedirectGateway extends AbstractPaymentGateway implements IGatewa
 			$client   = new DoActionClient( $order );
 
 			$response = 'capture' === $method
-				? $client->capture( $trade_no, $amount )
-				: $client->cancel_auth( $trade_no, $amount );
+			? $client->capture( $trade_no, $amount )
+			: $client->cancel_auth( $trade_no, $amount );
 
 			( new EcpayMetaKeys( $order ) )->update_capture_status( $status_value );
 

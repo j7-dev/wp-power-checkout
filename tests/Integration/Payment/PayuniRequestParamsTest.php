@@ -485,15 +485,15 @@ final class PayuniRequestParamsTest extends TestCase {
 		$order  = $this->create_payuni_order();
 		$crypto = new PayuniCrypto( self::HASH_KEY, self::HASH_IV );
 
-		$form1   = PayuniRequestParams::instance( $order )->to_form_params();
-		$inner1  = $crypto->decrypt( $form1['EncryptInfo'] );
-		$trade1  = $inner1['MerTradeNo'] ?? '';
+		$form1  = PayuniRequestParams::instance( $order )->to_form_params();
+		$inner1 = $crypto->decrypt( $form1['EncryptInfo'] );
+		$trade1 = $inner1['MerTradeNo'] ?? '';
 
 		// 重新取得同一訂單（模擬 page reload）
-		$order2  = \wc_get_order( $order->get_id() );
-		$form2   = PayuniRequestParams::instance( $order2 )->to_form_params();
-		$inner2  = $crypto->decrypt( $form2['EncryptInfo'] );
-		$trade2  = $inner2['MerTradeNo'] ?? '';
+		$order2 = \wc_get_order( $order->get_id() );
+		$form2  = PayuniRequestParams::instance( $order2 )->to_form_params();
+		$inner2 = $crypto->decrypt( $form2['EncryptInfo'] );
+		$trade2 = $inner2['MerTradeNo'] ?? '';
 
 		$this->assertNotEmpty( $trade1 );
 		$this->assertSame( $trade1, $trade2, '同一訂單的 MerTradeNo 應冪等（不因重載改變）' );
@@ -561,9 +561,9 @@ final class PayuniRequestParamsTest extends TestCase {
 		$params = PayuniRequestParams::instance( $order );
 		$form   = $params->to_form_params();
 
-		$crypto      = new PayuniCrypto( self::HASH_KEY, self::HASH_IV );
-		$decrypted   = $crypto->decrypt( $form['EncryptInfo'] );
-		$trade_no    = $decrypted['MerTradeNo'] ?? '';
+		$crypto    = new PayuniCrypto( self::HASH_KEY, self::HASH_IV );
+		$decrypted = $crypto->decrypt( $form['EncryptInfo'] );
+		$trade_no  = $decrypted['MerTradeNo'] ?? '';
 
 		$this->assertLessThanOrEqual( 25, \strlen( $trade_no ), 'MerTradeNo 超過 25 字元' );
 		$this->assertMatchesRegularExpression(

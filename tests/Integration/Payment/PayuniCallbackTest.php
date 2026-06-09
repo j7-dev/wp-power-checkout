@@ -256,8 +256,8 @@ final class PayuniCallbackTest extends TestCase {
 	 */
 	public function test_HashInfo竄改_拒絕不更新訂單狀態且回200(): void {
 		// Given: pending 訂單
-		$order   = $this->create_payuni_order( 'PCU_BAD_HASH', 1000 );
-		$body    = $this->build_notify_body( $this->paid_inner( 'PCU_BAD_HASH', '1000' ) );
+		$order = $this->create_payuni_order( 'PCU_BAD_HASH', 1000 );
+		$body  = $this->build_notify_body( $this->paid_inner( 'PCU_BAD_HASH', '1000' ) );
 
 		// 竄改 HashInfo（即使 EncryptInfo 有效，HashInfo 不符也應拒絕）
 		$body['HashInfo'] = 'DEADBEEF00000000000000000000000000000000000000000000000000000000';
@@ -434,7 +434,7 @@ final class PayuniCallbackTest extends TestCase {
 		// 做法：把合法 EncryptInfo 中的 AuthTag 部分截斷
 		$valid_encrypt = $this->crypto->encrypt( $this->paid_inner( 'PCU_THROWABLE', '1000' ) );
 		// 直接截斷後半段（破壞 :::base64(tag) 部分），仍確保是合法 hex 格式
-		$corrupt_enc   = bin2hex( substr( hex2bin( $valid_encrypt ), 0, 10 ) );
+		$corrupt_enc = bin2hex( substr( hex2bin( $valid_encrypt ), 0, 10 ) );
 
 		$body = [
 			'Status'      => 'SUCCESS',
@@ -644,10 +644,10 @@ final class PayuniCallbackTest extends TestCase {
 		$order = $this->create_payuni_order( 'PCU_MERID_CB', 1000 );
 
 		// 用正確金鑰加密，但 MerID 為惡意商店代號
-		$inner            = $this->paid_inner( 'PCU_MERID_CB', '1000' );
-		$inner['MerID']   = 'EVIL_MERCHANT';
-		$encrypt_info     = $this->crypto->encrypt( $inner );
-		$hash_info        = $this->crypto->hash_info( $encrypt_info );
+		$inner          = $this->paid_inner( 'PCU_MERID_CB', '1000' );
+		$inner['MerID'] = 'EVIL_MERCHANT';
+		$encrypt_info   = $this->crypto->encrypt( $inner );
+		$hash_info      = $this->crypto->hash_info( $encrypt_info );
 
 		$body = [
 			'Status'      => 'SUCCESS',

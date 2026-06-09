@@ -149,8 +149,8 @@ final class BackgroundChargeClient {
 
 		$order_info = $data['OrderInfo'] ?? [];
 		$trade_no   = ( \is_array( $order_info ) && isset( $order_info['TradeNo'] ) )
-			? (string) $order_info['TradeNo']
-			: (string) ( $data['TradeNo'] ?? '' );
+		? (string) $order_info['TradeNo']
+		: (string) ( $data['TradeNo'] ?? '' );
 
 		return [
 			'RtnCode' => $rtn_code,

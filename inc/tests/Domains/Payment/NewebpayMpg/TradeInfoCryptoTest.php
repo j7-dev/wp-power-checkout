@@ -96,12 +96,12 @@ class TradeInfoCryptoTest extends WC_UnitTestCase {
 		];
 
 		// 以官方固定順序自行算出正確 CheckCode
-		$raw = 'HashIV=' . self::HASH_IV
-			. '&Amt=' . $result['Amt']
-			. '&MerchantID=' . $result['MerchantID']
-			. '&MerchantOrderNo=' . $result['MerchantOrderNo']
-			. '&TradeNo=' . $result['TradeNo']
-			. '&HashKey=' . self::HASH_KEY;
+		$raw              = 'HashIV=' . self::HASH_IV
+		. '&Amt=' . $result['Amt']
+		. '&MerchantID=' . $result['MerchantID']
+		. '&MerchantOrderNo=' . $result['MerchantOrderNo']
+		. '&TradeNo=' . $result['TradeNo']
+		. '&HashKey=' . self::HASH_KEY;
 		$valid_check_code = \strtoupper( \hash( 'sha256', $raw ) );
 
 		$this->assertTrue(
@@ -166,7 +166,12 @@ class TradeInfoCryptoTest extends WC_UnitTestCase {
 		$hex        = $crypto->encrypt( 'Amt=1000' );
 		$trade_sha  = $crypto->generate_trade_sha( $hex );
 		$check_code = $crypto->generate_check_code(
-			[ 'Amt' => 1000, 'MerchantID' => 'MS123456', 'MerchantOrderNo' => 'PC123', 'TradeNo' => 'TN1' ]
+			[
+				'Amt'             => 1000,
+				'MerchantID'      => 'MS123456',
+				'MerchantOrderNo' => 'PC123',
+				'TradeNo'         => 'TN1',
+			]
 		);
 		$this->assertNotSame( $trade_sha, $cv, 'CheckValue 不應等於 TradeSha' );
 		$this->assertNotSame( $check_code, $cv, 'CheckValue 不應等於 CheckCode' );

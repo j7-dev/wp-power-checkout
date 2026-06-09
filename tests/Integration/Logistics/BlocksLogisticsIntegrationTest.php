@@ -73,7 +73,12 @@ final class BlocksLogisticsIntegrationTest extends TestCase {
 	 * @return \WC_Order
 	 */
 	private function create_order_with_logistics_shipping( string $payment_method = 'bacs' ): \WC_Order {
-		$order = $this->create_wc_order( [ 'status' => 'pending', 'payment_method' => $payment_method ] );
+		$order = $this->create_wc_order(
+			[
+				'status'         => 'pending',
+				'payment_method' => $payment_method,
+			]
+			);
 
 		$item = new \WC_Order_Item_Shipping();
 		$item->set_method_title( '綠界超商取貨 / 宅配' );
@@ -127,7 +132,11 @@ final class BlocksLogisticsIntegrationTest extends TestCase {
 		$token = CartLogisticsSession::issue_token();
 		CartLogisticsSession::store_by_token(
 			$token,
-			[ 'temp_id' => '8', 'store_id' => 'C1', 'sub_type' => 'FAMI' ]
+			[
+				'temp_id'  => '8',
+				'store_id' => 'C1',
+				'sub_type' => 'FAMI',
+			]
 		);
 
 		$order = $this->create_order_with_logistics_shipping( 'cod' );
@@ -145,7 +154,11 @@ final class BlocksLogisticsIntegrationTest extends TestCase {
 		$token = CartLogisticsSession::issue_token();
 		CartLogisticsSession::store_by_token(
 			$token,
-			[ 'temp_id' => '9', 'store_id' => 'D1', 'sub_type' => 'FAMI' ]
+			[
+				'temp_id'  => '9',
+				'store_id' => 'D1',
+				'sub_type' => 'FAMI',
+			]
 		);
 
 		$order = $this->create_order_with_logistics_shipping();
@@ -167,11 +180,20 @@ final class BlocksLogisticsIntegrationTest extends TestCase {
 		$token = CartLogisticsSession::issue_token();
 		CartLogisticsSession::store_by_token(
 			$token,
-			[ 'temp_id' => '10', 'store_id' => 'E1', 'sub_type' => 'FAMI' ]
+			[
+				'temp_id'  => '10',
+				'store_id' => 'E1',
+				'sub_type' => 'FAMI',
+			]
 		);
 
 		// 訂單未加入綠界物流運送方式
-		$order = $this->create_wc_order( [ 'status' => 'pending', 'payment_method' => 'bacs' ] );
+		$order = $this->create_wc_order(
+			[
+				'status'         => 'pending',
+				'payment_method' => 'bacs',
+			]
+			);
 
 		BlocksLogisticsIntegration::save_block_checkout_meta( $order );
 

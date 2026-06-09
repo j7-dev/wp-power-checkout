@@ -118,7 +118,7 @@ final class RefundAllowanceHookTest extends TestCase {
 	 * @return void
 	 */
 	private function refund_order( \WC_Order $order, float $amount ): void {
-		$refund = \wc_create_refund(
+		$refund    = \wc_create_refund(
 			[
 				'order_id' => $order->get_id(),
 				'amount'   => $amount,
@@ -206,10 +206,21 @@ final class RefundAllowanceHookTest extends TestCase {
 	 */
 	public function test_未開發票_不開折讓(): void {
 		// Given: 啟用 provider 但訂單未開發票、開關開啟
-		$this->enable_provider( AmegoProvider::ID, [ 'mode' => 'test', 'auto_allowance_on_refund' => 'yes' ] );
+		$this->enable_provider(
+			AmegoProvider::ID,
+			[
+				'mode'                     => 'test',
+				'auto_allowance_on_refund' => 'yes',
+			]
+			);
 		ProviderUtils::$container[ AmegoProvider::ID ] = AmegoProvider::instance();
 
-		$order = $this->create_wc_order( [ 'status' => 'processing', 'total' => 100 ] );
+		$order = $this->create_wc_order(
+			[
+				'status' => 'processing',
+				'total'  => 100,
+			]
+			);
 		$order->set_total( 100 );
 		$order->save();
 
@@ -229,7 +240,12 @@ final class RefundAllowanceHookTest extends TestCase {
 	 */
 	public function test_provider不存在_不報錯(): void {
 		// Given: 一筆有 provider_id 但 provider 未在容器中的訂單
-		$order     = $this->create_wc_order( [ 'status' => 'processing', 'total' => 100 ] );
+		$order = $this->create_wc_order(
+			[
+				'status' => 'processing',
+				'total'  => 100,
+			]
+			);
 		$order->set_total( 100 );
 		$order->save();
 		$meta_keys = new MetaKeys( $order );

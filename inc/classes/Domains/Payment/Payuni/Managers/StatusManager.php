@@ -46,7 +46,7 @@ final class StatusManager {
 	 * Constructor
 	 *
 	 * @param array<string, mixed> $inner_payload 解密並驗章後的內層通知陣列（{ Status, TradeStatus, TradeAmt, ... }）
-	 * @param \WC_Order             $order         訂單
+	 * @param \WC_Order            $order         訂單
 	 */
 	public function __construct(
 		private readonly array $inner_payload,
@@ -238,7 +238,7 @@ final class StatusManager {
 	 * @return bool
 	 */
 	private function is_merchant_matched(): bool {
-		$notify_mer_id = (string) ( $this->inner_payload['MerID'] ?? '' );
+		$notify_mer_id   = (string) ( $this->inner_payload['MerID'] ?? '' );
 		$settings_mer_id = PayuniSettingsDTO::instance()->merchant_id;
 
 		if ( '' === $settings_mer_id ) {

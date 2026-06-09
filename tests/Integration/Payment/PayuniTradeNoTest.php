@@ -109,7 +109,7 @@ final class PayuniTradeNoTest extends TestCase {
 		$this->assertSame(
 			$order_id,
 			$parsed_order_id,
-			"從 trade_no 反查的 order_id 不正確"
+			'從 trade_no 反查的 order_id 不正確'
 		);
 	}
 
@@ -134,7 +134,7 @@ final class PayuniTradeNoTest extends TestCase {
 		$this->assertSame(
 			$first,
 			$second,
-			"同一訂單兩次呼叫 generate() 結果不一致（冪等性驗證失敗）"
+			'同一訂單兩次呼叫 generate() 結果不一致（冪等性驗證失敗）'
 		);
 	}
 
@@ -158,7 +158,7 @@ final class PayuniTradeNoTest extends TestCase {
 		$this->assertNotSame(
 			$trade_no_a,
 			$trade_no_b,
-			"不同訂單不應產生相同交易單號"
+			'不同訂單不應產生相同交易單號'
 		);
 	}
 
@@ -196,7 +196,7 @@ final class PayuniTradeNoTest extends TestCase {
 
 		$this->assertTrue(
 			null === $result || 0 === $result,
-			"對不合法 trade_no 應回傳 null 或 0，實際回傳：" . var_export( $result, true )
+			'對不合法 trade_no 應回傳 null 或 0，實際回傳：' . var_export( $result, true )
 		);
 	}
 }

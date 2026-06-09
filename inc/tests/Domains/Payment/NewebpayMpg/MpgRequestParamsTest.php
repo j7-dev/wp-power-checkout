@@ -108,7 +108,7 @@ class MpgRequestParamsTest extends WC_UnitTestCase {
 	 * @return void
 	 */
 	public function test_amount_is_ceil_integer(): void {
-		$order = $this->get_order();
+		$order  = $this->get_order();
 		$params = MpgRequestParams::instance( $order, $this->gateway );
 
 		$expected = (int) \ceil( (float) $order->get_total() );
@@ -154,8 +154,8 @@ class MpgRequestParamsTest extends WC_UnitTestCase {
 		$params = MpgRequestParams::instance( $this->get_order(), $this->gateway );
 		$form   = $params->to_form_params();
 
-		$settings  = \J7\PowerCheckout\Domains\Payment\NewebpayMpg\DTOs\MpgSettingsDTO::instance();
-		$crypto    = new TradeInfoCrypto( $settings->hashKey, $settings->hashIv );
+		$settings = \J7\PowerCheckout\Domains\Payment\NewebpayMpg\DTOs\MpgSettingsDTO::instance();
+		$crypto   = new TradeInfoCrypto( $settings->hashKey, $settings->hashIv );
 		\parse_str( $crypto->decrypt( (string) $form['TradeInfo'] ), $p );
 
 		$this->assertSame( '1', $p['CREDIT'] ?? '', 'CREDIT 應為 1' );

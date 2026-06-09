@@ -135,9 +135,9 @@ final class EcpgCallbackTest extends TestCase {
 	 */
 	public function test_MerchantID不符時維持pending不更新明細(): void {
 		// Given: pending 訂單 + TransCode/RtnCode 皆 1，但外層 MerchantID 為偽造值
-		$trade_no = 'EG200BADMID';
-		$order    = $this->create_ecpg_order( $trade_no );
-		$payload  = $this->build_notify( 1, 1, $trade_no );
+		$trade_no              = 'EG200BADMID';
+		$order                 = $this->create_ecpg_order( $trade_no );
+		$payload               = $this->build_notify( 1, 1, $trade_no );
 		$payload['MerchantID'] = '9999999'; // 偽造（本商店為 3002607）
 
 		// When
@@ -157,7 +157,7 @@ final class EcpgCallbackTest extends TestCase {
 		// Given: 偽造 MerchantID 的通知
 		$trade_no = 'EG200BADMID2';
 		$this->create_ecpg_order( $trade_no );
-		$payload  = $this->build_notify( 1, 1, $trade_no );
+		$payload               = $this->build_notify( 1, 1, $trade_no );
 		$payload['MerchantID'] = '9999999';
 
 		$request = new \WP_REST_Request( 'POST', '/power-checkout/ecpay/ecpg/return' );

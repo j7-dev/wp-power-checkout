@@ -204,7 +204,12 @@ final class CartSelectionCallbackTest extends TestCase {
 
 		// 以錯誤憑證加密 → 正確帳號無法解密
 		$wrong       = new AesCrypto( 'WRONGKEY12345678', 'WRONGIV123456789' );
-		$result_data = $wrong->encrypt( [ 'TempLogisticsID' => '1', 'CVSStoreID' => 'X' ] );
+		$result_data = $wrong->encrypt(
+			[
+				'TempLogisticsID' => '1',
+				'CVSStoreID'      => 'X',
+			]
+			);
 
 		$request = $this->make_request( $result_data, [ 'pc_st' => $token ] );
 

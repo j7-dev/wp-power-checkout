@@ -20,8 +20,8 @@ use J7\WpUtils\Classes\ApiBase;
  *
  * @see https://docs.shoplinepayments.com/api/event/model/session/
  */
-final class WebHook extends ApiBase
-{
+final class WebHook extends ApiBase {
+
 	use \J7\WpUtils\Traits\SingletonTrait;
 
 	/** @var string Namespace power-checkout/{payment_gateway} */
@@ -51,8 +51,7 @@ final class WebHook extends ApiBase
 	 *
 	 * @return \WP_REST_Response 回應
 	 */
-	public function post_webhook_callback(\WP_REST_Request $request): \WP_REST_Response
-	{
+	public function post_webhook_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$is_valid    = $this->is_valid($request);
 		$body_params = $request->get_params();
 
@@ -112,8 +111,7 @@ final class WebHook extends ApiBase
 	 * @return true 是否驗證成功
 	 * @throws \Exception 如果驗證失敗
 	 */
-	private function is_valid(\WP_REST_Request $request): bool
-	{
+	private function is_valid( \WP_REST_Request $request ): bool {
 		if ('local' === Plugin::$env) {
 			// 本地環境不驗證簽章
 			return true;
@@ -141,8 +139,7 @@ final class WebHook extends ApiBase
 	 * @return true 是否驗證成功
 	 * @throws \Exception 如果簽章驗證失敗
 	 */
-	private function verify_hmac_sha256_signature(\WP_REST_Request $request): bool
-	{
+	private function verify_hmac_sha256_signature( \WP_REST_Request $request ): bool {
 		$timestamp            = (string) $request->get_header('timestamp');
 		$payload              = "{$timestamp}.{$request->get_body()}";
 		$calculated_signature = $this->generate_hmac_sha256_signature($payload);
@@ -161,12 +158,11 @@ final class WebHook extends ApiBase
 	 *
 	 * @return string 簽章
 	 */
-	private function generate_hmac_sha256_signature(string $payload): string
-	{
+	private function generate_hmac_sha256_signature( string $payload ): string {
 		// 確保資料是 UTF-8 編碼
 		$converted = mb_convert_encoding($payload, 'UTF-8', 'auto');
 		$payload   = \is_string($converted) ? $converted : $payload;
-		$sign_key  = (RedirectSettingsDTO::instance())->signKey;
+		$sign_key  = ( RedirectSettingsDTO::instance() )->signKey;
 		return hash_hmac('sha256', $payload, $sign_key);
 	}
 
@@ -174,14 +170,12 @@ final class WebHook extends ApiBase
 
 
 	/** @return string 取得 webhook url */
-	public static function get_webhook_url(): string
-	{
+	public static function get_webhook_url(): string {
 		return \get_rest_url(null, 'power-checkout/slp/webhook');
 	}
 
 	/** 處理退款資訊 */
-	private function handle_refund(Webhooks\Refund $refund_dto): void
-	{
+	private function handle_refund( Webhooks\Refund $refund_dto ): void {
 		$order = MetaKeys::get_order_by_identity_payment_key($refund_dto->tradeOrderId);
 		if (!$order) {
 			throw new \Exception("找不到訂單，tradeOrderId: {$refund_dto->tradeOrderId}");

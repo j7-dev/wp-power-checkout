@@ -48,7 +48,7 @@ final class Instrument extends DTO {
 	 */
 	public static function create( array $args ): self {
 		/** @var array<string, mixed> $pi_data */
-		$pi_data = $args['paymentInstrument'];
+		$pi_data                   = $args['paymentInstrument'];
 		$args['paymentInstrument'] = Webhook\PaymentInstrument::create( $pi_data );
 		return new self( $args );
 	}

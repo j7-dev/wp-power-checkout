@@ -44,7 +44,12 @@ final class EzpayUrlEncoderTest extends TestCase {
 	 */
 	public function test_冒煙_encode_回傳字串(): void {
 		$encoder = new UrlEncoder();
-		$result  = $encoder->encode( [ 'RespondType' => 'JSON', 'Version' => '1.5' ] );
+		$result  = $encoder->encode(
+			[
+				'RespondType' => 'JSON',
+				'Version'     => '1.5',
+			]
+			);
 
 		$this->assertIsString( $result );
 		$this->assertStringContainsString( 'RespondType=JSON', $result );
@@ -72,7 +77,7 @@ final class EzpayUrlEncoderTest extends TestCase {
 	public function test_edge_CarrierNum前後空白被trim(): void {
 		$encoder = new UrlEncoder();
 		// CarrierNum 含前後空白
-		$result  = $encoder->encode( [ 'CarrierNum' => '  /ABC123  ' ] );
+		$result = $encoder->encode( [ 'CarrierNum' => '  /ABC123  ' ] );
 
 		$this->assertStringNotContainsString( 'CarrierNum=+', $result, 'CarrierNum 前後空白應被 trim' );
 		$this->assertStringContainsString( 'CarrierNum=', $result );
@@ -98,11 +103,13 @@ final class EzpayUrlEncoderTest extends TestCase {
 	 */
 	public function test_edge_數值型態參數正確序列化(): void {
 		$encoder = new UrlEncoder();
-		$result  = $encoder->encode( [
-			'TotalAmt' => 100,
-			'TaxAmt'   => 5,
-			'Amt'      => 95,
-		] );
+		$result  = $encoder->encode(
+			[
+				'TotalAmt' => 100,
+				'TaxAmt'   => 5,
+				'Amt'      => 95,
+			]
+			);
 
 		parse_str( $result, $parsed );
 		$this->assertSame( '100', $parsed['TotalAmt'] ?? '' );
@@ -117,7 +124,7 @@ final class EzpayUrlEncoderTest extends TestCase {
 	public function test_edge_特殊字元在value中被正確編碼(): void {
 		$encoder = new UrlEncoder();
 		// & 和 = 是 query string 分隔符，在值中必須被編碼
-		$result  = $encoder->encode( [ 'ItemName' => 'A&B=C' ] );
+		$result = $encoder->encode( [ 'ItemName' => 'A&B=C' ] );
 
 		parse_str( $result, $parsed );
 		$this->assertSame( 'A&B=C', $parsed['ItemName'] ?? '', '& 和 = 在值中應被正確編碼後可還原' );

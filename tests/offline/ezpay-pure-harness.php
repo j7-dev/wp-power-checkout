@@ -36,7 +36,10 @@ function assert_eq( string $label, mixed $expected, mixed $actual ): void {
 	global $pass, $fail, $cases;
 	if ( $expected === $actual ) {
 		++$pass;
-		$cases[] = [ 'status' => 'PASS', 'label' => $label ];
+		$cases[] = [
+			'status' => 'PASS',
+			'label'  => $label,
+		];
 	} else {
 		++$fail;
 		$cases[] = [
@@ -154,7 +157,12 @@ assert_eq( 'CheckCode: 篡改 TotalAmt 後驗證失敗', false, $checker->verify
 $encoder = new UrlEncoder();
 
 // 14. 基本 encode
-$result = $encoder->encode( [ 'RespondType' => 'JSON', 'Version' => '1.5' ] );
+$result = $encoder->encode(
+	[
+		'RespondType' => 'JSON',
+		'Version'     => '1.5',
+	]
+	);
 assert_true( 'UrlEncoder: 基本 encode 含 RespondType=JSON', str_contains( $result, 'RespondType=JSON' ) );
 
 // 15. 中文 rawurlencode（空白→%20）

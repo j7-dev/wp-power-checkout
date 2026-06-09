@@ -55,15 +55,15 @@ final class PayuniEnumTest extends TestCase {
 	 * @group payment
 	 */
 	public function test_PaymentMethod_各case的string_value與case名一致(): void {
-		$this->assertSame( 'Credit',     PayuniPaymentMethod::Credit->value );
+		$this->assertSame( 'Credit', PayuniPaymentMethod::Credit->value );
 		$this->assertSame( 'CreditInst', PayuniPaymentMethod::CreditInst->value );
-		$this->assertSame( 'ApplePay',   PayuniPaymentMethod::ApplePay->value );
-		$this->assertSame( 'GooglePay',  PayuniPaymentMethod::GooglePay->value );
-		$this->assertSame( 'ATM',        PayuniPaymentMethod::ATM->value );
-		$this->assertSame( 'CVS',        PayuniPaymentMethod::CVS->value );
-		$this->assertSame( 'ICash',      PayuniPaymentMethod::ICash->value );
-		$this->assertSame( 'LinePay',    PayuniPaymentMethod::LinePay->value );
-		$this->assertSame( 'JKoPay',     PayuniPaymentMethod::JKoPay->value );
+		$this->assertSame( 'ApplePay', PayuniPaymentMethod::ApplePay->value );
+		$this->assertSame( 'GooglePay', PayuniPaymentMethod::GooglePay->value );
+		$this->assertSame( 'ATM', PayuniPaymentMethod::ATM->value );
+		$this->assertSame( 'CVS', PayuniPaymentMethod::CVS->value );
+		$this->assertSame( 'ICash', PayuniPaymentMethod::ICash->value );
+		$this->assertSame( 'LinePay', PayuniPaymentMethod::LinePay->value );
+		$this->assertSame( 'JKoPay', PayuniPaymentMethod::JKoPay->value );
 	}
 
 	// ========== payment_type() 方法映射（Happy） ==========
@@ -384,11 +384,11 @@ final class PayuniEnumTest extends TestCase {
 	 * @group payment
 	 */
 	public function test_TradeStatus_tryFrom_整數值建立enum(): void {
-		$this->assertSame( PayuniTradeStatus::Paid,      PayuniTradeStatus::tryFrom( 1 ) );
-		$this->assertSame( PayuniTradeStatus::Failed,    PayuniTradeStatus::tryFrom( 2 ) );
+		$this->assertSame( PayuniTradeStatus::Paid, PayuniTradeStatus::tryFrom( 1 ) );
+		$this->assertSame( PayuniTradeStatus::Failed, PayuniTradeStatus::tryFrom( 2 ) );
 		$this->assertSame( PayuniTradeStatus::Cancelled, PayuniTradeStatus::tryFrom( 3 ) );
-		$this->assertSame( PayuniTradeStatus::GetCode,   PayuniTradeStatus::tryFrom( 0 ) );
-		$this->assertSame( PayuniTradeStatus::Pending,   PayuniTradeStatus::tryFrom( 8 ) );
+		$this->assertSame( PayuniTradeStatus::GetCode, PayuniTradeStatus::tryFrom( 0 ) );
+		$this->assertSame( PayuniTradeStatus::Pending, PayuniTradeStatus::tryFrom( 8 ) );
 		$this->assertNull( PayuniTradeStatus::tryFrom( 999 ) );
 	}
 
@@ -404,15 +404,15 @@ final class PayuniEnumTest extends TestCase {
 	 * @group payment
 	 */
 	public function test_PaymentMethod_from_字串值建立enum(): void {
-		$this->assertSame( PayuniPaymentMethod::Credit,     PayuniPaymentMethod::from( 'Credit' ) );
+		$this->assertSame( PayuniPaymentMethod::Credit, PayuniPaymentMethod::from( 'Credit' ) );
 		$this->assertSame( PayuniPaymentMethod::CreditInst, PayuniPaymentMethod::from( 'CreditInst' ) );
-		$this->assertSame( PayuniPaymentMethod::ATM,        PayuniPaymentMethod::from( 'ATM' ) );
-		$this->assertSame( PayuniPaymentMethod::CVS,        PayuniPaymentMethod::from( 'CVS' ) );
-		$this->assertSame( PayuniPaymentMethod::LinePay,    PayuniPaymentMethod::from( 'LinePay' ) );
-		$this->assertSame( PayuniPaymentMethod::JKoPay,     PayuniPaymentMethod::tryFrom( 'JKoPay' ) );
-		$this->assertSame( PayuniPaymentMethod::ApplePay,   PayuniPaymentMethod::tryFrom( 'ApplePay' ) );
-		$this->assertSame( PayuniPaymentMethod::GooglePay,  PayuniPaymentMethod::tryFrom( 'GooglePay' ) );
-		$this->assertSame( PayuniPaymentMethod::ICash,      PayuniPaymentMethod::tryFrom( 'ICash' ) );
+		$this->assertSame( PayuniPaymentMethod::ATM, PayuniPaymentMethod::from( 'ATM' ) );
+		$this->assertSame( PayuniPaymentMethod::CVS, PayuniPaymentMethod::from( 'CVS' ) );
+		$this->assertSame( PayuniPaymentMethod::LinePay, PayuniPaymentMethod::from( 'LinePay' ) );
+		$this->assertSame( PayuniPaymentMethod::JKoPay, PayuniPaymentMethod::tryFrom( 'JKoPay' ) );
+		$this->assertSame( PayuniPaymentMethod::ApplePay, PayuniPaymentMethod::tryFrom( 'ApplePay' ) );
+		$this->assertSame( PayuniPaymentMethod::GooglePay, PayuniPaymentMethod::tryFrom( 'GooglePay' ) );
+		$this->assertSame( PayuniPaymentMethod::ICash, PayuniPaymentMethod::tryFrom( 'ICash' ) );
 	}
 
 	/**

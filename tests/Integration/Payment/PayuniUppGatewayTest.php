@@ -200,8 +200,8 @@ final class PayuniUppGatewayTest extends TestCase {
 	 * @group payment
 	 */
 	public function test_get_supported_payment_methods_回傳allowed_payments(): void {
-		$gateway  = new PayuniUppGateway();
-		$methods  = $gateway->get_supported_payment_methods();
+		$gateway = new PayuniUppGateway();
+		$methods = $gateway->get_supported_payment_methods();
 
 		$this->assertIsArray( $methods );
 		$this->assertNotEmpty( $methods );
@@ -256,9 +256,9 @@ final class PayuniUppGatewayTest extends TestCase {
 	 * @group payment
 	 */
 	public function test_冪等鍵_build_order_received後_trade_no寫入meta(): void {
-		$gateway   = new PayuniUppGateway();
-		$order     = $this->create_payuni_order();
-		$order_id  = $order->get_id();
+		$gateway  = new PayuniUppGateway();
+		$order    = $this->create_payuni_order();
+		$order_id = $order->get_id();
 
 		// process_payment 導轉式不呼叫 API
 		$gateway->process_payment( $order_id );
@@ -290,9 +290,9 @@ final class PayuniUppGatewayTest extends TestCase {
 	 * @group payment
 	 */
 	public function test_冪等鍵_重複呼叫process_payment不更新已有trade_no(): void {
-		$gateway   = new PayuniUppGateway();
-		$order     = $this->create_payuni_order();
-		$order_id  = $order->get_id();
+		$gateway  = new PayuniUppGateway();
+		$order    = $this->create_payuni_order();
+		$order_id = $order->get_id();
 
 		// 第一次
 		$gateway->process_payment( $order_id );

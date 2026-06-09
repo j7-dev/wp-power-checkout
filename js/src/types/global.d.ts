@@ -1,5 +1,9 @@
 import { CheckboxProps } from '@/components/Checkbox/types'
 import { IEcpgData, IEcpaySdk } from '@/external/EcpgPayment/types'
+import {
+	IPayuniUniData,
+	IUniPaymentGlobal,
+} from '@/external/PayuniUniEmbed/types'
 import { IOrderData } from '@/external/RefundDialog/types'
 
 export {}
@@ -58,5 +62,17 @@ declare global {
 
 		/** jQuery（綠界 SDK 依賴；WP 環境通常已載入，型別僅作存在性檢查） */
 		jQuery?: unknown
+
+		/**
+		 * PAYUNi UNi Embed V3（內嵌式信用卡）order-received 頁專屬資料
+		 *
+		 * 由 PayuniUniEmbedGateway::before_order_received 透過 wp_localize_script 掛在 Vue bundle handle，
+		 * 僅在「訂單以 payuni_uni_embed 結帳且已 token_get 取得 SDK_TOKEN」的 order-received 頁存在。
+		 * @see inc/classes/Domains/Payment/PayuniUniEmbed/Services/PayuniUniEmbedGateway.php build_sdk_config()
+		 */
+		power_checkout_payuni_uni_data?: IPayuniUniData
+
+		/** PAYUNi uni-payment.js 前端 JS SDK 全域物件（由 vendor.payuni.com.tw 注入 window） */
+		UniPayment?: IUniPaymentGlobal
 	}
 }

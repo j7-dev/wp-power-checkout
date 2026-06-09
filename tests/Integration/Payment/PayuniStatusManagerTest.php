@@ -46,8 +46,8 @@ use Tests\Integration\TestCase;
 final class PayuniStatusManagerTest extends TestCase {
 
 	// PAYUNi 官方公開測試向量金鑰（payuni-upp-v2 encryption.md §官方測試向量）
-	private const HASH_KEY   = '12345678901234567890123456789012';
-	private const HASH_IV    = '1234567890123456';
+	private const HASH_KEY    = '12345678901234567890123456789012';
+	private const HASH_IV     = '1234567890123456';
 	private const MERCHANT_ID = 'TEST_MER';
 
 	/** 每次測試前啟用 payuni_upp（test 模式） */
@@ -599,9 +599,9 @@ final class PayuniStatusManagerTest extends TestCase {
 		$order = $this->create_payuni_order( 'PCU_ATM_IDEM' );
 
 		// 第一次取號
-		$payload_1            = $this->atm_get_code_payload( 'PCU_ATM_IDEM' );
-		$payload_1['PayNo']   = '00000000000001';
-		$manager              = new StatusManager( $payload_1, $order );
+		$payload_1          = $this->atm_get_code_payload( 'PCU_ATM_IDEM' );
+		$payload_1['PayNo'] = '00000000000001';
+		$manager            = new StatusManager( $payload_1, $order );
 		$manager->update_order_status();
 
 		// 第二次取號（PAYUNi 重送，PayNo 相同但模擬覆寫驗證）

@@ -93,7 +93,12 @@ final class CartLogisticsApiServiceTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_cart選店_MOCK模式成功回傳redirect_target_HTML(): void {
-		$request  = $this->make_request( [ 'sub_type' => 'FAMI', 'payment_scenario' => 'online' ] );
+		$request  = $this->make_request(
+			[
+				'sub_type'         => 'FAMI',
+				'payment_scenario' => 'online',
+			]
+			);
 		$response = CartLogisticsApiService::instance()->post_logistics_store_selection_callback( $request );
 
 		$this->assertSame( 200, $response->get_status() );
@@ -114,7 +119,11 @@ final class CartLogisticsApiServiceTest extends TestCase {
 		// 選店發起後 session 應有可反查的權杖（透過 store_by_token 驗證）
 		$ok = CartLogisticsSession::store_by_token(
 			(string) \WC()->session->get( 'pc_logistics_selection_token' ),
-			[ 'store_id' => 'Z1', 'temp_id' => '1', 'sub_type' => 'UNIMART' ]
+			[
+				'store_id' => 'Z1',
+				'temp_id'  => '1',
+				'sub_type' => 'UNIMART',
+			]
 		);
 		$this->assertTrue( $ok, '選店發起後應可用 session 內權杖寫入門市' );
 	}

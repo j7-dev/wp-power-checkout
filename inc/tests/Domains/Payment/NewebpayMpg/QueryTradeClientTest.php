@@ -83,7 +83,12 @@ class QueryTradeClientTest extends WC_UnitTestCase {
 			[
 				'Status'  => 'SUCCESS',
 				'Message' => '查詢成功',
-				'Result'  => [ 'TradeStatus' => '1', 'PaymentType' => 'CREDIT', 'TradeNo' => 'TN9', 'Amt' => 1000 ],
+				'Result'  => [
+					'TradeStatus' => '1',
+					'PaymentType' => 'CREDIT',
+					'TradeNo'     => 'TN9',
+					'Amt'         => 1000,
+				],
 			]
 		);
 
@@ -101,7 +106,12 @@ class QueryTradeClientTest extends WC_UnitTestCase {
 	public function test_parse_response_throws_on_failure(): void {
 		$client = new QueryTradeClient( $this->get_order() );
 
-		$json = \wp_json_encode( [ 'Status' => 'TRA10001', 'Message' => '查無交易' ] );
+		$json = \wp_json_encode(
+			[
+				'Status'  => 'TRA10001',
+				'Message' => '查無交易',
+			]
+			);
 
 		$this->expectException( \Exception::class );
 		$client->parse_response( (string) $json );

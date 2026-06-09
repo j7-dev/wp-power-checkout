@@ -104,14 +104,14 @@ final class ProviderUtilsSettingsTest extends TestCase {
 	public function test_更新SLP設定並讀取(): void {
 		// Given: SLP 啟用並寫入完整設定
 		$slp_settings = [
-			'enabled'     => 'yes',
-			'platformId'  => 'platform_test_001',
-			'merchantId'  => 'merchant_test_001',
-			'apiKey'      => 'api_key_test',
-			'clientKey'   => 'client_key_test',
-			'signKey'     => 'sign_key_test',
-			'min_amount'  => '5',
-			'max_amount'  => '50000',
+			'enabled'    => 'yes',
+			'platformId' => 'platform_test_001',
+			'merchantId' => 'merchant_test_001',
+			'apiKey'     => 'api_key_test',
+			'clientKey'  => 'client_key_test',
+			'signKey'    => 'sign_key_test',
+			'min_amount' => '5',
+			'max_amount' => '50000',
 		];
 
 		// When: 批次更新設定

@@ -15,11 +15,12 @@ final class ProviderRegister {
 
 	/** @var array<string, string> $gateway_services [id, class] */
 	private static array $gateway_services = [
-		ShoplinePayment\Services\RedirectGateway::ID => ShoplinePayment\Services\RedirectGateway::class,
-		EcpayAIO\Services\AioRedirectGateway::ID     => EcpayAIO\Services\AioRedirectGateway::class,
-		Ecpg\Services\EcpgGateway::ID                => Ecpg\Services\EcpgGateway::class,
-		NewebpayMpg\Services\MpgRedirectGateway::ID  => NewebpayMpg\Services\MpgRedirectGateway::class,
-		Payuni\Services\PayuniUppGateway::ID         => Payuni\Services\PayuniUppGateway::class,
+		ShoplinePayment\Services\RedirectGateway::ID      => ShoplinePayment\Services\RedirectGateway::class,
+		EcpayAIO\Services\AioRedirectGateway::ID          => EcpayAIO\Services\AioRedirectGateway::class,
+		Ecpg\Services\EcpgGateway::ID                     => Ecpg\Services\EcpgGateway::class,
+		NewebpayMpg\Services\MpgRedirectGateway::ID       => NewebpayMpg\Services\MpgRedirectGateway::class,
+		Payuni\Services\PayuniUppGateway::ID              => Payuni\Services\PayuniUppGateway::class,
+		PayuniUniEmbed\Services\PayuniUniEmbedGateway::ID => PayuniUniEmbed\Services\PayuniUniEmbedGateway::class,
 	];
 
 	/** Register hooks */
@@ -31,6 +32,16 @@ final class ProviderRegister {
 		\add_action( 'woocommerce_order_refunded', [ __CLASS__, 'add_order_note__manual_refund' ], 100, 2 );
 		\add_action( 'admin_enqueue_scripts', [ __CLASS__, 'refund_script' ], 20 );
 		\add_action( 'wc_payment_gateways_initialized', [ __CLASS__, 'gateway_register_di' ], 20 );
+
+		// PAYUNi UNi Embed：綁卡授權回傳寫入買方 Token（credit_hash / credit_life）——
+		// 無條件註冊（不依賴 gateway 啟用 / 實例化時序），確保 merchant_trade 授權成功後
+		// 於前端 create-payment 流程或對帳補單情境皆能寫入買方 Token meta（絕不存卡號 / CVC）。
+		\add_action(
+			'payuni_uni_embed_after_merchant_trade',
+			[ PayuniUniEmbed\Services\PayuniUniEmbedGateway::class, 'handle_after_merchant_trade' ],
+			10,
+			2
+		);
 
 		foreach ( self::$gateway_services as $gateway_id => $gateway_service ) {
 			if ( !ProviderUtils::is_enabled( $gateway_id ) ) {

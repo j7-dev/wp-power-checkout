@@ -109,7 +109,13 @@ final class CartLogisticsSessionTest extends TestCase {
 	 */
 	public function test_clear清除暫存門市與權杖(): void {
 		$token = CartLogisticsSession::issue_token();
-		CartLogisticsSession::store_by_token( $token, [ 'store_id' => 'X1', 'temp_id' => '1' ] );
+		CartLogisticsSession::store_by_token(
+			$token,
+			[
+				'store_id' => 'X1',
+				'temp_id'  => '1',
+			]
+			);
 		$this->assertNotNull( CartLogisticsSession::get_selected_store() );
 
 		CartLogisticsSession::clear();
@@ -155,7 +161,10 @@ final class CartLogisticsSessionTest extends TestCase {
 
 		$ok = CartLogisticsSession::store_by_token(
 			'forged_token_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-			[ 'store_id' => 'EVIL', 'temp_id' => '999' ]
+			[
+				'store_id' => 'EVIL',
+				'temp_id'  => '999',
+			]
 		);
 
 		$this->assertFalse( $ok, '偽造權杖不應成功寫入' );
@@ -206,7 +215,13 @@ final class CartLogisticsSessionTest extends TestCase {
 	 */
 	public function test_空store_id的門市視為未選店(): void {
 		$token = CartLogisticsSession::issue_token();
-		CartLogisticsSession::store_by_token( $token, [ 'store_id' => '', 'temp_id' => '5' ] );
+		CartLogisticsSession::store_by_token(
+			$token,
+			[
+				'store_id' => '',
+				'temp_id'  => '5',
+			]
+			);
 		$this->assertNull(
 			CartLogisticsSession::get_selected_store(),
 			'store_id 為空應視為未選店'

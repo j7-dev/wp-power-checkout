@@ -142,7 +142,7 @@ final class EzpayAesCryptoTest extends TestCase {
 		$crypto1 = new AesCrypto( self::KEY, self::IV );
 		$crypto2 = new AesCrypto( str_repeat( 'z', 32 ), self::IV );
 
-		$plaintext  = 'MerchantID=12345678';
+		$plaintext   = 'MerchantID=12345678';
 		$ciphertext1 = $crypto1->encrypt( $plaintext );
 		$ciphertext2 = $crypto2->encrypt( $plaintext );
 
@@ -155,9 +155,9 @@ final class EzpayAesCryptoTest extends TestCase {
 	 */
 	public function test_edge_標準AES16blockPadding會造成解密異常(): void {
 		// 若以 PKCS_PADDING（blocksize=16）加密，用 AesCrypto 解密應無法還原
-		$key        = self::KEY;
-		$iv         = self::IV;
-		$plaintext  = 'test=data&key=value';
+		$key       = self::KEY;
+		$iv        = self::IV;
+		$plaintext = 'test=data&key=value';
 
 		// 標準 openssl padding（PKCS#7 blocksize=16，會補不同量的 bytes）
 		$wrongCipherHex = bin2hex( openssl_encrypt( $plaintext, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv ) );

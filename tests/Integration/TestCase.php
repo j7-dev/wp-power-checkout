@@ -65,6 +65,15 @@ abstract class TestCase extends \WP_UnitTestCase {
 		$this->repos       = new \stdClass();
 		$this->services    = new \stdClass();
 
+		// 防禦性清理：在 configure_dependencies 之前刪除各 gateway / provider 設定選項，
+		// 確保每個測試自乾淨狀態開始。原因：退款 handler 採原生 $wpdb COMMIT / ROLLBACK 發 API，
+		// 會「提前提交 / 還原」WP_UnitTestCase 包覆每個測試的外層交易，導致前一測試 update_option
+		// 寫入的 provider 啟用狀態跨測試殘留，污染 is_enabled 判定（例：PayuniUniEmbedRegisterTest
+		// 斷言 payuni_uni_embed 未啟用卻讀到殘留 'yes'）。在 set_up 主動清空可免疫交易破壞時序。
+		foreach ( self::PROVIDER_OPTION_IDS as $provider_id ) {
+			\delete_option( ProviderUtils::get_option_name( $provider_id ) );
+		}
+
 		$this->configure_dependencies();
 	}
 
@@ -74,8 +83,32 @@ abstract class TestCase extends \WP_UnitTestCase {
 	public function tear_down(): void {
 		// 清空 ProviderUtils 容器，避免測試之間互相影響
 		ProviderUtils::$container = [];
+
+		// 防禦性清理：刪除各 gateway / provider 設定選項（與 set_up 對稱，雙保險）。
+		// 詳見 set_up 內說明（退款 handler 原生 COMMIT / ROLLBACK 破壞 WP_UnitTestCase 交易隔離）。
+		foreach ( self::PROVIDER_OPTION_IDS as $provider_id ) {
+			\delete_option( ProviderUtils::get_option_name( $provider_id ) );
+		}
+
 		parent::tear_down();
 	}
+
+	/**
+	 * 測試結束時需主動清理設定選項的 provider id 清單
+	 *
+	 * 涵蓋所有會在測試中以 update_option 啟用、且其退款 handler 可能 COMMIT 而破壞
+	 * 交易隔離的 gateway / provider，確保啟用狀態不跨測試殘留。
+	 *
+	 * @var array<int, string>
+	 */
+	private const PROVIDER_OPTION_IDS = [
+		'shopline_payment_redirect',
+		'ecpay_aio',
+		'ecpay_ecpg',
+		'newebpay_mpg',
+		'payuni_upp',
+		'payuni_uni_embed',
+	];
 
 	/**
 	 * 初始化依賴（子類別可選擇覆寫）
@@ -142,8 +175,8 @@ abstract class TestCase extends \WP_UnitTestCase {
 	 * @return \WC_Order 訂單物件
 	 */
 	protected function create_order_with_payment_identity( string $trade_order_id, string $status = 'pending' ): \WC_Order {
-		$order      = $this->create_wc_order( [ 'status' => $status ] );
-		$meta_keys  = new PaymentMetaKeys( $order );
+		$order     = $this->create_wc_order( [ 'status' => $status ] );
+		$meta_keys = new PaymentMetaKeys( $order );
 		$meta_keys->update_payment_identity( $trade_order_id );
 		return $order;
 	}
@@ -155,8 +188,8 @@ abstract class TestCase extends \WP_UnitTestCase {
 	 * @return \WC_Order 訂單物件
 	 */
 	protected function create_order_with_issued_invoice( array $issued_data ): \WC_Order {
-		$order      = $this->create_wc_order( [ 'status' => 'processing' ] );
-		$meta_keys  = new InvoiceMetaKeys( $order );
+		$order     = $this->create_wc_order( [ 'status' => 'processing' ] );
+		$meta_keys = new InvoiceMetaKeys( $order );
 		$meta_keys->update_issued_data( $issued_data );
 		return $order;
 	}

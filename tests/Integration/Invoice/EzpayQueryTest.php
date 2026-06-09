@@ -164,7 +164,7 @@ final class EzpayQueryTest extends TestCase {
 		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
 
 		// 攔截 HTTP 確認沒有外呼
-		$http_calls = [];
+		$http_calls  = [];
 		$interceptor = function ( $preempt, $args, $url ) use ( &$http_calls ) {
 			$http_calls[] = $url;
 			return new \WP_Error( 'http_blocked', '不應有外呼' );

@@ -441,7 +441,7 @@ final class PayuniTradeManagementTest extends TestCase {
 	 */
 	public function test_取消授權缺TradeNo時拋例外(): void {
 		// Given: 信用卡訂單但 payment_detail 缺 TradeNo
-		$order = $this->create_wc_order(
+		$order     = $this->create_wc_order(
 			[
 				'status'         => 'processing',
 				'payment_method' => PayuniUppGateway::ID,

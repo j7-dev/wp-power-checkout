@@ -62,7 +62,12 @@ class DoActionClientTest extends WC_UnitTestCase {
 	private function set_payment_type( string $payment_type ): void {
 		$order     = $this->get_order();
 		$meta_keys = new MpgMetaKeys( $order );
-		$meta_keys->update_payment_detail( [ 'PaymentType' => $payment_type, 'TradeNo' => '26060512345678' ] );
+		$meta_keys->update_payment_detail(
+			[
+				'PaymentType' => $payment_type,
+				'TradeNo'     => '26060512345678',
+			]
+			);
 		$meta_keys->update_trade_no( '26060512345678' );
 	}
 
@@ -114,11 +119,24 @@ class DoActionClientTest extends WC_UnitTestCase {
 	public function test_doaction_parse_response(): void {
 		$client = new DoActionClient( $this->get_order() );
 
-		$ok = \wp_json_encode( [ 'Status' => 'SUCCESS', 'Message' => 'ok', 'Result' => [ 'TradeNo' => 'TN1' ] ] );
+		$ok = \wp_json_encode(
+			[
+				'Status'  => 'SUCCESS',
+				'Message' => 'ok',
+				'Result'  => [ 'TradeNo' => 'TN1' ],
+			]
+			);
 		$this->assertSame( 'TN1', $client->parse_response( (string) $ok )['TradeNo'] ?? '' );
 
 		$this->expectException( \Exception::class );
-		$client->parse_response( (string) \wp_json_encode( [ 'Status' => 'TRA10012', 'Message' => '退款超過原金額' ] ) );
+		$client->parse_response(
+			(string) \wp_json_encode(
+			[
+				'Status'  => 'TRA10012',
+				'Message' => '退款超過原金額',
+			]
+			)
+			);
 	}
 
 	/**

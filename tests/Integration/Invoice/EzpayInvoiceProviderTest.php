@@ -129,7 +129,7 @@ final class EzpayInvoiceProviderTest extends TestCase {
 	 */
 	public function test_happy_issue_B2C個人雲端發票成功寫入issued_data與provider_id(): void {
 		// Given: 一筆個人雲端發票訂單
-		$order = $this->create_order_with_items(
+		$order    = $this->create_order_with_items(
 			[
 				'provider'    => 'ezpay',
 				'invoiceType' => 'individual',
@@ -160,7 +160,7 @@ final class EzpayInvoiceProviderTest extends TestCase {
 	 */
 	public function test_happy_issue_B2B公司統編發票成功寫入issued_data(): void {
 		// Given: 一筆公司統編（B2B）發票訂單
-		$order = $this->create_order_with_items(
+		$order    = $this->create_order_with_items(
 			[
 				'provider'    => 'ezpay',
 				'invoiceType' => 'company',
@@ -194,7 +194,7 @@ final class EzpayInvoiceProviderTest extends TestCase {
 			'random_num'       => '9876',
 			'invoice_date'     => '2026-01-15 10:00:00',
 		];
-		$order = $this->create_order_with_items();
+		$order       = $this->create_order_with_items();
 		( new MetaKeys( $order ) )->update_issued_data( $issued_data );
 
 		$provider = EzpayInvoiceProvider::instance();

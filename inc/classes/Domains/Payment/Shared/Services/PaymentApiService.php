@@ -62,7 +62,7 @@ class PaymentApiService extends ApiBase {
 		}
 
 		$int_order_id = (int) $order_id;
-		$refund = \wc_create_refund(
+		$refund       = \wc_create_refund(
 			[
 				'amount'   => (float) $remaining_refund_amount,
 				'reason'   => '',
