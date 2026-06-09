@@ -19,6 +19,7 @@ final class ProviderRegister {
 		EcpayAIO\Services\AioRedirectGateway::ID     => EcpayAIO\Services\AioRedirectGateway::class,
 		Ecpg\Services\EcpgGateway::ID                => Ecpg\Services\EcpgGateway::class,
 		NewebpayMpg\Services\MpgRedirectGateway::ID  => NewebpayMpg\Services\MpgRedirectGateway::class,
+		Payuni\Services\PayuniUppGateway::ID         => Payuni\Services\PayuniUppGateway::class,
 	];
 
 	/** Register hooks */

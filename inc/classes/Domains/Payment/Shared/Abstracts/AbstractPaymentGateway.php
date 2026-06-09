@@ -7,6 +7,7 @@ namespace J7\PowerCheckout\Domains\Payment\Shared\Abstracts;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\GatewaySupport;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
 use J7\WpUtils\Classes\DTO;
 use J7\WpUtils\Classes\WP;
 
@@ -15,7 +16,7 @@ use J7\WpUtils\Classes\WP;
  * 單例，會被儲存在容器內
  * 區塊結帳 @see https://developer.woocommerce.com/docs/block-development/cart-and-checkout-blocks/checkout-payment-methods/payment-method-integration/
  * */
-abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
+abstract class AbstractPaymentGateway extends \WC_Payment_Gateway implements IPaymentProvider {
 
 	// region 自訂屬性
 
@@ -224,6 +225,45 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway {
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' ) {
 		return false;
+	}
+
+	/**
+	 * 查詢交易 / 補單（安全預設）
+	 * 不支援查詢的金流回傳空陣列；支援的金流自行覆寫
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return array<string, mixed> 交易查詢結果，預設為空陣列
+	 */
+	public function query_trade( \WC_Order $order ): array {
+		return [];
+	}
+
+	/**
+	 * 請款（capture，安全預設 no-op）
+	 * 不支援線上請款的金流為 no-op，不 throw；支援的金流自行覆寫
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return void
+	 */
+	public function capture( \WC_Order $order ): void {}
+
+	/**
+	 * 取消授權（void authorization，安全預設 no-op）
+	 * 不支援取消授權的金流為 no-op，不 throw；支援的金流自行覆寫
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @return void
+	 */
+	public function void_auth( \WC_Order $order ): void {}
+
+	/**
+	 * 取得支援的付款方式清單（安全預設）
+	 * 預設回傳空陣列；支援多付款方式的金流自行覆寫
+	 *
+	 * @return array<int|string, mixed> 支援的付款方式清單，預設為空陣列
+	 */
+	public function get_supported_payment_methods(): array {
+		return [];
 	}
 
 	/**

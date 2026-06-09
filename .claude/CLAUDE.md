@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Amego** — Taiwan e-invoice issuance/void
 - **ECPay Invoice** (`ecpay`) — Taiwan e-invoice B2C/B2B via ECPay; AES-128-CBC; parallel with Amego, switchable from admin
 - **ezPay Invoice** (`ezpay`) — Taiwan e-invoice B2C/B2B via NewebPay ezPay; AES-256-CBC (PKCS#7 blocksize=32 + ZERO_PADDING + hex lowercase); CheckCode SHA256; issue/void/allowance (open+void)/query; parallel with Amego & ECPay Invoice, switchable from admin
+- **PAYUNi UPP** (`payuni_upp`) — Redirect-based payment (UNiPaypage V2.0); AES-256-GCM + `hex(base64(cipher):::base64(tag))` + SHA256 HashInfo; supports credit card (one-time/installment), ATM, CVS, icash Pay, LINE Pay, JKoPay, Apple Pay, Google Pay; single NotifyURL endpoint; credit card API refund/capture/void_auth; query trade
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
 
 ---
@@ -104,7 +105,16 @@ inc/classes/
 │   │   │   ├── DTOs/                      # EcpgSettingsDTO, CreatePaymentParams, GetTokenParams
 │   │   │   ├── Managers/StatusManager.php
 │   │   │   └── Shared/Helpers/AesCrypto.php + EcpgBlocksIntegration.php
-│   │   └── Shared/                  # AbstractPaymentGateway, PaymentApiService (REST /refund)
+│   │   ├── Payuni/                  # PAYUNi UPP V2 redirect gateway (ID: payuni_upp)
+│   │   │   ├── Services/PayuniUppGateway.php  # before_process_payment + before_order_received + refund/capture/void_auth/query_trade
+│   │   │   ├── Http/PayuniCallback.php         # NotifyURL: power-checkout/payuni upp/notify (AES-256-GCM + HashInfo)
+│   │   │   ├── Http/DoActionClient.php         # Credit card close/cancel (/api/trade/close + /api/trade/cancel)
+│   │   │   ├── Http/QueryTradeClient.php       # Trade query (/api/trade/query)
+│   │   │   ├── DTOs/                           # PayuniSettingsDTO, PayuniRequestParams
+│   │   │   ├── Managers/StatusManager.php      # TradeStatus: 0=取號→payment_info, 1=已付款→processing, 2/3/8=pending
+│   │   │   └── Shared/                         # Helpers (PayuniCrypto, PayuniMetaKeys, PayuniTradeNo, ItemName), Enums (PayuniPaymentMethod, PayuniTradeStatus)
+│   │   └── Shared/                  # AbstractPaymentGateway implements IPaymentProvider, PaymentApiService (REST /refund)
+│   │       └── Interfaces/IPaymentProvider.php # Payment 領域統一介面（7 methods，extends IGateway；mirrors ILogisticsProvider）
 │   ├── Logistics/
 │   │   ├── ProviderRegister.php     # Registers logistics providers + WC shipping method + checkout meta
 │   │   ├── Ecpay/                   # ECPay AllInOne Logistics v2 (ID: ecpay_logistics)
@@ -228,6 +238,7 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/ecpay` | POST | `/ecpg/create-payment` | order_key (in body) |
 | `power-checkout/ecpay` | POST | `/logistics/status-callback` | MerchantID verified inside |
 | `power-checkout/ecpay` | POST | `/logistics/selection-callback` | open (ClientReplyURL) |
+| `power-checkout/payuni` | POST | `/upp/notify` | AES-256-GCM + HashInfo SHA256 (verified inside; always HTTP 200) |
 
 Nonce auth requires `X-WP-Nonce` header (`wp_create_nonce('wp_rest')`).
 ECPay callbacks use `permission_callback: __return_true`; auth is verified inside callback.
@@ -276,6 +287,36 @@ ECPay callbacks use `permission_callback: __return_true`; auth is verified insid
 4. Backend calls `EcpgApiClient::create_payment()` → if `ThreeDInfo.ThreeDURL` non-empty, returns `three_d_url` → frontend redirects to 3DS; otherwise waits for ReturnURL
 5. ECPay sends JSON POST to `/wp-json/power-checkout/ecpay/ecpg/return` — AES-128-CBC decrypted, TransCode + RtnCode double-checked
 6. Refund: credit card only → DoAction via ecpayment domain; non-credit returns `WP_Error('refund_unsupported')`
+
+---
+
+## PAYUNi UPP Payment Flow (payuni_upp)
+
+1. `before_process_payment()` writes idempotency key `_pc_payuni_trade_no` (format `PCU{order_id}`) and returns order-received URL — no API call at this stage
+2. `before_order_received()` assembles `PayuniRequestParams` (AES-256-GCM `EncryptInfo` + SHA256 `HashInfo`, Version 2.0) and renders auto-submit form → browser POSTs to PAYUNi `/api/upp`
+3. PAYUNi sends server-to-server POST to `/wp-json/power-checkout/payuni/upp/notify` (NotifyURL)
+4. Callback verification chain: outer `Status=SUCCESS` → `MerID` timing-safe compare → `EncryptInfo`/`HashInfo` present → `HashInfo` `hash_equals` verify → AES-256-GCM decrypt → lookup order by `_pc_payuni_trade_no` → idempotency → `StatusManager`
+5. `StatusManager::update_order_status()` maps `TradeStatus`: `1`(paid) → amount guard → `payment_complete()` → processing; `0`(get code) → write `_pc_payuni_payment_info` + pending; `2`/`3`/`8` → pending + order note
+6. All NotifyURL paths (including `\Throwable`) always return HTTP 200
+
+Refund support by payment method (determined by PAYUNi `PaymentType` in `_pc_payuni_payment_detail`, not frontend):
+
+| Payment Method | API Refund |
+|---|---|
+| Credit Card (PaymentType=1) | Yes — Close CloseType=2 (`/api/trade/close`); wpdb TRANSACTION + ROLLBACK on failure |
+| ATM / CVS / icash / LINE Pay / JKoPay / etc. | No — `WP_Error('refund_unsupported')`, manual via PAYUNi admin |
+
+Admin order actions (credit card only):
+
+| Action | API |
+|---|---|
+| 查詢補單 (`pc_payuni_query_trade`) | `/api/trade/query` — if TradeStatus=1 + DataSource=A + not processing → `StatusManager` |
+| 請款 (`pc_payuni_capture`) | Close CloseType=1; writes `_pc_payuni_capture_status='captured'` |
+| 取消授權 (`pc_payuni_cancel_auth`) | `/api/trade/cancel`; writes `_pc_payuni_capture_status='voided'` |
+
+Encryption: **AES-256-GCM** `hex(base64(cipher):::base64(tag))`; `HashInfo = strtoupper(sha256(HashKey+EncryptInfo+HashIV))`; distinct from ECPay AES-128-CBC and ezPay AES-256-CBC. `PayuniCrypto` (Payment namespace) is a same-source copy of Logistics `PayuniCrypto`; both must stay in sync.
+
+Environment: sandbox `https://sandbox-api.payuni.com.tw/api/upp` / prod `https://api.payuni.com.tw/api/upp`; test mode uses official public test vector keys.
 
 ---
 
@@ -369,6 +410,10 @@ PAYUNi logistics and block checkout are deferred.
 | `_pc_logistics_collection_paid` | COD collection completion flag (`yes`) |
 | `_pc_logistics_processed_status` | Idempotency guard array — elements: `"{LogisticsID}:{LogisticsStatus}"` |
 | `_pc_logistics_return_ref` | Reverse-logistics (return) ID (ECPay ReturnLogisticsID); written by `create_return`; also indexed by `get_order_by_ref` for reverse-logistics status callbacks |
+| `_pc_payuni_trade_no` | MerTradeNo idempotency key (format `PCU{order_id}`); written by `before_process_payment`; primary key for NotifyURL order lookup |
+| `_pc_payuni_payment_detail` | PAYUNi payment result detail from NotifyURL decrypted inner payload (includes `TradeNo`, `PaymentType` — used for refund routing) |
+| `_pc_payuni_payment_info` | ATM/CVS get-code info (BankType, PayNo, Store, ExpireDate etc.); written on TradeStatus=0 |
+| `_pc_payuni_capture_status` | Credit card capture/void status (`''` / `'captured'` / `'voided'`) |
 
 ---
 
@@ -376,7 +421,7 @@ PAYUNi logistics and block checkout are deferred.
 
 | Hook | Purpose |
 |---|---|
-| `woocommerce_payment_gateways` | Inject SLP / ECPay AIO / ECPay ECPG gateways |
+| `woocommerce_payment_gateways` | Inject SLP / ECPay AIO / ECPay ECPG / NewebPay MPG / PAYUNi UPP gateways |
 | `before_woocommerce_init` | Declare HPOS + Blocks compatibility |
 | `wc_payment_gateways_initialized` | Populate ProviderUtils::$container |
 | `woocommerce_order_status_{status}` | Auto issue/void invoices |

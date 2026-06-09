@@ -104,6 +104,7 @@ Memory mode router (`createMemoryHistory`):
 /payments/shopline_payment_redirect     → SLP settings
 /payments/ecpay_aio                     → ECPay AIO settings
 /payments/ecpay_ecpg                    → ECPay ECPG settings
+/payments/payuni_upp                    → PAYUNi UPP settings (js/src/pages/Payments/PayuniUpp/index.vue)
 /logistics                              → Logistics list (js/src/pages/Logistics/index.vue)
 /logistics/ecpay_logistics              → ECPay Logistics settings (js/src/pages/Logistics/Ecpay/index.vue)
 /invoices                               → Invoice list

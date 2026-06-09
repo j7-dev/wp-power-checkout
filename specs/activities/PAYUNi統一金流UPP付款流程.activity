@@ -1,0 +1,46 @@
+[ACTIVITY] PAYUNi 統一金流 UPP V2 導轉付款流程（統一抽象 IPaymentProvider）
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] PAYUNi -> {specs/actors/PAYUNi.md}
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+
+[INITIAL]
+
+[STEP:1] @顧客 結帳頁選 PAYUNi 並下單 {specs/features/payment/payuni-upp-checkout.feature}
+  %% 顧客在結帳頁（classic / block checkout）選擇 PAYUNi（payuni_upp）並下單，WooCommerce 在 order-received 頁以 auto-form 自動 submit UPP 建單參數（EncryptInfo AES-256-GCM 加密 + HashInfo SHA256）至 PAYUNi /api/upp，跳轉 PAYUNi UNiPaypage 託管頁
+
+[STEP:2] @顧客 在 PAYUNi 託管頁選付款方式並完成付款/取號 {specs/ui/PAYUNi付款頁面.md}
+  %% 顧客在 PAYUNi UNiPaypage 選擇付款方式（信用卡一次/分期、ATM 虛擬帳號、CVS 超商代碼、LINE Pay、街口、Apple Pay、Google Pay）並完成付款或取號
+
+[DECISION:2a] 付款方式類型
+  [BRANCH:2a:即時付款] @PAYUNi {specs/features/payment/payuni-upp-callback.feature}
+    %% 信用卡/行動支付：付款完成後 PAYUNi 以 NotifyURL（幕後 Form POST）通知付款結果
+  [BRANCH:2a:非即時付款] @PAYUNi {specs/features/payment/payuni-upp-payment-info.feature}
+    %% ATM/CVS：先取號通知（顯示虛擬帳號/超商代碼/繳費期限），消費者臨櫃繳費後再付款通知
+    %% 取號通知是否為獨立 endpoint（或併於 NotifyURL）於實作階段依 payuni-upp-v2 skill 規格確認（已登記於 execution-plan GAP 表）
+[MERGE:2a]
+
+[STEP:3] @PAYUNi NotifyURL 幕後通知付款結果 {specs/features/payment/payuni-upp-callback.feature}
+  %% NotifyURL 幕後通知：WooCommerce 解密 EncryptInfo（AES-256-GCM）、驗證 HashInfo（SHA256，timing-safe）、冪等檢查（MerTradeNo）
+
+[DECISION:3a] 付款結果狀態
+  [BRANCH:3a:付款成功] @WooCommerce {specs/features/payment/payuni-upp-callback.feature}
+    %% 交易成功 → 訂單轉「處理中」，回應 PAYUNi 成功（避免重送）
+  [BRANCH:3a:取號成功] @WooCommerce {specs/features/payment/payuni-upp-payment-info.feature}
+    %% ATM/CVS 取號成功 → 訂單維持「等待付款」，記錄取號資訊，回應 PAYUNi 成功
+  [BRANCH:3a:付款失敗] @WooCommerce {specs/features/payment/payuni-upp-callback.feature}
+    %% 交易失敗 → 訂單維持「等待付款」，記錄 order note，回應 PAYUNi 成功
+[MERGE:3a]
+
+[STEP:4] @WooCommerce 訂單轉處理中觸發既有發票自動開立 {specs/features/invoice/invoice-issue.feature}
+  %% 訂單轉「處理中」觸發既有發票自動開立（Amego / 綠界發票 / ezPay，依後台啟用的 provider）
+
+[STEP:5] @管理員 後台訂單交易管理 {specs/features/payment/payuni-trade-management.feature}
+  %% 管理員於後台訂單頁手動操作：交易查詢補單（/api/trade/query）、信用卡取消授權（/api/trade/cancel）
+
+[FINAL]
+
+%% 退款流程未建模於此 Activity——退款由管理員在後台訂單頁觸發，見 payuni-refund.feature。
+%%   信用卡退款走 PAYUNi /api/trade/close；ATM/CVS/行動支付是否支援 API 退款依 PAYUNi 規格（多須後台人工），不支援者回 refund_unsupported。
+%% 統一抽象 IPaymentProvider（Q1=B）：本次抽出豐富 payment provider 介面（process_payment / process_refund / query_trade / capture / void_auth / get_settings / get_supported_payment_methods），既有 4 支金流（SLP / ECPay AIO / ECPay ECPG / NewebPay MPG）全部 refactor 改 implements。PAYUNi 為首支以新介面新增的金流。詳見 specs/open-issue/payuni-upp-execution-plan.md。
+%%   憑證 GAP（Q6）：正式 MerID/HashKey/HashIV 使用者尚未提供——實作用 PAYUNi sandbox 測試帳號，prod 憑證後補，存 woocommerce_payuni_upp_settings 不寫死（已登記於 execution-plan GAP 表）。

@@ -10,14 +10,19 @@ globs:
 
 ## Adding a New Payment Provider
 
+Payment 領域有顯式統一介面 `IPaymentProvider`（`Domains/Payment/Shared/Interfaces/IPaymentProvider.php`），extends `IGateway`，與 Logistics `ILogisticsProvider` / Invoice `IInvoiceService` 的設計哲學一致。
+
+`AbstractPaymentGateway implements IPaymentProvider`，提供 `query_trade` / `capture` / `void_auth` / `get_supported_payment_methods` 的安全預設（no-op 或空陣列）；不支援該能力的金流無需覆寫，支援者自行覆寫。
+
 1. Create domain folder: `Domains/Payment/NewProvider/`
-2. Create gateway class extending `ShoplinePayment\Shared\Abstracts\PaymentGateway` (or `Shared\Abstracts\AbstractPaymentGateway` directly)
+2. Create gateway class extending `Shared\Abstracts\AbstractPaymentGateway` (already implements `IPaymentProvider`)
 3. Define `const ID` and implement `get_settings()`, `before_process_payment()`
-4. Create `DTOs/NewProviderSettingsDTO.php` extending `BaseSettingsDTO`
-5. Register in `Payment\ProviderRegister::$gateway_services`
-6. Create block checkout entry: `inc/assets/blocks/new_provider_id.tsx`
-7. Add Vue settings page: `js/src/pages/Payments/NewProvider/index.vue`
-8. Add route in `js/src/router/index.ts` and entry in `ROUTER_MAPPER`
+4. Override capability methods as needed: `process_refund()`, `query_trade()`, `capture()`, `void_auth()`, `get_supported_payment_methods()`
+5. Create `DTOs/NewProviderSettingsDTO.php` (extend `BaseSettingsDTO` or `DTO` depending on mode handling needs)
+6. Register in `Payment\ProviderRegister::$gateway_services`
+7. Create block checkout entry: `inc/assets/blocks/new_provider_id.tsx`
+8. Add Vue settings page: `js/src/pages/Payments/NewProvider/index.vue`
+9. Add route in `js/src/router/index.ts` and entry in `ROUTER_MAPPER`
 
 ## Adding a New Invoice Provider
 

@@ -19,6 +19,7 @@ inc/assets/blocks/
   shopline_payment_redirect.tsx    # Active -- SLP redirect gateway
   ecpay_aio.tsx                    # Active -- ECPay AIO redirect gateway
   ecpay_ecpg.tsx                   # Active -- ECPay ECPG embedded gateway
+  payuni_upp.tsx                   # Active -- PAYUNi UPP V2 redirect gateway
   types/types.d.ts                 # Shared type declarations
 ```
 
