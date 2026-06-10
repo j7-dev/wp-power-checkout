@@ -1,5 +1,6 @@
 import { CheckboxProps } from '@/components/Checkbox/types'
 import { IEcpgData, IEcpaySdk } from '@/external/EcpgPayment/types'
+import { IPaynowData, IPaynowGlobal } from '@/external/PaynowPayment/types'
 import {
 	IPayuniUniData,
 	IUniPaymentGlobal,
@@ -74,5 +75,17 @@ declare global {
 
 		/** PAYUNi uni-payment.js 前端 JS SDK 全域物件（由 vendor.payuni.com.tw 注入 window） */
 		UniPayment?: IUniPaymentGlobal
+
+		/**
+		 * PayNow（立吉富）體系 1 Component SDK v2 order-received 頁專屬資料
+		 *
+		 * 由 PaynowGateway::before_order_received 透過 wp_localize_script 掛在 Vue bundle handle，
+		 * 僅在「訂單以 paynow 結帳且已成功建立 PaymentIntent 取得 secret」的 order-received 頁存在。
+		 * @see inc/classes/Domains/Payment/Paynow/Services/PaynowGateway.php build_sdk_config()
+		 */
+		power_checkout_paynow_data?: IPaynowData
+
+		/** PayNow Component SDK v2 前端全域物件（由 js.paynow.com.tw/sdk/v2/index.js 注入 window） */
+		PayNow?: IPaynowGlobal
 	}
 }

@@ -1,4 +1,5 @@
 import { IEcpgData } from '@/external/EcpgPayment/types'
+import { IPaynowData } from '@/external/PaynowPayment/types'
 import { IPayuniUniData } from '@/external/PayuniUniEmbed/types'
 
 const env = window?.power_checkout_data?.env
@@ -31,3 +32,13 @@ export const ECPG_DATA: IEcpgData | undefined = window?.power_checkout_ecpg_data
  */
 export const PAYUNI_UNI_DATA: IPayuniUniData | undefined =
 	window?.power_checkout_payuni_uni_data
+
+/**
+ * PayNow（立吉富）體系 1 Component SDK v2（內嵌式）order-received 頁專屬資料
+ *
+ * 由 PaynowGateway::before_order_received 透過 wp_localize_script 掛在 Vue bundle handle 上，
+ * 僅在「訂單以 paynow 結帳且已成功建立 PaymentIntent 取得 secret」的 order-received 頁存在，
+ * 否則為 undefined。模組內不直接讀 window，集中於此取得（比照 ECPG_DATA / PAYUNI_UNI_DATA）。
+ */
+export const PAYNOW_DATA: IPaynowData | undefined =
+	window?.power_checkout_paynow_data

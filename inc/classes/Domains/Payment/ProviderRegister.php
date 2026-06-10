@@ -21,6 +21,7 @@ final class ProviderRegister {
 		NewebpayMpg\Services\MpgRedirectGateway::ID       => NewebpayMpg\Services\MpgRedirectGateway::class,
 		Payuni\Services\PayuniUppGateway::ID              => Payuni\Services\PayuniUppGateway::class,
 		PayuniUniEmbed\Services\PayuniUniEmbedGateway::ID => PayuniUniEmbed\Services\PayuniUniEmbedGateway::class,
+		Paynow\Services\PaynowGateway::ID                 => Paynow\Services\PaynowGateway::class,
 	];
 
 	/** Register hooks */
@@ -42,6 +43,21 @@ final class ProviderRegister {
 			10,
 			2
 		);
+
+		// PayNow Webhook（payment_result）NotifyURL + block 結帳整合 —— 無條件註冊（不依賴 gateway 啟用）。
+		// 理由：PayNow 為 server-to-server Webhook（source of truth），端點須恆常可達並 always 回 200
+		// （HMAC 驗簽 + provider 啟用判定在 callback 內完成）；block 整合由 GatewayUtils 守衛，未啟用時 no-op。
+		Paynow\Http\PaynowCallback::register_hooks();
+		// woocommerce_blocks_loaded 已觸發（如測試 bootstrap 已載入 WC Blocks）則立即註冊，
+		// 否則 defer 至該 action（production 正常路徑：register_hooks 早於 blocks_loaded）。
+		if ( \did_action( 'woocommerce_blocks_loaded' ) ) {
+			Paynow\Services\PaynowGateway::register_checkout_blocks();
+		} else {
+			\add_action(
+				'woocommerce_blocks_loaded',
+				[ Paynow\Services\PaynowGateway::class, 'register_checkout_blocks' ]
+			);
+		}
 
 		foreach ( self::$gateway_services as $gateway_id => $gateway_service ) {
 			if ( !ProviderUtils::is_enabled( $gateway_id ) ) {
