@@ -8,12 +8,15 @@ export const ROUTER_MAPPER = {
 	newebpay_mpg: '/payments/newebpay_mpg',
 	payuni_upp: '/payments/payuni_upp',
 	payuni_uni_embed: '/payments/payuni_uni_embed',
+	paynow: '/payments/paynow',
 	amego: '/invoices/amego',
 	ecpay: '/invoices/ecpay',
 	ezpay: '/invoices/ezpay',
+	paynow_invoice: '/invoices/paynow_invoice',
 	ecpay_receipt: '/receipts/ecpay_receipt',
 	ecpay_logistics: '/logistics/ecpay_logistics',
 	payuni_logistics: '/logistics/payuni_logistics',
+	paynow_logistics: '/logistics/paynow_logistics',
 }
 
 const routes = [
@@ -44,6 +47,10 @@ const routes = [
 		component: () => import('@/pages/Payments/PayuniUniEmbed/index.vue'),
 	},
 	{
+		path: '/payments/paynow',
+		component: () => import('@/pages/Payments/Paynow/index.vue'),
+	},
+	{
 		path: '/logistics',
 		component: () => import('@/pages/Logistics/index.vue'),
 	},
@@ -54,6 +61,10 @@ const routes = [
 	{
 		path: '/logistics/payuni_logistics',
 		component: () => import('@/pages/Logistics/Payuni/index.vue'),
+	},
+	{
+		path: '/logistics/paynow_logistics',
+		component: () => import('@/pages/Logistics/Paynow/index.vue'),
 	},
 	{ path: '/invoices', component: () => import('@/pages/Invoices/index.vue') },
 	{
@@ -67,6 +78,10 @@ const routes = [
 	{
 		path: '/invoices/ezpay',
 		component: () => import('@/pages/Invoices/Ezpay/index.vue'),
+	},
+	{
+		path: '/invoices/paynow_invoice',
+		component: () => import('@/pages/Invoices/Paynow/index.vue'),
 	},
 	{ path: '/receipts', component: () => import('@/pages/Receipts/index.vue') },
 	{
