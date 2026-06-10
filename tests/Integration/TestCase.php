@@ -108,6 +108,7 @@ abstract class TestCase extends \WP_UnitTestCase {
 		'newebpay_mpg',
 		'payuni_upp',
 		'payuni_uni_embed',
+		'paynow',
 	];
 
 	/**
