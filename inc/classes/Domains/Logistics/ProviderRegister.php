@@ -21,6 +21,9 @@ use J7\PowerCheckout\Domains\Logistics\Ecpay\Http\LogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\BlocksLogisticsIntegration;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\WC_EcpayLogisticsShipping;
+use J7\PowerCheckout\Domains\Logistics\Paynow\Http\LogisticsCallback as PaynowLogisticsCallback;
+use J7\PowerCheckout\Domains\Logistics\Paynow\Services\PaynowLogisticsProvider;
+use J7\PowerCheckout\Domains\Logistics\Paynow\Services\WC_PaynowLogisticsShipping;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Http\PayuniLogisticsCallback;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\WC_PayuniLogisticsShipping;
@@ -32,10 +35,11 @@ use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 /** Loader 載入物流方式 */
 final class ProviderRegister {
 
-	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi 並存可切換） */
+	/** @var array<string, string> $logistics_providers [id, class]（綠界 / PAYUNi / PayNow 並存可切換） */
 	private static array $logistics_providers = [
 		EcpayLogisticsProvider::ID  => EcpayLogisticsProvider::class,
 		PayuniLogisticsProvider::ID => PayuniLogisticsProvider::class,
+		PaynowLogisticsProvider::ID => PaynowLogisticsProvider::class,
 	];
 
 	/** 註冊 hooks @return void */
@@ -72,6 +76,9 @@ final class ProviderRegister {
 		if (ProviderUtils::is_enabled( PayuniLogisticsProvider::ID )) {
 			PayuniLogisticsCallback::register_hooks();
 		}
+		if (ProviderUtils::is_enabled( PaynowLogisticsProvider::ID )) {
+			PaynowLogisticsCallback::register_hooks();
+		}
 	}
 
 	/**
@@ -93,7 +100,7 @@ final class ProviderRegister {
 	}
 
 	/**
-	 * 加入綠界物流 WC_Shipping_Method（classic 結帳運送方式）
+	 * 加入各物流 WC_Shipping_Method（classic 結帳運送方式）
 	 *
 	 * @param array<int|string, string> $methods 運送方式
 	 * @return array<int|string, string>
@@ -101,6 +108,7 @@ final class ProviderRegister {
 	public static function add_shipping_method( array $methods ): array {
 		$methods[ WC_EcpayLogisticsShipping::METHOD_ID ]  = WC_EcpayLogisticsShipping::class;
 		$methods[ WC_PayuniLogisticsShipping::METHOD_ID ] = WC_PayuniLogisticsShipping::class;
+		$methods[ WC_PaynowLogisticsShipping::METHOD_ID ] = WC_PaynowLogisticsShipping::class;
 		return $methods;
 	}
 
@@ -116,6 +124,7 @@ final class ProviderRegister {
 	public static function save_checkout_meta( \WC_Order $order, array $data = [] ): void {
 		WC_EcpayLogisticsShipping::save_checkout_meta( $order, $data );
 		WC_PayuniLogisticsShipping::save_checkout_meta( $order, $data );
+		WC_PaynowLogisticsShipping::save_checkout_meta( $order, $data );
 	}
 
 	/** @return BaseSettingsDTO[] 取得 provider 設定 dtos（給 SettingApiService GET /settings） */

@@ -37,17 +37,20 @@ final class LogisticsApiService extends ApiBase {
 	use SingletonTrait;
 
 	/**
-	 * 已知物流 provider id 解析順序（綠界 / PAYUNi 並存可切換）
+	 * 已知物流 provider id 解析順序（綠界 / PAYUNi / PayNow 並存可切換）
 	 *
 	 * Resolve 依此順序找「第一個啟用」的 provider 作為委派目標（請求未帶 provider 參數時）；
 	 * 帶 provider 參數時優先用該 provider（須在本清單且已啟用）。
-	 * ⚠️ 兩 provider 共用同一組 order meta（LogisticsMetaKeys），故反查 / 委派一致。
+	 * ⚠️ ECPay / PAYUNi 共用 LogisticsMetaKeys（_pc_logistics_*）；PayNow 用獨立 meta
+	 *   （_pc_paynow_logistics_*），print/cancel/query 委派正常，但貨態 / 選店 callback 反查
+	 *   走 PayNow 自己的 callback class（power-checkout/paynow namespace）。
 	 *
 	 * @var array<int, string>
 	 */
 	private const PROVIDER_IDS = [
 		'ecpay_logistics',
 		'payuni_logistics',
+		'paynow_logistics',
 	];
 
 	/** @var string REST API namespace */
