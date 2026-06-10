@@ -1,42 +1,34 @@
-# Suggested Commands
+# Suggested Commands (Windows / wp-env)
 
-## Setup
-- `pnpm bootstrap` - pnpm install + composer install (first time)
+## Run tests (requires wp-env)
+```bash
+# All integration tests (API_MODE=mock)
+npx wp-env run tests-cli --env-cwd=wp-content/plugins/power-checkout bash -c "API_MODE=mock vendor/bin/phpunit"
 
-## Frontend Dev (Vue 3 Main App)
-- `pnpm dev` - Vite dev server on port 5182 (Settings SPA + RefundDialog + InvoiceApp)
-- `pnpm build` - Production build to `js/dist/`
+# Single class
+npx wp-env run tests-cli --env-cwd=wp-content/plugins/power-checkout bash -c "API_MODE=mock vendor/bin/phpunit --filter ClassName"
 
-## Frontend Dev (React WC Blocks)
-- `pnpm dev:blocks` - Watch mode on port 5181 for block checkout integration
-- `pnpm build:blocks` - Production build to `inc/assets/dist/blocks/`
+# Invoice tests only
+npx wp-env run tests-cli --env-cwd=wp-content/plugins/power-checkout bash -c "API_MODE=mock vendor/bin/phpunit tests/Integration/Invoice/"
 
-## Code Quality
-- `pnpm lint` - ESLint (frontend) + PHPCBF
-- `pnpm lint:fix` - Auto-fix frontend + PHPCBF
-- `composer lint` - PHPCS only
-- `vendor/bin/phpstan analyse` - PHPStan level 9
+# B-Cycle 2 Red Gate
+npx wp-env run tests-cli --env-cwd=wp-content/plugins/power-checkout bash -c "API_MODE=mock vendor/bin/phpunit tests/Integration/Invoice/ --filter 'PaynowInvoice(Provider|Register)'"
+```
 
-## PHP Testing (requires WP test DB — see phpunit.xml)
-- `composer test` - PHPUnit with API_MODE=mock (default, safe for CI)
-- `composer test:sandbox` - PHPUnit with API_MODE=sandbox
-- `composer test:prod` - PHPUnit with API_MODE=prod (caution)
-- `vendor/bin/phpunit --filter ClassName` - Run single test class
-- `vendor/bin/phpunit --filter "test_method_name"` - Run single test method
+## PHPStan
+```bash
+npx wp-env run tests-cli --env-cwd=wp-content/plugins/power-checkout bash -c "php -d memory_limit=2G vendor/bin/phpstan analyse"
+```
 
-## E2E Testing (Playwright, separate package.json)
-- `cd tests/e2e && npm install` - First-time install
-- `cd tests/e2e && npx playwright test` - Run all E2E tests
-- `cd tests/e2e && npx playwright test --grep "settings"` - Filter by keyword
+## Lint / Build
+```bash
+pnpm lint          # ESLint + PHPCBF
+pnpm build         # Vue app
+pnpm build:blocks  # React WC Blocks
+```
 
-## Release (requires .env with GITHUB_TOKEN)
-- `pnpm release` - Patch release (builds Vue + Blocks, zips, GitHub release)
-- `pnpm release:minor` - Minor release
-- `pnpm release:major` - Major release
-- `pnpm zip` - Create plugin zip only
-- `pnpm sync:version` - Sync package.json version → plugin.php header
-- `pnpm i18n` - Generate .pot translation template
-
-## System Utils (Windows, Git Bash)
-- `git`, `ls`, `grep`, `find` via Git Bash
-- Shell: bash (Unix syntax, `/dev/null` not `NUL`, forward slashes)
+## composer test (direct, needs local WP DB)
+```bash
+composer test        # API_MODE=mock
+composer test:sandbox
+```
