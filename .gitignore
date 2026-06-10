@@ -35,4 +35,9 @@ release/*
 vendor/
 wordpress
 .phpunit.cache
+.phpunit.result.cache
 phpunit.xml
+
+# Runtime artifacts
+.claude/scheduled_tasks.lock
+.playwright-cli/
