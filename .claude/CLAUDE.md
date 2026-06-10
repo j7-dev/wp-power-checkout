@@ -18,6 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ezPay Invoice** (`ezpay`) — Taiwan e-invoice B2C/B2B via NewebPay ezPay; AES-256-CBC (PKCS#7 blocksize=32 + ZERO_PADDING + hex lowercase); CheckCode SHA256; issue/void/allowance (open+void)/query; parallel with Amego & ECPay Invoice, switchable from admin
 - **PAYUNi UPP** (`payuni_upp`) — Redirect-based payment (UNiPaypage V2.0); AES-256-GCM + `hex(base64(cipher):::base64(tag))` + SHA256 HashInfo; supports credit card (one-time/installment), ATM, CVS, icash Pay, LINE Pay, JKoPay, Apple Pay, Google Pay; single NotifyURL endpoint; credit card API refund/capture/void_auth; query trade
 - **PAYUNi UNi Embed** (`payuni_uni_embed`) — Embedded payment (UNi Embed V3, iframe 站內付); AES-256-GCM (reuses PayuniCrypto); two-phase: token_get (`/api/iframe/token_get`) then merchant_trade (`/api/iframe/merchant_trade`); 3DS support; credit card only; single NotifyURL endpoint; credit card API refund/capture/void_auth; buyer token (credit_hash/credit_life) stored but never card number/CVC; parallel with payuni_upp
+- **PayNow** (`paynow`) — Embedded payment (立吉富體系 1, Component SDK v2 iframe 站內付); REST PaymentIntent + HMAC-SHA256 Webhook; supports credit card (one-time/installment), ATM, convenience store (ibon/FamiPort), LINE Pay, Apple Pay (excludes ApplePayDeferred); single NotifyURL endpoint; credit card/ATM API refund; query payment intent + refund query admin actions; capture/void_auth no-op (no corresponding endpoint); offline payment two-phase (pending → processing on payment); [GAP: sandbox PublicKey/PrivateKey pending application]
+- **PayNow Logistics** (`paynow_logistics`) — Convenience store pickup (7-11/FAMI/HiLife) + TCAT home delivery (立吉富體系 1); TripleDES DES-EDE3 ECB encryption (JsonOrder base64(3DES(JSON)), apicode ECB+space→plus); PassCode SHA1; status push callback (orderno+LogisticCode+Description+paymentno) with idempotency; query/print/cancel; amount limits CVS ≤20000 / home ≤100000; idempotent ReNewOrder when existing valid shipment; create_return throws 尚未實作; [GAP: sandbox user_account/apicode pending; prod key/IV to confirm with PayNow]
+- **PayNow Invoice** (`paynow_invoice`) — Taiwan e-invoice B2C/B2B via PayNow (立吉富體系 3); Bearer JWT-Token auth (no symmetric encryption); issue/cancel/allowance (open+void)/query; IInvoiceService + ISupportsAllowance + ISupportsQuery; B2C tax_amount=0 / B2B actual tax; carrier/donation mutual exclusion; zero-tax requires reason; allowance_data uses `allowance_number` key (not ezPay's `allowance_no`); parallel with Amego/ECPay/ezPay, switchable from admin; [GAP: sandbox jwt_token pending application; dev env invoiceapi-dev.paynow.com.tw / prod invoiceapi-prod.paynow.com.tw]
 - **Checkout Fields** — Classic checkout custom fields (including invoice info fields)
 
 ---
@@ -75,6 +78,7 @@ This plugin has **two separate frontend build pipelines**:
    - `MountInvoiceApp()` creates Vue instances on order detail pages (admin MetaBox) AND checkout page (frontend invoice form)
    - `MountEcpgPayment()` from `js/src/external/EcpgPayment/` — mounts on order-received page for ECPay ECPG embedded payment (loads SDK, triggers CreatePayment with PayToken, handles 3DS redirect)
    - `MountPayuniUniEmbed()` from `js/src/external/PayuniUniEmbed/` — mounts on order-received page for PAYUNi UNi Embed V3 (fetches SDK token, renders iframe, triggers merchant_trade, handles 3DS redirect)
+   - `MountPaynowPayment()` from `js/src/external/PaynowPayment/` — mounts on order-received page for PayNow Component SDK v2 (loads CDN SDK, renders iframe, calls checkout() directly, handles 3DS; no create-payment POST; result determined by Webhook)
    - Stack: Vue 3 + Element Plus + TanStack Vue Query + Vue Router 4 (memory mode, `createMemoryHistory`)
 
 2. **React WC Blocks** (`vite.config.block.ts` → `inc/assets/dist/blocks/`)
@@ -126,6 +130,13 @@ inc/classes/
 │   │   │   ├── DTOs/PayuniUniEmbedSettingsDTO.php
 │   │   │   ├── Managers/StatusManager.php           # TradeStatus: 1=processing (amount+Gateway=9 guard), 2/3/8=pending
 │   │   │   └── Shared/                              # Helpers (PayuniUniEmbedMetaKeys, PayuniUniEmbedTradeNo, ItemName), Enums (PayuniUniEmbedTradeStatus, PayuniUniEmbedPaymentMethod); uses Payuni/Shared/Helpers/PayuniCrypto (no third copy)
+│   │   ├── Paynow/                  # PayNow Component SDK v2 embedded gateway (ID: paynow)
+│   │   │   ├── Services/PaynowGateway.php            # before_process_payment=create_payment_intent; before_order_received=localize SDK; process_refund; query_trade; admin order actions
+│   │   │   ├── Http/PaynowRestClient.php              # Four-in-one: create/retrieve payment_intent + refund/retrieve_refund; Bearer PrivateKey
+│   │   │   ├── Http/PaynowCallback.php                # NotifyURL power-checkout/paynow/notify (HMAC-SHA256 raw body + always 200)
+│   │   │   ├── DTOs/                                  # PaynowSettingsDTO, CreatePaymentIntentParams, RefundParams
+│   │   │   ├── Managers/StatusManager.php             # Status=Success/Failed; offline payment two-phase (_pc_paynow_payment_info + pending); amount guard; idempotency
+│   │   │   └── Shared/                                # Helpers (WebhookVerifier, PaynowMetaKeys, PaynowTradeNo, ItemName, PaynowBlocksIntegration), Enums (PaynowPaymentMethod, PaynowIntentStatus, PaynowRefundStatus)
 │   │   └── Shared/                  # AbstractPaymentGateway implements IPaymentProvider, PaymentApiService (REST /refund)
 │   │       └── Interfaces/IPaymentProvider.php # Payment 領域統一介面（7 methods，extends IGateway；mirrors ILogisticsProvider）
 │   ├── Logistics/
@@ -136,11 +147,18 @@ inc/classes/
 │   │   │   ├── Http/LogisticsApiClient.php  # AES-128-CBC (reuses Ecpg AesCrypto); RqHeader Revision 1.0.0; 5-min Timestamp
 │   │   │   ├── Http/LogisticsCallback.php   # ServerReplyURL (AES-JSON 3-layer) + ClientReplyURL (selection)
 │   │   │   └── DTOs/                        # EcpayLogisticsSettingsDTO, StoreSelectionParams, CreateShipmentParams
+│   │   ├── Paynow/                  # PayNow Logistics (ID: paynow_logistics)
+│   │   │   ├── Services/PaynowLogisticsProvider.php  # implements ILogisticsProvider; SEVEN→01/FAMI→03/HILIFE→05/TCAT→06; CVS ≤20000 / home ≤100000; idempotent ReNewOrder
+│   │   │   ├── Services/WC_PaynowLogisticsShipping.php  # extends WC_Shipping_Method (per-service rates)
+│   │   │   ├── Http/LogisticsApiClient.php  # Add_Order/ReNewOrder/CancelOrder/Get_Order_Info/print (DELETE for cancel; SEVEN GET /api/Order711; TCAT POST PrintBlackCatLabel)
+│   │   │   ├── Http/LogisticsCallback.php   # power-checkout/paynow: logistics/selection-callback + logistics/status-callback (orderno反查 + idempotency; always HTTP 200)
+│   │   │   ├── DTOs/                        # PaynowLogisticsSettingsDTO (test: testlogistic.paynow.com.tw / prod: logistic.paynow.com.tw), CreateShipmentParams
+│   │   │   └── Shared/                      # Helpers (TripleDesCrypto [R2: ECB不是CBC], PassCodeService [SHA1], PaynowLogisticsMetaKeys [前綴_pc_paynow_logistics_], ItemName), Enums (PaynowLogisticService, PaynowDeliverMode, PaynowLogisticsStatus)
 │   │   └── Shared/
 │   │       ├── Interfaces/ILogisticsProvider.php  # 10-method interface (mirrors IInvoiceService)
 │   │       ├── Enums/                             # LogisticsSubType, LogisticsAccountType, LogisticsTemperature, LogisticsPaymentScenario, LogisticsStatus
 │   │       ├── Helpers/LogisticsMetaKeys.php       # Order meta CRUD helper (HPOS-aware)
-│   │       └── Services/LogisticsApiService.php    # REST power-checkout/v1 (5 endpoints)
+│   │       └── Services/LogisticsApiService.php    # REST power-checkout/v1 (5 endpoints); PROVIDER_IDS includes paynow_logistics
 │   ├── Invoice/
 │   │   ├── ProviderRegister.php     # Registers invoice providers + auto-issue hooks
 │   │   ├── Amego/                   # AmegoProvider (IInvoiceService), API client, DTOs
@@ -154,6 +172,11 @@ inc/classes/
 │   │   │   ├── Http/InvoiceApiClient.php  # AES-256-CBC (PKCS#7 blocksize=32 + ZERO_PADDING + hex); CheckCode SHA256; test: cinv.ezpay.com.tw / prod: inv.ezpay.com.tw
 │   │   │   ├── DTOs/                      # EzpaySettingsDTO, IssueParams, CancelParams, IssueResponse, AllowanceParams, AllowanceInvalidParams, AllowanceResponse, QueryParams, QueryResponse
 │   │   │   └── Shared/                    # Helpers (AesCrypto, CheckCodeService, UrlEncoder, PiiMasker), Enums (EApi, ETaxType, ECarrierType, ECategory)
+│   │   ├── Paynow/                  # PaynowInvoiceProvider (IInvoiceService + ISupportsAllowance + ISupportsQuery, ID: paynow_invoice)
+│   │   │   ├── Services/PaynowInvoiceProvider.php  # const ID='paynow_invoice' (R5: 不同於金流 'paynow'); option woocommerce_paynow_invoice_settings
+│   │   │   ├── Http/InvoiceApiClient.php  # Bearer JWT-Token (no symmetric encryption); type==='success'; issue/cancel/allowance/cancel-allowance/query; dev: invoiceapi-dev.paynow.com.tw / prod: invoiceapi-prod.paynow.com.tw
+│   │   │   ├── DTOs/                      # PaynowInvoiceSettingsDTO, IssueParams (B2C tax_amount=0/B2B actual; carrier/donation mutex; ZeroTax requires reason), IssueResponse, AllowanceParams, AllowanceResponse, QueryParams, QueryResponse
+│   │   │   └── Shared/Enums/              # ECarrierType (5 cases), ETaxType (4 cases), EZeroTaxReason (10 cases)
 │   │   └── Shared/                  # IInvoiceService interface, InvoiceApiService (REST /invoices)
 │   └── Settings/
 │       └── Services/                # WC settings tab, REST /settings CRUD, default address format
@@ -254,6 +277,9 @@ Frontend access: always use `utils/env.ts`, never read `window` directly.
 | `power-checkout/payuni` | POST | `/upp/notify` | AES-256-GCM + HashInfo SHA256 (verified inside; always HTTP 200) |
 | `power-checkout/payuni` | POST | `/uni-embed/create-payment` | order_key hash_equals (in body) |
 | `power-checkout/payuni` | POST | `/uni-embed/notify` | AES-256-GCM + HashInfo SHA256 (verified inside; always HTTP 200) |
+| `power-checkout/paynow` | POST | `/notify` | HMAC-SHA256 raw body (`X-Payment-Center-Hmac-Sha256`, verified inside; always HTTP 200) |
+| `power-checkout/paynow` | POST | `/logistics/selection-callback` | open (returnUrl, Form POST; orderno 反查; always HTTP 200) |
+| `power-checkout/paynow` | POST | `/logistics/status-callback` | open (Form POST; orderno+LogisticCode idempotency; always HTTP 200) |
 
 Nonce auth requires `X-WP-Nonce` header (`wp_create_nonce('wp_rest')`).
 ECPay callbacks use `permission_callback: __return_true`; auth is verified inside callback.
@@ -365,6 +391,36 @@ Encryption: same **AES-256-GCM** as UPP (`PayuniCrypto` shared, no third copy); 
 
 ---
 
+## PayNow Payment Flow (paynow)
+
+1. `before_process_payment()` writes idempotency keys `_pc_paynow_trade_no` (format `PCN{order_id}`) + calls `PaynowRestClient::create_payment_intent()` (Bearer PrivateKey, POST `/payment-intents`) → stores `_pc_paynow_payment_intent_id` (`pp_xxx`) and `_pc_paynow_secret` (SDK secret `pp_xxx_st_xxx`) → returns order-received URL; idempotency: if `_pc_paynow_payment_intent_id` already exists, skips API call and returns URL directly
+2. `before_order_received()` localizes `public_key`/`secret`/`env`/`order_received_url` to page; frontend `MountPaynowPayment()` loads PayNow Component SDK v2 (CDN `https://js.paynow.com.tw/sdk/v2/index.js`), renders embedded iframe, customer submits payment → SDK `checkout()` directly completes authorization + 3DS with PayNow servers — **no `create-payment` POST to backend**; on SDK success, frontend redirects to order-received; payment result is determined by Webhook
+3. PayNow sends server-to-server POST to `/wp-json/power-checkout/paynow/notify` (NotifyURL)
+4. Callback verification chain: take `$request->get_body()` raw + `X-Payment-Center-Hmac-Sha256` header → `WebhookVerifier::verify()` (HMAC-SHA256, key=PrivateKey, `strtoupper` + `hash_equals`, against raw body — never re-encode) → decode JSON → lookup order by `_pc_paynow_payment_intent_id` (`get_order_by_payment_intent_id`) → amount guard → idempotency → `StatusManager`
+5. `StatusManager::update_order_status()` maps `Status`: `Success` → amount guard (`ctype_digit` + `ceil` compare) → idempotency (already processing → skip) → by `PaymentType`: instant (Credit/Installment/LINEPay/ApplePay) → `payment_complete()` → processing + write `_pc_paynow_payment_detail`; offline pending phase (ATM/ConvenienceStore) → write `_pc_paynow_payment_info` + maintain pending; offline `Success` → `payment_complete()` → processing; `Failed` → maintain pending + order note
+6. All NotifyURL paths (including `\Throwable`) always return HTTP 200
+
+Refund support (determined by `PaymentType` in `_pc_paynow_payment_detail`, not frontend):
+
+| Payment Method | API Refund |
+|---|---|
+| Credit Card (PaymentType=Credit/CreditCardInstallment) | Yes — REST `POST /payment-intents/:id/refunds`; wpdb TRANSACTION + ROLLBACK on failure; writes `_pc_paynow_refund_detail` |
+| ATM | Yes — REST `POST /payment-intents/:id/refunds` (requires bankCode/bankBranchCode/bankAccount); missing bank fields rejected before API call |
+| ConvenienceStore / LINE Pay / Apple Pay | No — `WP_Error('refund_unsupported')`, manual via PayNow admin |
+
+Admin order actions:
+
+| Action | API |
+|---|---|
+| 補查付款意圖 (`pc_paynow_query_trade`) | `GET /payment-intents/:id` — if status=success + not processing → `StatusManager`補單 (amount guard + idempotency) |
+| 退款查詢 (`pc_paynow_refund_query`) | `GET /payment-intents/:id/refunds/:uuid` — writes back `_pc_paynow_refund_detail` + order note |
+
+Encryption/auth: **HMAC-SHA256** only; `WebhookVerifier` is standalone (does not reuse `PayuniCrypto` — PayNow 體系 1 has no symmetric encryption); API auth is **Bearer PrivateKey** (not AES envelope). Environment: sandbox `https://sandboxapi.paynow.com.tw` / prod `https://api.paynow.com.tw`.
+
+[GAP: sandbox PublicKey/PrivateKey not yet applied for (contact PayNow with subject「申請 PayNow 串接私鑰 (PrivateKey)」); sandbox end-to-end pending]
+
+---
+
 ## ECPay Logistics Flow (ecpay_logistics)
 
 ### Three-phase store selection (convenience store)
@@ -411,6 +467,50 @@ PAYUNi logistics and block checkout are deferred.
 
 ---
 
+## PayNow Logistics Flow (paynow_logistics)
+
+### Store selection (convenience store — SEVEN/FAMI/HILIFE)
+
+1. Frontend calls `POST /logistics/{order_id}/store-selection` with `sub_type` + `payment_scenario` → `get_store_selection()` encrypts `apicode` (TripleDES ECB + space→plus), builds form-POST to `{api_url}/Member/Order/Choselogistics`, returns `redirect_target` HTML
+2. Customer selects store → PayNow POSTs store data to `/wp-json/power-checkout/paynow/logistics/selection-callback` (returnUrl) → `parse_store_selection()` writes `_pc_paynow_logistics_store_*` + `_pc_paynow_logistics_order_no` meta
+3. Admin calls `POST /logistics/{order_id}/create-shipment` → validates amount limit (CVS ≤20000 / home ≤100000) → if existing valid shipment (status≠1) → ReNewOrder; otherwise Add_Order (`JsonOrder=base64(TripleDES(JSON))`) → writes `_pc_paynow_logistics_ref` (LogisticNumber) + paymentno + validationno
+
+### Home delivery (TCAT)
+
+Store-selection step skipped; `create_shipment()` calls Add_Order directly with delivery address.
+
+### Encryption (R2 — DES-EDE3 ECB, not CBC)
+
+Two distinct modes; **not interchangeable**:
+- `encrypt_order_json()` — `DES-EDE3` without `-CBC` suffix (OpenSSL defaults to ECB when no IV given), `OPENSSL_NO_PADDING` + manual `\0` zero-pad to 8-byte boundary + base64
+- `encrypt_apicode()` — `DES-EDE3-ECB`, `OPENSSL_RAW_DATA | OPENSSL_ZERO_PADDING` + manual `\0` pad + base64 + `str_replace(' ', '+', ...)`
+- Fixed key=`123456789070828783123456` / iv=`12345678`; [GAP: prod換鑰待 PayNow 官方確認]
+
+### Status callback (貨態推送 — always HTTP 200)
+
+PayNow POSTs to `/wp-json/power-checkout/paynow/logistics/status-callback` (Form POST, `permission_callback: __return_true`):
+- Parse `orderno` / `PayNowLogisticCode` / `Detail_Status_Description` / `paymentno`
+- Lookup order by `_pc_paynow_logistics_order_no` (OrderNo = `$order->get_order_number()`)
+- Idempotency: `"{OrderNo}:{LogisticCode}"` composite key in `_pc_paynow_logistics_processed_status`
+- COD + pickup-complete (LogisticCode=8000 or description contains 取貨完成) → `_pc_paynow_logistics_collection_paid=yes`
+- All paths (including `\Throwable`) always return HTTP 200
+
+`query_shipment()` (GET /api/Orderapi/Get_Order_Info) is retained as supplemental reconciliation; webhook is primary.
+
+### Operations
+
+| Operation | API | Notes |
+|---|---|---|
+| 建單 (`create_shipment`) | POST Add_Order | idempotent ReNewOrder if valid shipment exists |
+| 查詢 (`query_shipment`) | GET Get_Order_Info | supplemental reconciliation |
+| 列印 (`print_document`) | SEVEN: GET /api/Order711; TCAT: POST PrintBlackCatLabel | RenewOrderNo preferred |
+| 取消 (`cancel_shipment`) | DELETE CancelOrder | not C2C-only (unlike ECPay) |
+| 逆物流 (`create_return`) | throw `\Exception('尚未實作')` | [GAP: no woomp evidence] |
+
+[GAP: sandbox user_account/apicode not yet applied; prod key/IV to confirm with PayNow; official logistics API document pending verification]
+
+---
+
 ## ezPay Invoice Flow (ezpay)
 
 1. `issue()` → `InvoiceApiClient::issue()` → POST `invoice_issue` v1.5 (AES-256-CBC encrypted + CheckCode verified) → `Status=1` means immediate issuance → writes `pc_issued_data` (includes `invoice_trans_no` + `random_num`)
@@ -420,6 +520,29 @@ PAYUNi logistics and block checkout are deferred.
 5. **Query**: `query()` → POST `invoice_search` v1.3 → `UploadStatus` indicates upload to Ministry of Finance
 6. Encryption differs from ECPay: **AES-256-CBC** with PKCS#7 blocksize=32 + `OPENSSL_ZERO_PADDING` + `bin2hex` lowercase; **not** interchangeable with ECPay's AES-128-CBC + base64
 7. CheckCode: SHA256 of 5 fields ksort + HashIV/HashKey wrap → uppercase → `hash_equals` comparison
+
+---
+
+## PayNow Invoice Flow (paynow_invoice)
+
+Provider ID `paynow_invoice` (R5: distinct from payment gateway `paynow`); WC option `woocommerce_paynow_invoice_settings` (no collision with `woocommerce_paynow_settings`). Parallel with Amego / `ecpay` / `ezpay`, switchable from admin.
+
+1. `issue()` → `InvoiceApiClient::issue()` → POST `/api/invoices/issue` (Bearer JWT-Token, JSON body) → `type==='success'` → client writes `pc_issued_data` (`invoice_number`, `invoice_date`, `order_no`, `total_amount`) + `pc_provider_id='paynow_invoice'` meta
+2. `cancel()` → POST `/api/invoices/cancel` (带 `invoice_number`) → success → provider writes `pc_cancelled_data` + clears `pc_issued_data`; **client does not write meta for cancel** (meta responsibility split differs from ezPay)
+3. **Allowance (open)**: triggered by WC refund hook → `issue_allowance()` → POST `/api/invoices/allowance` → writes `allowance_data` (`allowance_number`, `allowance_amount`, `invoice_number`, `remain_amount`) to order meta; key `allowance_number` (not ezPay's `allowance_no`)
+4. **Allowance (void)**: `invalid_allowance()` → POST `/api/invoices/cancel-allowance` (带 `allowance_number`) → success → clears `allowance_data`; guard: existing allowance required before cancel
+5. **Query**: `query_invoice()` → GET `/api/invoices?InvoiceNumber=...` (Bearer) → read-only, no meta/status changes
+6. Auth: **Bearer JWT-Token** only — no AES envelope, no CheckCode; `Authorization: Bearer {jwt_token}` + `Content-Type: application/json`
+7. Full refund → `cancel()` (void invoice, not allowance); partial refund → `issue_allowance()` (triggered by `woocommerce_order_refunded` hook via provider-agnostic layer)
+
+Tax rules (IssueParams):
+- B2C: `tax_amount=0` (government calculates); B2B (has buyer identifier): `tax_amount` = actual tax
+- `tax_type=ZeroTax` requires `is_pass_customs` + `zero_tax_rate_reason` (e.g. `ExportGoods`)
+- Carrier and donation are mutually exclusive (throw on conflict)
+
+Environment: dev `https://invoiceapi-dev.paynow.com.tw` / prod `https://invoiceapi-prod.paynow.com.tw`
+
+[GAP: sandbox jwt_token not yet applied; sandbox end-to-end pending]
 
 ---
 
@@ -465,6 +588,29 @@ PAYUNi logistics and block checkout are deferred.
 | `_pc_payuni_uni_capture_status` | Credit card capture/void status (`''` / `'captured'` / `'voided'`) — UNi Embed |
 | `_pc_payuni_uni_credit_hash` | Buyer token (buyer credit card hash); **not** card number or CVC |
 | `_pc_payuni_uni_credit_life` | Buyer credit card expiry (MMYY format) |
+| `_pc_paynow_trade_no` | MerTradeNo idempotency key (format `PCN{order_id}`); written by `before_process_payment`; auxiliary for reconciliation (not Webhook lookup key) |
+| `_pc_paynow_payment_intent_id` | PaymentIntentId (`pp_xxx`); written by `before_process_payment`; **primary key for Webhook order lookup** (`get_order_by_payment_intent_id`) |
+| `_pc_paynow_secret` | Component SDK secret (`pp_xxx_st_xxx`); stored for frontend SDK rendering; never card number or CVC |
+| `_pc_paynow_payment_detail` | Payment result detail from Webhook decrypted payload (includes `PaymentType` — used for refund routing) |
+| `_pc_paynow_payment_info` | Offline payment pending info (ATM vAccount / convenience store payment code / ExpireDate etc.); written on offline pending phase |
+| `_pc_paynow_refund_detail` | Refund result detail; written on successful refund or refund query |
+| `_pc_paynow_logistics_provider_id` | `paynow_logistics`; written by create_shipment |
+| `_pc_paynow_logistics_service_id` | Logistic_serviceID (01=SEVEN/03=FAMI/05=HILIFE/06=TCAT); written at checkout |
+| `_pc_paynow_logistics_order_no` | PayNow OrderNo (=`$order->get_order_number()`); **primary key for status-callback order lookup** |
+| `_pc_paynow_logistics_store_id` | Selected CVS store code (selection-callback) |
+| `_pc_paynow_logistics_store_name` | Selected CVS store name |
+| `_pc_paynow_logistics_store_addr` | Selected CVS store address |
+| `_pc_paynow_logistics_ref` | LogisticNumber (PayNow shipment ID; auxiliary lookup key) |
+| `_pc_paynow_logistics_sno` | Shipment sequence number (default "1") |
+| `_pc_paynow_logistics_payment_no` | Carrier paymentno (物流商託運單號) |
+| `_pc_paynow_logistics_validation_no` | Carrier validationno |
+| `_pc_paynow_logistics_renew_order_no` | OrderNo after ReNewOrder (used for print) |
+| `_pc_paynow_logistics_status` | Shipment status (0=成立中 / 1=無效) |
+| `_pc_paynow_logistics_delivery_status` | Delivery status description (Detail_Status_Description) |
+| `_pc_paynow_logistics_logistic_code` | Delivery status code (PayNowLogisticCode, e.g. 5000/8000) |
+| `_pc_paynow_logistics_delivery_type` | TCAT temperature tier (DeliveryType) |
+| `_pc_paynow_logistics_collection_paid` | COD pickup-complete flag (`yes`) |
+| `_pc_paynow_logistics_processed_status` | Idempotency guard array — elements: `"{OrderNo}:{LogisticCode}"` |
 
 ---
 
@@ -472,12 +618,12 @@ PAYUNi logistics and block checkout are deferred.
 
 | Hook | Purpose |
 |---|---|
-| `woocommerce_payment_gateways` | Inject SLP / ECPay AIO / ECPay ECPG / NewebPay MPG / PAYUNi UPP / PAYUNi UNi Embed gateways |
+| `woocommerce_payment_gateways` | Inject SLP / ECPay AIO / ECPay ECPG / NewebPay MPG / PAYUNi UPP / PAYUNi UNi Embed / PayNow gateways |
 | `before_woocommerce_init` | Declare HPOS + Blocks compatibility |
 | `wc_payment_gateways_initialized` | Populate ProviderUtils::$container |
 | `woocommerce_order_status_{status}` | Auto issue/void invoices |
 | `woocommerce_checkout_fields` | Classic checkout invoice fields |
-| `woocommerce_shipping_methods` | Register WC_EcpayLogisticsShipping (classic checkout shipping method) |
+| `woocommerce_shipping_methods` | Register WC_EcpayLogisticsShipping + WC_PaynowLogisticsShipping (classic checkout shipping methods) |
 | `woocommerce_checkout_create_order` | Write logistics sub_type + payment_scenario meta from checkout |
 | `rest_api_init` | Register logistics status-callback + selection-callback endpoints |
 | `admin_enqueue_scripts` | Load Vue app bundle (admin pages) |

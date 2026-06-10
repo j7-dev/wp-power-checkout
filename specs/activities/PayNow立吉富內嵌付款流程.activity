@@ -1,0 +1,50 @@
+[ACTIVITY] PayNow 立吉富內嵌付款流程（體系 1 PaymentIntent + Component SDK v2，統一抽象 IPaymentProvider）
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] PayNow -> {specs/actors/PayNow.md}
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+
+[INITIAL]
+
+[STEP:1] @顧客 結帳頁選 PayNow 內嵌付款並下單 {specs/features/payment/paynow-checkout.feature}
+  %% 顧客在結帳頁（classic / block checkout）選擇 PayNow（paynow）並下單。WooCommerce 於 before_process_payment 寫冪等鍵 _pc_paynow_trade_no（PCN{order_id}），呼叫 PaynowRestClient::create_payment_intent（POST /api/v1/payment-intents，Bearer PrivateKey，帶 amount/currency=TWD/allowedPaymentMethods/allowInstallments/webhookUrl/resultUrl/expireDays），取得 result.id（pp_xxx）+ result.secret（pp_xxx_st_xxx），寫入 _pc_paynow_payment_intent_id + _pc_paynow_secret，回傳 order-received URL。
+  %% 付款方式範圍（Q1 全部）：信用卡 / 信用卡分期 / ATM / 超商代碼(ibon,FamiPort) / LINE Pay / Apple Pay（排除 ApplePayDeferred）。
+
+[STEP:2] @顧客 在 order-received 頁內嵌元件完成付款 {specs/ui/PayNow內嵌付款元件.md}
+  %% 前端 MountPaynowPayment() 載入 Component SDK v2（js.paynow.com.tw/sdk/v2），以 secret + publicKey + env createPayment，mount('#paynow-container') 渲染 iframe 付款欄位，顧客填付款資訊後 checkout()。
+  %% ⚠️ 與 UNi Embed 差異：PayNow SDK checkout() 直接與 PayNow 完成授權 + 3DS，前端不送回後端再授權（無 create-payment 中間步驟）。付款結果以 Webhook 為準。
+
+[DECISION:2a] 付款方式類型
+  [BRANCH:2a:即時付款] @顧客 {specs/ui/PayNow內嵌付款元件.md}
+    %% 信用卡 / 信用卡分期 / LINE Pay / Apple Pay：SDK iframe 內完成授權（信用卡含 3DS pending_review → success），即時取得結果。
+  [BRANCH:2a:離線付款] @PayNow {specs/features/payment/paynow-payment-info.feature}
+    %% ATM 虛擬帳號 / 超商代碼（ibon/FamiPort）：SDK 顯示繳款資訊（vAccount / 繳費代碼 / 條碼 / ExpireDate），消費者離站繳費。WooCommerce 於 Webhook 收到繳款資訊寫入 _pc_paynow_payment_info，訂單維持「等待付款」。
+[MERGE:2a]
+
+[STEP:3] @PayNow Webhook 幕後通知付款結果（payment_result） {specs/features/payment/paynow-callback.feature}
+  %% PayNow 以 POST 將 payment_result 推送至建立付款意圖時的 webhookUrl（/wp-json/power-checkout/paynow/notify，Header X-Payment-Center-Topic: payment_result）。WooCommerce 驗證 X-Payment-Center-Hmac-Sha256（HMAC-SHA256, key=PrivateKey, timing-safe）、以 PaymentIntentId（_pc_paynow_payment_intent_id）反查訂單、比對 Amount 防竄改、冪等檢查（以 PaymentIntentId 為 key），處理完回 HTTP 200。
+
+[DECISION:3a] 付款結果狀態（Webhook Status）
+  [BRANCH:3a:付款成功] @WooCommerce {specs/features/payment/paynow-callback.feature}
+    %% Status=Success → 金額防竄改通過 → payment_complete() → 訂單轉「處理中」，寫入 _pc_paynow_payment_detail（TransactionNo / PaymentType / Meta），回應 HTTP 200。
+  [BRANCH:3a:付款失敗] @WooCommerce {specs/features/payment/paynow-callback.feature}
+    %% Status=Failed → 訂單維持「等待付款」，記錄 order note，回應 HTTP 200。
+[MERGE:3a]
+
+[STEP:4] @WooCommerce 訂單轉處理中觸發既有發票自動開立 {specs/features/invoice/invoice-issue.feature}
+  %% 訂單轉「處理中」觸發既有發票自動開立（Amego / 綠界發票 / ezPay，依後台啟用的 provider）。PayNow 電子發票（體系3）本次排除（Q2），列 GAP 後續。
+
+[STEP:5] @管理員 後台訂單交易管理 {specs/features/payment/paynow-trade-management.feature}
+  %% 管理員於後台訂單頁手動操作：補查付款意圖（GET /api/v1/payment-intents/:id 對帳補單）、退款查詢（GET /api/v1/refunds/:uuid）。
+  %% ⚠️ PayNow 體系1 無 capture（請款）/ void_auth（取消授權）端點——gateway 維持 AbstractPaymentGateway no-op 預設，不建模於此。
+
+[FINAL]
+
+%% 退款流程未建模於此 Activity——退款由管理員在後台訂單頁觸發，見 paynow-refund.feature。
+%%   信用卡 / ATM 退款走 PayNow REST POST /api/v1/payment-intents/:id/refunds（ATM 需 bankCode/bankBranchCode/bankAccount）；超商代碼/LINE Pay/ApplePay 是否支援 API 退款依 PayNow 規格（BDY，實作以 paynow skill 確認），不支援者 WP_Error('refund_unsupported') 人工退款。
+%% 統一抽象 IPaymentProvider：本 gateway extends AbstractPaymentGateway implements IPaymentProvider（process_payment / process_refund / query_trade / capture / void_auth / get_settings / get_supported_payment_methods）。與既有金流一致。詳見 specs/open-issue/paynow-execution-plan.md。
+%%   ⚠️ 與 UNi Embed 差異：PayNow 體系1 SDK checkout() 直接授權，無 create-payment 中間步驟（少一支 FrontendApi + 少一個 STEP）。
+%%   加密：PayNow 體系1 無對稱加密，Webhook 用 HMAC-SHA256（key=PrivateKey）——自建 Shared/Helpers/WebhookVerifier，不複用 PayuniCrypto（不同源）。
+%%   憑證 GAP（Q5）：sandbox PublicKey/PrivateKey 使用者尚未申請——以 API_MODE=mock 跑綠為驗收主軸，需來信 PayNow 申請 PrivateKey，憑證到位後補 sandbox 端到端，存 woocommerce_paynow_settings 不寫死。
+%%   綁卡 Customer / CardToken（會員快速付款）為進階能力，本次不建模為主線（Webhook Meta.CardToken 可保存供後續，絕不存卡號/CVC）。
+</content>

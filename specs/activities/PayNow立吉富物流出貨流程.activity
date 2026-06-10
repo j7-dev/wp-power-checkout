@@ -1,0 +1,67 @@
+[ACTIVITY] PayNow（立吉富）物流出貨流程（統一抽象 ILogisticsProvider，第三個 provider）
+
+%% 知識來源：paynow skill 無物流 API，本流程依 woomp（../woomp/includes/paynow-shipping/）既有可運作實作反推。
+%% 標記 ASM(依 woomp 反推)；端點/加密/欄位有程式碼實證，具體 Example 值待 PayNow 官方文件 + sandbox 核對（GAP）。
+%% 加密：PayNow 物流用 TripleDES DES-EDE3 固定 key/IV（與金流 HMAC / PAYUNi AES-256-GCM / ECPay AES-128-CBC 全不同源，不複用）。
+%% PassCode = strtoupper(sha1(user_account + OrderNo + TotalAmount + apicode))。
+
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] PayNow -> {specs/actors/PayNow.md}
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+
+[INITIAL]
+
+[STEP:1] @顧客 結帳頁選擇 PayNow 物流運送方式並觸發選店 {specs/features/logistics/paynow-logistics-store-selection.feature}
+  %% 顧客在 classic checkout 結帳頁選擇 PayNow 物流的 WC_Shipping_Method（超商取貨 7-11/全家/HiLife 或黑貓宅配 TCAT），
+  %% 超商取貨點按「選擇超商」按鈕觸發選店；同時付款方式決定 DeliverMode（cod=取貨付款 01 / 線上付款=取貨不付款 02）。
+  %% block checkout 選店 UI 第二期後補（classic 先實作）。
+
+[STEP:2] @WooCommerce {specs/features/logistics/paynow-logistics-store-selection.feature}
+  %% get_store_selection()：組裝選店地圖導轉（form POST 至 {api_url}/Member/Order/Choselogistics），
+  %% 帶 user_account / apicode（TripleDES 加密）/ Logistic_serviceID / returnUrl（選店 callback）→ 瀏覽器導轉 PayNow 地圖頁。
+  %% 黑貓宅配（TCAT）不需選店，本 STEP 跳過。
+
+[DECISION:2a] 運送方式類型
+  [BRANCH:2a:超商取貨] @顧客 {specs/ui/PayNow物流選店頁面.md}
+    %% 顧客在 PayNow 超商地圖頁選擇門市（7-11 / 全家 / HiLife）
+  [BRANCH:2a:黑貓宅配] @WooCommerce {specs/features/logistics/paynow-logistics-create-shipment.feature}
+    %% TCAT 宅配無選店，直接帶結帳收件地址 + 溫層（DeliveryType），跳至 STEP:4 建單
+[MERGE:2a]
+
+[STEP:3] @PayNow {specs/features/logistics/paynow-logistics-selection-callback.feature}
+  %% 顧客選店後，PayNow 以瀏覽器導回 returnUrl（含 storeid / storename / storeaddress）。
+  %% parse_store_selection()：寫入 order meta（_pc_paynow_logistics_store_id / _store_name / _store_addr）。
+  %% ⚠️ BDY：returnUrl callback 驗證機制（是否帶 PassCode / user_account 防偽）依 woomp 為開放回呼，待官方文件確認簽章。
+
+[STEP:4] @管理員 {specs/features/logistics/paynow-logistics-create-shipment.feature}
+  %% create_shipment()：管理員於後台訂單頁出貨時，呼叫 POST /api/Orderapi/Add_Order
+  %% （JsonOrder = base64(TripleDES DES-EDE3 encrypt(收件人 + 門市 + DeliverMode + TotalAmount + PassCode))）。
+  %% 回 Status=S/F；成功取 LogisticNumber（_pc_paynow_logistics_ref）+ paymentno + validationno。
+  %% 冪等：已有 LogisticNumber 且 Status!=1 → 改走 ReNewOrder 重新取號（非重複建單）。
+  %% 觸發時機：後台手動出貨；woomp 另有 order_status_processing 自動取號（本專案對齊既有 ECPay「後台手動」慣例）。
+
+[STEP:5] @管理員 {specs/features/logistics/paynow-logistics-query.feature}
+  %% query_shipment()：管理員於後台查詢物流單即時狀態（GET /api/Orderapi/Get_Order_Info?LogisticNumber=&sno=1）。
+  %% 回 Status（0 成立中 / 1 無效）+ Delivery_Status + PayNowLogisticCode + Detail_Status_Description → 寫 _pc_paynow_logistics_status。
+  %% ⚠️ BDY：PayNow 物流貨態為「主動查詢」模式（woomp 無 webhook 推送證據），故 ILogisticsProvider::handle_status_callback() 在 PayNow 退化為查詢補單；
+  %%   無 ServerReplyURL 推送端點。待 PayNow 官方文件確認是否有貨態 webhook 推送。
+
+[FORK:5a]
+  [PARALLEL:5a] @管理員 {specs/features/logistics/paynow-logistics-print-document.feature}
+    %% print_document()：列印託運單。per-service 端點：
+    %%   7-11=/api/Order711、全家 C2C=/api/OrderFamiC2C、HiLife=/api/OrderHiLife、
+    %%   黑貓=/Member/Order/PrintBlackCatLabel、大宗/冷凍各有專屬列印端點。回 label URL 或 PDF。
+  [PARALLEL:5a] @管理員 {specs/features/logistics/paynow-logistics-cancel.feature}
+    %% cancel_shipment()：取消物流單（DELETE /api/Orderapi/CancelOrder，帶 LogisticNumber + sno + PassCode）。
+    %% 回應含 'S' 視為取消成功 → 標記 Status=1（無效訂單）。
+    %% ⚠️ 與 ECPay（僅 C2C 可取消）不同：PayNow CancelOrder 不限帳號類型（依 woomp 實作）。
+[JOIN:5a]
+
+[FINAL]
+
+%% 逆物流（退貨）：woomp 無 PayNow 逆物流 API 證據 → ILogisticsProvider::create_return() throw \Exception('尚未實作')（既有慣例，GAP）。
+%% 冷凍交貨便（7-11/全家 冷凍 C2C/大宗）：woomp 有完整實作（含 woomp-paynow-shipping 子模組）；
+%%   首期可先做常溫超商 + 黑貓宅配，冷凍列第二期（實作階段裁決）。
+%% 統一抽象 ILogisticsProvider 三段式（get_store_selection → parse_store_selection → create_shipment）已由 ECPay / PAYUNi 證明可容多 provider，PayNow 為第三個。
+%%   差異收進 provider：ECPay=AES RedirectToLogisticsSelection 暫存單；PAYUNi=ship_map AES-256-GCM；PayNow=Choselogistics 地圖 + TripleDES Add_Order。

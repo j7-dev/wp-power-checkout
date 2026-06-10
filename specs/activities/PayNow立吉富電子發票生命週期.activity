@@ -1,0 +1,63 @@
+[ACTIVITY] PayNow（立吉富）電子發票生命週期（統一抽象 IInvoiceService，第四個 provider）
+
+%% 知識來源：paynow skill references/invoice-api.md（體系 3，完整端點 + 欄位表）。
+%% 認證：Bearer 商家 JWT-Token；測試 invoiceapi-dev.paynow.com.tw / 正式 invoiceapi-prod.paynow.com.tw；無對稱加密（純 Bearer）。
+%% 能力：issue / cancel / allowance / cancel-allowance / GET invoices（查詢）→ 對映 IInvoiceService + ISupportsAllowance + ISupportsQuery（與 ezPay 同等級）。
+%% POS 取號/開立排除（一般 WooCommerce 電商不走 POS，GAP 後續）。
+
+[ACTOR] 顧客 -> {specs/actors/顧客.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+[ACTOR] PayNow -> {specs/actors/PayNow.md}
+
+[STEP:1] @顧客 {specs/features/invoice/paynow-invoice-issue.feature}
+  %% 顧客在結帳頁填寫發票資訊（個人/公司/捐贈 + 載具/統編），存入 _pc_issue_invoice_params（provider-agnostic 共用表單，PayNow 啟用即套用）
+
+[STEP:2] @WooCommerce {specs/features/invoice/paynow-invoice-issue.feature}
+  %% 訂單狀態變更（預設 processing）觸發 woocommerce_order_status_{status} hook，呼叫 PayNow Provider issue()
+[DECISION:2a] 訂單是否已開立發票（冪等檢查 _pc_issued_invoice_data）
+  [BRANCH:2a:已開立] @WooCommerce {specs/features/invoice/paynow-invoice-issue.feature}
+    %% 已有 issued_data → 直接回傳，不重複呼叫 PayNow API
+  [BRANCH:2a:未開立] @WooCommerce {specs/features/invoice/paynow-invoice-issue.feature}
+    %% 組業務參數（carrier_type 載具映射 / tax_type 課稅別 / 非統編 tax_amount=0 由國稅局算 / 統編帶實際稅額 / 載具捐贈互斥 / 零稅率必填 is_pass_customs+zero_tax_rate_reason）
+    %%   → Bearer JWT-Token → POST /api/invoices/issue
+[MERGE:2a]
+
+[STEP:3] @PayNow {specs/features/invoice/paynow-invoice-issue.feature}
+  %% PayNow 回應 { status, type, message, result, request_id }（result 含 invoice_number）
+[DECISION:3a] 開立結果（status / type）
+  [BRANCH:3a:成功] @WooCommerce {specs/features/invoice/paynow-invoice-issue.feature}
+    %% type=success → 寫入 _pc_issued_invoice_data（含 invoice_number）+ _pc_invoice_provider_id=paynow（或 paynow_invoice，見 GAP 同名裁決）
+  [BRANCH:3a:失敗] @WooCommerce {specs/features/invoice/paynow-invoice-issue.feature}
+    %% type 非 success → 不寫入開立資料，記錄 order note（錯誤碼見 paynow skill error-codes）
+[MERGE:3a]
+
+[STEP:4] @管理員 {specs/features/invoice/paynow-invoice-query.feature}
+  %% 管理員於後台發票 MetaBox 查詢發票明細（GET /api/invoices?InvoiceNumber=&OrderNo=，唯讀，ISupportsQuery::query_invoice）
+
+[STEP:5] @顧客 {specs/features/invoice/paynow-invoice-allowance.feature}
+  %% 顧客退貨，管理員對訂單做部分退款
+[DECISION:5a] 退款類型（部分 vs 全額）
+  [BRANCH:5a:部分退款] @WooCommerce {specs/features/invoice/paynow-invoice-allowance.feature}
+    %% woocommerce_order_refunded hook：部分退款 + 已開發票 + provider 支援折讓 + auto_allowance_on_refund=yes
+    %%   → 開立折讓 POST /api/invoices/allowance，寫入 _pc_allowance_data（含 allowance_number）（ISupportsAllowance::issue_allowance）
+  [BRANCH:5a:全額退款] @WooCommerce {specs/features/invoice/invoice-cancel.feature}
+    %% 全額退款 → 走作廢發票邏輯（見 STEP:6），不開折讓
+[MERGE:5a]
+
+[STEP:6] @管理員 {specs/features/invoice/invoice-cancel.feature}
+  %% 管理員手動作廢，或訂單進入 refunded 狀態自動觸發 cancel()（冪等檢查 _pc_cancelled_invoice_data）
+[DECISION:6a] 作廢標的（發票 vs 折讓）
+  [BRANCH:6a:作廢發票] @PayNow {specs/features/invoice/invoice-cancel.feature}
+    %% POST /api/invoices/cancel（帶 invoice_number）成功 → 清除 issued_data，寫入 _pc_cancelled_invoice_data
+  [BRANCH:6a:作廢折讓] @PayNow {specs/features/invoice/paynow-invoice-allowance.feature}
+    %% POST /api/invoices/cancel-allowance（帶 allowance_number）成功 → 清除 allowance_data（ISupportsAllowance::invalid_allowance）
+[MERGE:6a]
+[END]
+
+%% PayNow 沿用 provider-agnostic 共用層：結帳表單(InvoiceParams/InvoiceApp)、order meta(MetaKeys)、REST 端點(/invoices/issue|cancel)、退款自動折讓 hook 全部共用，無需新增；僅 provider id 不同。
+%% 載具映射（carrier_type）：結帳 individual=barcode→PhoneBarCodeCarrier；moica→CitizenDigitalCardNo；cloud→BuyerSno(PayNow 會員載具，依手機帶號)；
+%%   easycard→EasyCardCarrier（PayNow 獨有悠遊卡載具）；paper→None+send_paper；invoiceType=donate→npoban；company→buyer.identifier 統編 + tax_amount 帶實際稅額。
+%% ⚠️ CON：發票 provider ID 與金流 gateway ID 同名 `paynow`，須裁決（建議發票用 `paynow_invoice` + option woocommerce_paynow_invoice_settings，避免撞金流 woocommerce_paynow_settings）。
+%% POS 取號(/api/invoices/pos/invoice-numbers) / POS 開立(/api/invoices/pos/issue) 非首期範圍（GAP）。
+%% 零稅率(tax_type=ZeroTax) 必填 is_pass_customs + zero_tax_rate_reason；混稅(MixTax) 只能 應稅+免 或 應稅+零稅率（須與財會確認）。

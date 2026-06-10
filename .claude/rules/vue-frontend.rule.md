@@ -111,12 +111,15 @@ Memory mode router (`createMemoryHistory`):
 /payments/ecpay_ecpg                    → ECPay ECPG settings
 /payments/payuni_upp                    → PAYUNi UPP settings (js/src/pages/Payments/PayuniUpp/index.vue)
 /payments/payuni_uni_embed              → PAYUNi UNi Embed settings (js/src/pages/Payments/PayuniUniEmbed/index.vue)
+/payments/paynow                        → PayNow settings (js/src/pages/Payments/Paynow/index.vue)
 /logistics                              → Logistics list (js/src/pages/Logistics/index.vue)
 /logistics/ecpay_logistics              → ECPay Logistics settings (js/src/pages/Logistics/Ecpay/index.vue)
+/logistics/paynow_logistics             → PayNow Logistics settings (js/src/pages/Logistics/Paynow/index.vue)
 /invoices                               → Invoice list
 /invoices/amego                         → Amego settings
 /invoices/ecpay                         → ECPay Invoice settings
 /invoices/ezpay                         → ezPay Invoice settings (js/src/pages/Invoices/Ezpay/index.vue)
+/invoices/paynow_invoice                → PayNow Invoice settings (js/src/pages/Invoices/Paynow/index.vue)
 /settings                               → Global settings (placeholder)
 ```
 
