@@ -40,6 +40,8 @@ namespace Tests\Integration\Payment;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\AioRedirectGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayMetaKeys;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Services\EcpgGateway;
+use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Services\MpgRedirectGateway;
+use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Shared\Helpers\MpgMetaKeys;
 use J7\PowerCheckout\Domains\Payment\Paynow\Services\PaynowGateway;
 use J7\PowerCheckout\Domains\Payment\Paynow\Shared\Helpers\PaynowMetaKeys;
 use J7\PowerCheckout\Domains\Payment\Payuni\Services\PayuniUppGateway;
@@ -67,12 +69,56 @@ final class PaymentRefundNormalizationTest extends TestCase {
 	protected function configure_dependencies(): void {
 		\putenv( 'API_MODE=mock' );
 
-		ProviderUtils::update_option( PayuniUppGateway::ID, [ 'enabled' => 'yes', 'title' => 'PAYUNi UPP' ] );
-		ProviderUtils::update_option( PayuniUniEmbedGateway::ID, [ 'enabled' => 'yes', 'title' => 'PAYUNi UNi Embed' ] );
-		ProviderUtils::update_option( PaynowGateway::ID, [ 'enabled' => 'yes', 'title' => 'PayNow' ] );
-		ProviderUtils::update_option( EcpgGateway::ID, [ 'enabled' => 'yes', 'title' => '綠界 ECPG' ] );
-		ProviderUtils::update_option( AioRedirectGateway::ID, [ 'enabled' => 'yes', 'title' => '綠界 AIO' ] );
-		ProviderUtils::update_option( 'shopline_payment_redirect', [ 'enabled' => 'yes', 'title' => 'Shopline' ] );
+		ProviderUtils::update_option(
+			PayuniUppGateway::ID,
+			[
+				'enabled' => 'yes',
+				'title'   => 'PAYUNi UPP',
+			]
+			);
+		ProviderUtils::update_option(
+			PayuniUniEmbedGateway::ID,
+			[
+				'enabled' => 'yes',
+				'title'   => 'PAYUNi UNi Embed',
+			]
+			);
+		ProviderUtils::update_option(
+			PaynowGateway::ID,
+			[
+				'enabled' => 'yes',
+				'title'   => 'PayNow',
+			]
+			);
+		ProviderUtils::update_option(
+			EcpgGateway::ID,
+			[
+				'enabled' => 'yes',
+				'title'   => '綠界 ECPG',
+			]
+			);
+		ProviderUtils::update_option(
+			AioRedirectGateway::ID,
+			[
+				'enabled' => 'yes',
+				'title'   => '綠界 AIO',
+			]
+			);
+		ProviderUtils::update_option(
+			'shopline_payment_redirect',
+			[
+				'enabled' => 'yes',
+				'title'   => 'Shopline',
+			]
+			);
+		// einvoice parity 補列：藍新 MPG（第 7 個金流）
+		ProviderUtils::update_option(
+			MpgRedirectGateway::ID,
+			[
+				'enabled' => 'yes',
+				'title'   => '藍新金流 MPG',
+			]
+			);
 	}
 
 	/** 每次測試後清理 */
@@ -438,7 +484,7 @@ final class PaymentRefundNormalizationTest extends TestCase {
 	 */
 	public function test_Shopline_退款例外回正規化UNKNOWN且never_throw(): void {
 		// Given: Shopline 訂單但缺付款明細（使 PaymentDTO::from_order 拋例外）
-		$order = $this->create_wc_order(
+		$order   = $this->create_wc_order(
 			[
 				'status'         => 'processing',
 				'payment_method' => 'shopline_payment_redirect',
@@ -462,5 +508,166 @@ final class PaymentRefundNormalizationTest extends TestCase {
 			'Shopline 退款例外應正規化為 UNKNOWN（取代舊 refund_failed）'
 		);
 		$this->assertSame( ErrorCode::UNKNOWN->value, $result->get_error_code() );
+	}
+
+	// ====================================================================
+	// 藍新 MPG（einvoice parity 補列的第 7 個金流）
+	//
+	// MPG 與前 6 金流契約一致但更精簡：
+	//   - 信用卡（CREDIT）/ e-wallet（LINEPAY/TAIWANPAY/ESUNWALLET）→ 回 true（委派 process_gateway_refund）
+	//   - 其餘付款方式（VACC/CVS/WEBATM/BARCODE/APPLEPAY/TWQR 等）→ ErrorCode::UNSUPPORTED
+	//   - amount=null/0 → false（既有 ! $amount 守衛，單一分支同時涵蓋 null 與 0）
+	//
+	// ⚠️ MPG 的 process_refund「沒有超額（> total）分支」，故不測 VALIDATION：
+	//    信用卡僅回 true（不在此層比金額），非信用卡先被付款方式分流攔成 UNSUPPORTED。
+	//    不得為 MPG 新增超額分支（守「不改判定」硬約束）。
+	// ====================================================================
+
+	/**
+	 * 藍新 MPG：非信用卡（VACC 虛擬帳號）process_refund → 正規化 UNSUPPORTED
+	 *
+	 * @test
+	 * @group error
+	 * @group newebpay_mpg
+	 */
+	public function test_NewebpayMpg_非信用卡退款回正規化UNSUPPORTED(): void {
+		$order = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+				'total'          => 1000,
+			]
+		);
+		// 帶 VACC 付款明細（MpgPaymentType::order_is_credit / order_is_ewallet 皆判 false）
+		( new MpgMetaKeys( $order ) )->update_payment_detail(
+			[
+				'PaymentType'     => 'VACC',
+				'TradeNo'         => 'MPG20260618001',
+				'MerchantOrderNo' => 'PCM' . $order->get_id(),
+			]
+		);
+
+		$result = ( new MpgRedirectGateway() )->process_refund( $order->get_id(), 1000.0, '測試退款' );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertTrue( NormalizedError::is_normalized_error( $result ), '應為正規化錯誤' );
+		$this->assertSame( ErrorCode::UNSUPPORTED, NormalizedError::get_code( $result ) );
+		$this->assertSame(
+			ErrorCode::UNSUPPORTED->value,
+			$result->get_error_code(),
+			'get_error_code() 應為正規化 UNSUPPORTED（取代舊 refund_unsupported）'
+		);
+		$this->assertStringContainsString( '人工處理', $result->get_error_message() );
+	}
+
+	/**
+	 * 藍新 MPG：UNSUPPORTED 的 \WP_Error $data 帶 provider 供 debug
+	 *
+	 * @test
+	 * @group edge
+	 * @group newebpay_mpg
+	 */
+	public function test_NewebpayMpg_UNSUPPORTED帶provider上下文(): void {
+		$order = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+				'total'          => 1000,
+			]
+		);
+		( new MpgMetaKeys( $order ) )->update_payment_detail(
+			[
+				'PaymentType' => 'CVS', // 超商代碼（非信用卡 / 非 e-wallet）
+			]
+		);
+
+		$result = ( new MpgRedirectGateway() )->process_refund( $order->get_id(), 1000.0, '測試退款' );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$data = $result->get_error_data();
+		$this->assertIsArray( $data );
+		$this->assertSame( MpgRedirectGateway::ID, $data['provider'] ?? null, '$data[provider] 應記錄 gateway id' );
+	}
+
+	/**
+	 * 藍新 MPG：信用卡（CREDIT）process_refund → true（委派 process_gateway_refund）
+	 *
+	 * @test
+	 * @group happy
+	 * @group newebpay_mpg
+	 */
+	public function test_NewebpayMpg_信用卡退款回true委派(): void {
+		$order = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+				'total'          => 1000,
+			]
+		);
+		( new MpgMetaKeys( $order ) )->update_payment_detail(
+			[
+				'PaymentType' => 'CREDIT', // 信用卡 → 允許 API 退款
+				'TradeNo'     => 'MPG20260618003',
+			]
+		);
+
+		$result = ( new MpgRedirectGateway() )->process_refund( $order->get_id(), 1000.0, '測試退款' );
+
+		$this->assertTrue( $result, '信用卡 MPG process_refund 應回 true（實際退款委派 process_gateway_refund）' );
+	}
+
+	/**
+	 * 藍新 MPG：e-wallet（LINEPAY）process_refund → true（委派 process_gateway_refund）
+	 *
+	 * @test
+	 * @group happy
+	 * @group newebpay_mpg
+	 */
+	public function test_NewebpayMpg_ewallet退款回true委派(): void {
+		$order = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+				'total'          => 1000,
+			]
+		);
+		( new MpgMetaKeys( $order ) )->update_payment_detail(
+			[
+				'PaymentType' => 'LINEPAY', // e-wallet → 允許 /API/EWallet/refund
+				'TradeNo'     => 'MPG20260618004',
+			]
+		);
+
+		$result = ( new MpgRedirectGateway() )->process_refund( $order->get_id(), 1000.0, '測試退款' );
+
+		$this->assertTrue( $result, 'e-wallet MPG process_refund 應回 true（實際退款委派 process_gateway_refund）' );
+	}
+
+	/**
+	 * 藍新 MPG：amount=null process_refund → false（既有 ! $amount 守衛，不退化契約）
+	 *
+	 * @test
+	 * @group edge
+	 * @group newebpay_mpg
+	 */
+	public function test_NewebpayMpg_amount_null退款回false(): void {
+		$order = $this->create_wc_order(
+			[
+				'status'         => 'processing',
+				'payment_method' => MpgRedirectGateway::ID,
+				'total'          => 1000,
+			]
+		);
+		// 即便帶信用卡明細，amount=null 仍須先被 ! $amount 守衛攔成 false
+		( new MpgMetaKeys( $order ) )->update_payment_detail(
+			[
+				'PaymentType' => 'CREDIT',
+				'TradeNo'     => 'MPG20260618005',
+			]
+		);
+
+		$result = ( new MpgRedirectGateway() )->process_refund( $order->get_id(), null, '' );
+
+		$this->assertFalse( $result, 'MPG amount=null 應維持回 false（既有 ! $amount 守衛契約）' );
 	}
 }

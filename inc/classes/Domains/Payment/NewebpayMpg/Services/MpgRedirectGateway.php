@@ -20,6 +20,8 @@ use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\WP;
 
@@ -188,7 +190,7 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 	 * 退款分流（資安：判定依據為藍新回傳並存於 _pc_newebpay_payment_detail 的 PaymentType，非前端）：
 	 *  - 信用卡（CREDIT）→ 回 true，實際 Close API 退款於 handle_payment_gateway_refund。
 	 *  - e-wallet（LINEPAY/TAIWANPAY/ESUNWALLET）→ 回 true，實際 EWallet refund 於 handle_payment_gateway_refund。
-	 *  - 其他（VACC/WEBATM/CVS/BARCODE/APPLEPAY/TWQR/AFTEE）→ 回 WP_Error('refund_unsupported')，不呼叫任何退款 API。
+	 *  - 其他（VACC/WEBATM/CVS/BARCODE/APPLEPAY/TWQR/AFTEE）→ 回正規化 ErrorCode::UNSUPPORTED \WP_Error，不呼叫任何退款 API。
 	 *
 	 * @param int        $order_id 訂單 ID
 	 * @param float|null $amount   退款金額（WC 計算，僅作非空檢查）
@@ -207,9 +209,10 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 			return true;
 		}
 
-		return new \WP_Error(
-			'refund_unsupported',
-			\__( '此付款方式不支援 API 退款，請至藍新金流商家後台人工處理', 'power_checkout' )
+		return NormalizedError::from(
+			ErrorCode::UNSUPPORTED,
+			\__( '此付款方式不支援 API 退款，請至藍新金流商家後台人工處理', 'power_checkout' ),
+			[ 'provider' => $this->id ]
 		);
 	}
 
