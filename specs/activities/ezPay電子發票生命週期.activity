@@ -21,8 +21,8 @@
 [DECISION:3a] 開立結果（Status + CheckCode 驗章）
   [BRANCH:3a:成功] @WooCommerce {specs/features/invoice/invoice-issue.feature}
     %% Status=SUCCESS 且 CheckCode 通過 → 寫入 _pc_issued_invoice_data（含 invoice_number / invoice_trans_no / random_num）+ _pc_invoice_provider_id=ezpay
-  [BRANCH:3a:失敗] @WooCommerce {specs/features/invoice/invoice-issue.feature}
-    %% Status 為錯誤碼或 CheckCode 不符 → 不寫入開立資料，記錄 order note
+  [BRANCH:3a:失敗] @WooCommerce {specs/features/invoice/invoice-error-model.feature}
+    %% Status 為錯誤碼或 CheckCode 不符 → 不寫入開立資料 → 經 error-map 映射為正規化 code（錯誤碼→AUTH/CONFLICT/NUMBER_EXHAUSTED/PROVIDER；CheckCode 不符→SIGNATURE）→ 回 WP_Error（取代既有「回 []」），記錄 order note。詳見 發票錯誤模型與驗證流程.activity
 [MERGE:3a]
 
 [STEP:4] @管理員 {specs/features/invoice/ezpay-invoice-query.feature}
@@ -42,8 +42,8 @@
 [DECISION:6a] 是否可作廢（ezPay 業務規則）
   [BRANCH:6a:可作廢] @ezPay {specs/features/invoice/invoice-cancel.feature}
     %% 未開折讓 + 已上傳財政部 + 期限內 → invoice_invalid（Version 1.0）成功 → 清除 issued_data，寫入 _pc_cancelled_invoice_data
-  [BRANCH:6a:不可作廢] @WooCommerce {specs/features/invoice/invoice-cancel.feature}
-    %% 已開折讓(LIB10007) / 未上傳財政部(LIB10009) / 跨期(LIB10008) → 作廢失敗，保留 issued_data，記錄 order note
+  [BRANCH:6a:不可作廢] @WooCommerce {specs/features/invoice/invoice-error-model.feature}
+    %% 已開折讓(LIB10007) / 未上傳財政部(LIB10009) / 跨期(LIB10008) → 作廢失敗，保留 issued_data → 經 error-map 映射為正規化 code（多為 CONFLICT，raw_code 保留 LIB1000x）→ 回 WP_Error（取代既有「回 []」），記錄 order note。詳見 發票錯誤模型與驗證流程.activity
 [MERGE:6a]
 [END]
 
@@ -51,3 +51,6 @@
 %% 載具映射：結帳 individual=barcode→CarrierType=0；moica→CarrierType=1；cloud→ezPay 電子發票載具 CarrierType=2；paper→PrintFlag=Y；invoiceType=donate→LoveCode；company→Category=B2B。
 %% touch_issue（等待觸發/預約自動開立）與 allowance_touch_issue（折讓兩段式確認）非首期範圍。
 %% 折讓 / 查詢目前無 REST 端點：折讓走退款自動 hook，查詢走後台 MetaBox；若需手動折讓 UI 須新增端點（實作期決策）。
+%% einvoice 導入（#1 錯誤模型 + #2 驗證層）：本流程的所有失敗分支（STEP:3 開立失敗、STEP:6 作廢失敗、折讓 / 查詢失敗）
+%%   一律改回 WP_Error 帶正規化 code（取代既有「回 []」資訊塌縮）；開立前統一執行期驗證（UBN checksum / 互斥 / 金額守恆）。
+%%   橫切行為的完整定義見 specs/activities/發票錯誤模型與驗證流程.activity 與 specs/features/invoice/invoice-error-model.feature、invoice-validation.feature。

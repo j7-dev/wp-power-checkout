@@ -314,4 +314,44 @@ final class EcpayAioCallbackTest extends TestCase {
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( '1|OK', $response->get_data() );
 	}
+
+	// ========== FM-06 護欄：偽造 CheckMacValue 透過 REST callback 仍回 200 + 訂單未變 ==========
+	// einvoice 第六階段-b 改動 B（補強）：把「驗章失敗→狀態未變」與「callback always-200」
+	// 在「同一條 REST callback 路徑」上一次斷言，鎖死 FM-06（防重送風暴）。本輪不改 AioCallback。
+
+	/**
+	 * 偽造 CheckMacValue 透過 ReturnURL REST callback → HTTP 200 + 訂單維持 pending + 不寫明細
+	 *
+	 * @test
+	 * @group security
+	 * @group edge
+	 */
+	public function test_FM06_偽造CheckMacValue透過REST_callback仍回200且訂單未變(): void {
+		// Given: pending 訂單 + 偽造 CheckMacValue 的成功通知
+		$trade_no = 'EC100FM06FORGED';
+		$order    = $this->create_ecpay_order( $trade_no );
+		$payload  = [
+			'MerchantID'      => '3002607',
+			'MerchantTradeNo' => $trade_no,
+			'RtnCode'         => '1',
+			'RtnMsg'          => '交易成功',
+			'TradeNo'         => '2301011234567890',
+			'TradeAmt'        => '1000',
+			'PaymentType'     => 'Credit_CreditCard',
+			'CheckMacValue'   => 'FORGED_CHECK_MAC_VALUE',
+		];
+
+		$request = new \WP_REST_Request( 'POST', '/power-checkout/ecpay/aio/return' );
+		$request->set_body_params( $payload );
+
+		// When: 偽造驗章請求進 REST callback
+		$response = AioCallback::instance()->post_aio_return_callback( $request );
+
+		// Then: 仍回 HTTP 200 + 1|OK（避免綠界重送風暴），且訂單維持 pending、不寫付款明細
+		$this->assertSame( 200, $response->get_status(), '偽造驗章仍須回 HTTP 200（防重送風暴）' );
+		$this->assertSame( '1|OK', $response->get_data() );
+		$this->assert_order_status( $order, 'pending' );
+		$detail = ( new EcpayMetaKeys( wc_get_order( $order->get_id() ) ) )->get_payment_detail();
+		$this->assertEmpty( $detail, '偽造驗章不得寫入付款明細' );
+	}
 }

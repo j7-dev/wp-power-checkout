@@ -19,6 +19,8 @@ use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\WP;
 
@@ -156,10 +158,19 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 			return false;
 		}
 
-		// 金額防禦：null / ≤0 / 超過訂單總額 → 不允許
+		// 金額守衛：null / ≤0 → 維持回 false（既有 PaymentProviderContractTest 契約，不改）
 		$amount = (float) $amount;
-		if ( $amount <= 0 || $amount > (float) $order->get_total() ) {
+		if ( $amount <= 0 ) {
 			return false;
+		}
+
+		// 有金額但超出訂單總額 → 正規化 VALIDATION（不打 API；判定邊界不變，只換回傳值建構方式）
+		if ( $amount > (float) $order->get_total() ) {
+			return NormalizedError::from(
+				ErrorCode::VALIDATION,
+				\__( '退款金額不合法（超出可退餘額）', 'power_checkout' ),
+				[ 'provider' => $this->id ]
+			);
 		}
 
 		// 無付款明細（callback 漏接）→ 不允許
@@ -173,9 +184,10 @@ final class PayuniUppGateway extends AbstractPaymentGateway implements IGateway 
 			return true;
 		}
 
-		return new \WP_Error(
-			'refund_unsupported',
-			\__( '此付款方式不支援 API 退款，請至 PAYUNi 商家後台人工處理', 'power_checkout' )
+		return NormalizedError::from(
+			ErrorCode::UNSUPPORTED,
+			\__( '此付款方式不支援 API 退款，請至 PAYUNi 商家後台人工處理', 'power_checkout' ),
+			[ 'provider' => $this->id ]
 		);
 	}
 

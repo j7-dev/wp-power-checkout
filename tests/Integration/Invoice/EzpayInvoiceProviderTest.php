@@ -20,6 +20,8 @@ namespace Tests\Integration\Invoice;
 use J7\PowerCheckout\Domains\Invoice\Ezpay\DTOs\EzpaySettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ezpay\Services\EzpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -159,13 +161,13 @@ final class EzpayInvoiceProviderTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_happy_issue_B2B公司統編發票成功寫入issued_data(): void {
-		// Given: 一筆公司統編（B2B）發票訂單
+		// Given: 一筆公司統編（B2B）發票訂單（companyId 須通過財政部 checksum，否則 issue 第一步 dispatch 驗證攔截）
 		$order    = $this->create_order_with_items(
 			[
 				'provider'    => 'ezpay',
 				'invoiceType' => 'company',
 				'companyName' => '測試公司',
-				'companyId'   => '87654321',
+				'companyId'   => '04595257',
 			]
 		);
 		$provider = EzpayInvoiceProvider::instance();
@@ -314,10 +316,22 @@ final class EzpayInvoiceProviderTest extends TestCase {
 
 		$provider = EzpayInvoiceProvider::instance();
 
-		// When: 嘗試作廢（MOCK 模式應回 LIB10007 失敗）
+		// When: 嘗試作廢（已開折讓 → provider 前置擋下，回 CONFLICT，不打 API）
 		$result = $provider->cancel( $order );
 
-		// Then: 回傳空陣列或包含錯誤，issued_data 未清除
+		// Then: 回正規化 CONFLICT（raw_code=LIB10007），issued_data 未清除
+		$this->assertInstanceOf( \WP_Error::class, $result, 'LIB10007 應回 WP_Error 而非塌縮回空陣列' );
+		$this->assertSame(
+			ErrorCode::CONFLICT,
+			NormalizedError::get_code( $result ),
+			'已開折讓擋作廢應映射為 CONFLICT'
+		);
+		$this->assertSame(
+			'LIB10007',
+			NormalizedError::get_raw_code( $result ),
+			'CONFLICT 須保留 ezPay 原始錯誤碼 LIB10007 供 debug'
+		);
+
 		$fresh = new MetaKeys( \wc_get_order( $order->get_id() ) );
 		$this->assertNotEmpty( $fresh->get_issued_data(), 'LIB10007 時 issued_data 不應被清除' );
 	}

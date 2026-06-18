@@ -19,16 +19,16 @@ interface ISupportsAllowance {
 	 * @param float         $amount      折讓金額（含稅）
 	 * @param string        $notify_mail 折讓通知 Email（空字串不通知）
 	 *
-	 * @return array<string, mixed> 折讓資料；失敗回空陣列
+	 * @return array<string, mixed>|\WP_Error 成功回 array；失敗回經 NormalizedError::from() 建立的 \WP_Error
 	 */
-	public function issue_allowance( \WC_Order|int $order_or_id, float $amount, string $notify_mail = '' ): array;
+	public function issue_allowance( \WC_Order|int $order_or_id, float $amount, string $notify_mail = '' ): array|\WP_Error;
 
 	/**
 	 * 作廢折讓
 	 *
 	 * @param \WC_Order|int $order_or_id 訂單
 	 *
-	 * @return array<string, mixed> 作廢結果；失敗回空陣列
+	 * @return array<string, mixed>|\WP_Error 成功回 array；失敗回經 NormalizedError::from() 建立的 \WP_Error
 	 */
-	public function invalid_allowance( \WC_Order|int $order_or_id ): array;
+	public function invalid_allowance( \WC_Order|int $order_or_id ): array|\WP_Error;
 }

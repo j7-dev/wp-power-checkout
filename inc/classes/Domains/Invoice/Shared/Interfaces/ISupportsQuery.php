@@ -19,7 +19,7 @@ interface ISupportsQuery {
 	 *
 	 * @param \WC_Order|int $order_or_id 訂單
 	 *
-	 * @return array<string, mixed> 發票明細；查無或失敗回空陣列
+	 * @return array<string, mixed>|\WP_Error 成功回 array；失敗回經 NormalizedError::from() 建立的 \WP_Error
 	 */
-	public function query_invoice( \WC_Order|int $order_or_id ): array;
+	public function query_invoice( \WC_Order|int $order_or_id ): array|\WP_Error;
 }

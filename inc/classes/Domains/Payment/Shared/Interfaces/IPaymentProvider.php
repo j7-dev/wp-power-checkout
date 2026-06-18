@@ -35,12 +35,30 @@ interface IPaymentProvider extends IGateway {
 
 	/**
 	 * 處理退款
-	 * 對不支援 API 退款的付款方式應回傳 false 或 \WP_Error，不應 throw
+	 *
+	 * 契約（never-throw）：
+	 *   - 成功 → 回傳 `true`。
+	 *   - 失敗 → 回傳經 {@see \J7\PowerCheckout\Shared\Errors\NormalizedError::from()} 建立的
+	 *     正規化 `\WP_Error`（$code = {@see \J7\PowerCheckout\Shared\Errors\ErrorCode} 的 value；
+	 *     $data 帶 raw_code / raw_message / provider / raw 四鍵）。
+	 *   - **絕不 throw**：catch `\Throwable` 後一律改回正規化 `\WP_Error`，
+	 *     不向 WooCommerce 退款流程拋例外（避免中斷退款）。
+	 *
+	 * 各正規化 code 適用情境（範式，供各金流覆寫時對齊）：
+	 *   - 付款方式不支援 API 退款 → `ErrorCode::UNSUPPORTED`（且不打第三方 API）。
+	 *   - 退款金額不合法（超出可退餘額 / ≤0 / 必填缺）→ `ErrorCode::VALIDATION`（且不打 API）。
+	 *   - 商店憑證 / 簽章金鑰錯誤 → `ErrorCode::AUTH`。
+	 *   - 第三方連線失敗 / 逾時 → `ErrorCode::NETWORK`。
+	 *   - 未預期 `\Throwable` → `ErrorCode::UNKNOWN`（並記 order note）。
+	 *
+	 * 註：型別保留 `bool|\WP_Error`（不窄化為 `true|\WP_Error`），
+	 * 以維持與 `\WC_Payment_Gateway::process_refund` 的相容；
+	 * 但語義上失敗一律回正規化 `\WP_Error`，不再回裸 `false`。
 	 *
 	 * @param int        $order_id 訂單 ID
 	 * @param float|null $amount   退款金額
 	 * @param string     $reason   退款原因
-	 * @return bool|\WP_Error 成功為 true，失敗為 false 或 \WP_Error
+	 * @return bool|\WP_Error 成功為 true，失敗為正規化 \WP_Error
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' );
 

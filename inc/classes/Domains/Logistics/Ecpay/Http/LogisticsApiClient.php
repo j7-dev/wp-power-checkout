@@ -10,8 +10,9 @@
  *  - MerchantID / HashKey / HashIV 一律透過 EcpayLogisticsSettingsDTO::get_active_*() 依 account_type
  *    取得（B2C / C2C，風險 R5），不直接讀 b2c_* / c2c_*。
  *
- * AES-128-CBC 加解密直接複用站內付 2.0 的 {@see AesCrypto}（guide 07 確認規則與物流 v2 完全一致：
- * JSON → urlencode → AES-128-CBC → base64），不複製、不提取（計畫 T5）。
+ * AES-128-CBC 加解密改用單一化的 {@see \J7\PowerCheckout\Shared\Helpers\EcpayAesCrypto}（以 AesCrypto 別名引入；
+ * guide 07 確認規則與物流 v2、站內付 2.0、發票完全一致：JSON → urlencode → AES-128-CBC → base64），
+ * 三處共用同一份 helper（einvoice 導入 #4 單一化），密文位元組與重構前一致。
  *
  * 雙層錯誤檢查（AES-JSON 回應，風險 R4，鏡像 EcpgApiClient::parse_response）：
  *  1. 傳輸層 TransCode（外層）：一律 (int) 後 ===1 才可解密 Data；非 1 → throw「傳輸層」+ order note。
@@ -36,7 +37,7 @@ use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\CreateReturnParams;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\CreateShipmentParams;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\EcpayLogisticsSettingsDTO;
 use J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs\StoreSelectionParams;
-use J7\PowerCheckout\Domains\Payment\Ecpg\Shared\Helpers\AesCrypto;
+use J7\PowerCheckout\Shared\Helpers\EcpayAesCrypto as AesCrypto;
 use J7\PowerCheckout\Plugin;
 
 /** 綠界全方位物流 v2 API client */

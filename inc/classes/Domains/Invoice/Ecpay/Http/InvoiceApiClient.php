@@ -40,6 +40,30 @@ final class InvoiceApiClient {
 	/** @var AesCrypto 加解密器 */
 	private readonly AesCrypto $crypto;
 
+	/**
+	 * 最後一次失敗的結構化錯誤明細（供 provider 的 map_error 做正規化映射）
+	 *
+	 * 既有對外回傳契約不變（業務方法成功回 DTO / array、失敗仍回 null）；本欄為「附加的」錯誤明細管道。
+	 * 每次業務方法（request / request_allowance / query）進入時重置為 null，失敗時於 catch 落地
+	 * （raw_code / raw_message / raw / kind）。
+	 *
+	 * @var array{raw_code: string, raw_message: string, raw: string, kind: string}|null
+	 */
+	private ?array $last_error_detail = null;
+
+	/**
+	 * MOCK 錯誤注入（測試用）：非 null 時於 MOCK 模式覆寫成功 fixture，觸發錯誤路徑
+	 *
+	 * 讓錯誤路徑測試能在 API_MODE=mock 下注入下列任一形狀（零外呼）：
+	 *   - { trans_code: int }（≠1）+ [trans_msg]    → 外層失敗：驗章類 TransMsg → SIGNATURE，否則 NETWORK
+	 *   - { rtn_code: int }（≠1）+ [rtn_msg]         → 內層業務失敗 → KIND_BUSINESS → map_error(rtn_code, rtn_msg)
+	 *   - { force_throw: true }                       → 觸發 client 內非預期 \Throwable（驗 never-throw → UNKNOWN）
+	 * 測試 tearDown 必須 reset 為 null。
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	public static ?array $mock_error_override = null;
+
 	/** Constructor */
 	public function __construct(
 		/** @var \WC_Order 訂單 */
@@ -47,6 +71,18 @@ final class InvoiceApiClient {
 	) {
 		$this->settings = EcpayInvoiceSettingsDTO::instance();
 		$this->crypto   = new AesCrypto( $this->settings->hash_key, $this->settings->hash_iv );
+	}
+
+	/**
+	 * 取得最後一次失敗的結構化錯誤明細
+	 *
+	 * 由 provider 在 client 業務方法回 null 後呼叫，取得 raw_code / raw_message / raw / kind，
+	 * 交給自身的 map_error() 做正規化映射。null 代表「無錯誤明細」（成功或未呼叫）。
+	 *
+	 * @return array{raw_code: string, raw_message: string, raw: string, kind: string}|null 錯誤明細.
+	 */
+	public function get_last_error_detail(): ?array {
+		return $this->last_error_detail;
 	}
 
 	/**
@@ -112,9 +148,16 @@ final class InvoiceApiClient {
 	 */
 	public function query( QueryParams $params ): ?array {
 		$api = EApi::B2C_GET_ISSUE;
+
+		// 每次請求重置錯誤明細（成功路徑保持 null）.
+		$this->last_error_detail = null;
+
 		try {
-			// MOCK 模式：不打真 API，回固定 fixture
+			// MOCK 模式：不打真 API，回固定 fixture（可經 $mock_error_override 注入錯誤回應）.
 			if (self::is_mock()) {
+				if (null !== self::$mock_error_override) {
+					self::throw_mock_override( self::$mock_error_override );
+				}
 				return $this->mock_query_response();
 			}
 
@@ -141,7 +184,13 @@ final class InvoiceApiClient {
 			);
 
 			if (\is_wp_error( $response )) {
-				throw new \Exception( $response->get_error_message() );
+				// 對外連線失敗 / 逾時 → kind=network，provider 映射 NETWORK.
+				throw new EcpayInvoiceApiException(
+					$response->get_error_message(),
+					'',
+					$response->get_error_message(),
+					EcpayInvoiceApiException::KIND_NETWORK
+				);
 			}
 
 			/** @var array{TransCode?: int, TransMsg?: string, Data?: string} $body */
@@ -150,18 +199,36 @@ final class InvoiceApiClient {
 			$trans_code = (int) ( $body['TransCode'] ?? 0 );
 			if (1 !== $trans_code) {
 				$trans_msg = (string) ( $body['TransMsg'] ?? 'unknown' );
-				throw new \Exception( "TransCode={$trans_code} AES/格式錯誤: {$trans_msg}" );
+				// 外層失敗：驗章類 TransMsg → SIGNATURE，否則 NETWORK（AES/格式/傳輸層）.
+				throw new EcpayInvoiceApiException(
+					"TransCode={$trans_code} AES/格式錯誤: {$trans_msg}",
+					'',
+					$trans_msg,
+					self::is_signature_message( $trans_msg )
+						? EcpayInvoiceApiException::KIND_SIGNATURE
+						: EcpayInvoiceApiException::KIND_NETWORK
+				);
 			}
 
 			/** @var array<string, mixed> $decrypted */
 			$decrypted = $this->crypto->decrypt( (string) ( $body['Data'] ?? '' ) );
 			$rtn_code  = (int) ( $decrypted['RtnCode'] ?? 0 );
 			if (1 !== $rtn_code) {
-				throw new \Exception( "RtnCode={$rtn_code} " . (string) ( $decrypted['RtnMsg'] ?? '' ) );
+				$rtn_msg = (string) ( $decrypted['RtnMsg'] ?? '' );
+				// 內層業務碼 → kind=business，provider map_error(RtnCode, RtnMsg).
+				throw new EcpayInvoiceApiException(
+					"RtnCode={$rtn_code} {$rtn_msg}",
+					(string) $rtn_code,
+					$rtn_msg,
+					EcpayInvoiceApiException::KIND_BUSINESS
+				);
 			}
 
 			return $decrypted;
 		} catch (\Throwable $e) {
+			// 落地結構化錯誤明細供 provider map_error；既有 null 回傳契約不變.
+			$this->last_error_detail = self::to_error_detail( $e );
+
 			EcpayInvoiceProvider::logger(
 				"❌ {$api->label()} {$api->value} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
 				'error',
@@ -182,9 +249,15 @@ final class InvoiceApiClient {
 	 * @return IssueResponse|null
 	 */
 	private function request( EApi $api, array $data ): ?IssueResponse {
+		// 每次請求重置錯誤明細（成功路徑保持 null）.
+		$this->last_error_detail = null;
+
 		try {
-			// MOCK 模式：不打真 API，回固定 fixture
+			// MOCK 模式：不打真 API，回固定 fixture（可經 $mock_error_override 注入錯誤回應）.
 			if (self::is_mock()) {
+				if (null !== self::$mock_error_override) {
+					self::throw_mock_override( self::$mock_error_override );
+				}
 				return $this->mock_response( $api );
 			}
 
@@ -212,7 +285,13 @@ final class InvoiceApiClient {
 			);
 
 			if (\is_wp_error( $response )) {
-				throw new \Exception( $response->get_error_message() );
+				// 對外連線失敗 / 逾時 → kind=network，provider 映射 NETWORK.
+				throw new EcpayInvoiceApiException(
+					$response->get_error_message(),
+					'',
+					$response->get_error_message(),
+					EcpayInvoiceApiException::KIND_NETWORK
+				);
 			}
 
 			/** @var array{TransCode?: int, TransMsg?: string, Data?: string} $body */
@@ -222,14 +301,28 @@ final class InvoiceApiClient {
 			$trans_code = (int) ( $body['TransCode'] ?? 0 );
 			if (1 !== $trans_code) {
 				$trans_msg = (string) ( $body['TransMsg'] ?? 'unknown' );
-				throw new \Exception( "TransCode={$trans_code} AES/格式錯誤: {$trans_msg}" );
+				// 外層失敗：驗章類 TransMsg → SIGNATURE，否則 NETWORK（AES/格式/傳輸層）.
+				throw new EcpayInvoiceApiException(
+					"TransCode={$trans_code} AES/格式錯誤: {$trans_msg}",
+					'',
+					$trans_msg,
+					self::is_signature_message( $trans_msg )
+						? EcpayInvoiceApiException::KIND_SIGNATURE
+						: EcpayInvoiceApiException::KIND_NETWORK
+				);
 			}
 
 			// 第二層：解密 Data，檢查 RtnCode
 			$decrypted    = $this->crypto->decrypt( (string) ( $body['Data'] ?? '' ) );
 			$response_dto = new IssueResponse( $decrypted );
 			if (!$response_dto->is_success()) {
-				throw new \Exception( "RtnCode={$response_dto->RtnCode} {$response_dto->RtnMsg}" );
+				// 內層業務碼 → kind=business，provider map_error(RtnCode, RtnMsg).
+				throw new EcpayInvoiceApiException(
+					"RtnCode={$response_dto->RtnCode} {$response_dto->RtnMsg}",
+					(string) $response_dto->RtnCode,
+					$response_dto->RtnMsg,
+					EcpayInvoiceApiException::KIND_BUSINESS
+				);
 			}
 
 			EcpayInvoiceProvider::logger(
@@ -243,6 +336,9 @@ final class InvoiceApiClient {
 
 			return $response_dto;
 		} catch (\Throwable $e) {
+			// 落地結構化錯誤明細供 provider map_error；既有 null 回傳契約不變.
+			$this->last_error_detail = self::to_error_detail( $e );
+
 			EcpayInvoiceProvider::logger(
 				"❌ {$api->label()} {$api->value} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
 				'error',
@@ -291,9 +387,15 @@ final class InvoiceApiClient {
 	 * @return AllowanceResponse|null
 	 */
 	private function request_allowance( EApi $api, array $data ): ?AllowanceResponse {
+		// 每次請求重置錯誤明細（成功路徑保持 null）.
+		$this->last_error_detail = null;
+
 		try {
-			// MOCK 模式：不打真 API，回固定 fixture
+			// MOCK 模式：不打真 API，回固定 fixture（可經 $mock_error_override 注入錯誤回應）.
 			if (self::is_mock()) {
+				if (null !== self::$mock_error_override) {
+					self::throw_mock_override( self::$mock_error_override );
+				}
 				return $this->mock_allowance_response( $api );
 			}
 
@@ -321,7 +423,13 @@ final class InvoiceApiClient {
 			);
 
 			if (\is_wp_error( $response )) {
-				throw new \Exception( $response->get_error_message() );
+				// 對外連線失敗 / 逾時 → kind=network，provider 映射 NETWORK.
+				throw new EcpayInvoiceApiException(
+					$response->get_error_message(),
+					'',
+					$response->get_error_message(),
+					EcpayInvoiceApiException::KIND_NETWORK
+				);
 			}
 
 			/** @var array{TransCode?: int, TransMsg?: string, Data?: string} $body */
@@ -331,14 +439,28 @@ final class InvoiceApiClient {
 			$trans_code = (int) ( $body['TransCode'] ?? 0 );
 			if (1 !== $trans_code) {
 				$trans_msg = (string) ( $body['TransMsg'] ?? 'unknown' );
-				throw new \Exception( "TransCode={$trans_code} AES/格式錯誤: {$trans_msg}" );
+				// 外層失敗：驗章類 TransMsg → SIGNATURE，否則 NETWORK（AES/格式/傳輸層）.
+				throw new EcpayInvoiceApiException(
+					"TransCode={$trans_code} AES/格式錯誤: {$trans_msg}",
+					'',
+					$trans_msg,
+					self::is_signature_message( $trans_msg )
+						? EcpayInvoiceApiException::KIND_SIGNATURE
+						: EcpayInvoiceApiException::KIND_NETWORK
+				);
 			}
 
 			// 第二層：解密 Data，檢查 RtnCode
 			$decrypted    = $this->crypto->decrypt( (string) ( $body['Data'] ?? '' ) );
 			$response_dto = new AllowanceResponse( $decrypted );
 			if (!$response_dto->is_success()) {
-				throw new \Exception( "RtnCode={$response_dto->RtnCode} {$response_dto->RtnMsg}" );
+				// 內層業務碼 → kind=business，provider map_error(RtnCode, RtnMsg).
+				throw new EcpayInvoiceApiException(
+					"RtnCode={$response_dto->RtnCode} {$response_dto->RtnMsg}",
+					(string) $response_dto->RtnCode,
+					$response_dto->RtnMsg,
+					EcpayInvoiceApiException::KIND_BUSINESS
+				);
 			}
 
 			EcpayInvoiceProvider::logger(
@@ -351,6 +473,9 @@ final class InvoiceApiClient {
 
 			return $response_dto;
 		} catch (\Throwable $e) {
+			// 落地結構化錯誤明細供 provider map_error；既有 null 回傳契約不變.
+			$this->last_error_detail = self::to_error_detail( $e );
+
 			EcpayInvoiceProvider::logger(
 				"❌ {$api->label()} {$api->value} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
 				'error',
@@ -360,6 +485,100 @@ final class InvoiceApiClient {
 			);
 			return null;
 		}
+	}
+
+	/**
+	 * MOCK 錯誤注入分流：依 $mock_error_override 形狀丟對應種類的 EcpayInvoiceApiException
+	 *
+	 * 在 MOCK 模式且 $mock_error_override 非 null 時由各業務方法呼叫，於回 fixture 前攔截：
+	 *   - force_throw          → 丟一般 \RuntimeException（非本型別）→ catch 落地 KIND_DECODE，
+	 *                            但供「provider 端 catch \Throwable → UNKNOWN」測試（client 回 null，
+	 *                            provider 改走 error_from_client → PROVIDER）。
+	 *     ⚠️ 真正驗 UNKNOWN 由 provider 內部 \Throwable 觸發；本注入用於「force_throw」直接丟出，
+	 *     讓 request() catch 後落地，provider 仍可辨識。
+	 *   - trans_code ≠ 1       → 外層失敗：驗章類 TransMsg（含 CheckMacValue / verify / AES）→ SIGNATURE，
+	 *                            否則 → NETWORK。
+	 *   - rtn_code ≠ 1         → 內層業務失敗 → KIND_BUSINESS（raw_code = rtn_code、raw_message = rtn_msg）。
+	 *
+	 * @param array<string, mixed> $override 注入內容.
+	 *
+	 * @return void
+	 * @throws EcpayInvoiceApiException 依注入形狀丟對應種類例外.
+	 * @throws \RuntimeException When force_throw is set，丟非本型別例外（驗 never-throw / decode 落地）.
+	 */
+	private static function throw_mock_override( array $override ): void {
+		if ( ! empty( $override['force_throw'] ) ) {
+			throw new \RuntimeException( 'MOCK 強制觸發非預期例外（測試 never-throw）' );
+		}
+
+		// 外層 TransCode≠1.
+		if ( isset( $override['trans_code'] ) && 1 !== (int) $override['trans_code'] ) {
+			$trans_code = (int) $override['trans_code'];
+			$trans_msg  = (string) ( $override['trans_msg'] ?? 'AES/格式錯誤' );
+			$kind       = self::is_signature_message( $trans_msg )
+			? EcpayInvoiceApiException::KIND_SIGNATURE
+			: EcpayInvoiceApiException::KIND_NETWORK;
+			throw new EcpayInvoiceApiException(
+				"TransCode={$trans_code} {$trans_msg}",
+				'',
+				$trans_msg,
+				$kind
+			);
+		}
+
+		// 內層 RtnCode≠1（業務碼）.
+		if ( isset( $override['rtn_code'] ) && 1 !== (int) $override['rtn_code'] ) {
+			$rtn_code = (string) $override['rtn_code'];
+			$rtn_msg  = (string) ( $override['rtn_msg'] ?? '' );
+			throw new EcpayInvoiceApiException(
+				"RtnCode={$rtn_code} {$rtn_msg}",
+				$rtn_code,
+				$rtn_msg,
+				EcpayInvoiceApiException::KIND_BUSINESS
+			);
+		}
+	}
+
+	/**
+	 * 判斷外層 TransMsg 是否屬「驗章 / 加密驗證失敗」類（→ SIGNATURE）
+	 *
+	 * 綠界 AES-JSON 發票協議外層 TransCode≠1 多為 AES 加解密 / 格式問題；其中 CheckMacValue /
+	 * verify / 驗章 / 簽章 類訊息對應「回應可能遭竄改或金鑰不符」，映射 SIGNATURE。
+	 *
+	 * @param string $trans_msg 外層 TransMsg.
+	 *
+	 * @return bool 是驗章類回 true.
+	 */
+	private static function is_signature_message( string $trans_msg ): bool {
+		return 1 === \preg_match( '/CheckMacValue|verify|驗章|簽章|check.?mac/i', $trans_msg );
+	}
+
+	/**
+	 * 將攔截到的例外正規化為「錯誤明細」（raw_code / raw_message / raw / kind）
+	 *
+	 * EcpayInvoiceApiException 攜帶綠界原始碼與種類，原樣映射；其餘 \Throwable（JSON decode / 型別等）
+	 * 一律歸 decode 種類（無 raw_code），交由 provider 映射 PROVIDER。
+	 *
+	 * @param \Throwable $e 攔截到的例外.
+	 *
+	 * @return array{raw_code: string, raw_message: string, raw: string, kind: string} 錯誤明細.
+	 */
+	private static function to_error_detail( \Throwable $e ): array {
+		if ( $e instanceof EcpayInvoiceApiException ) {
+			return [
+				'raw_code'    => $e->get_raw_code(),
+				'raw_message' => $e->get_raw_message(),
+				'raw'         => $e->getMessage(),
+				'kind'        => $e->get_kind(),
+			];
+		}
+
+		return [
+			'raw_code'    => '',
+			'raw_message' => $e->getMessage(),
+			'raw'         => $e->getMessage(),
+			'kind'        => EcpayInvoiceApiException::KIND_DECODE,
+		];
 	}
 
 	/** @return bool 是否為 MOCK 模式（測試用，不打真 API） */

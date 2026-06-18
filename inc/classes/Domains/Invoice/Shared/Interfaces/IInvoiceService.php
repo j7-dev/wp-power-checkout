@@ -19,18 +19,18 @@ interface IInvoiceService {
 	 *
 	 * @param \WC_Order|int $order_or_id 訂單
 	 *
-	 * @return array<string, mixed> API 資料
+	 * @return array<string, mixed>|\WP_Error 成功回 array；失敗回經 NormalizedError::from() 建立的 \WP_Error
 	 */
-	public function issue( \WC_Order|int $order_or_id ): array;
+	public function issue( \WC_Order|int $order_or_id ): array|\WP_Error;
 
 	/**
 	 * 做廢發票
 	 *
 	 * @param \WC_Order|int $order_or_id 訂單
 	 *
-	 * @return array<string, mixed> API 資料
+	 * @return array<string, mixed>|\WP_Error 成功回 array；失敗回經 NormalizedError::from() 建立的 \WP_Error
 	 */
-	public function cancel( \WC_Order|int $order_or_id ): array;
+	public function cancel( \WC_Order|int $order_or_id ): array|\WP_Error;
 
 	/**
 	 * 取得發票號碼

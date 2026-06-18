@@ -56,8 +56,36 @@ final class InvoiceApiClient {
 	/** @var string 取得發票資料端點（GET） */
 	private const ENDPOINT_QUERY = '/api/invoices';
 
+	/**
+	 * 測試用錯誤注入（MOCK 模式專用）
+	 *
+	 * 為 null 時 mock_response() 回成功 fixture（type=success）；非 null 時 post()/get() 在 mock 路徑
+	 * 改回此覆蓋值，使 decode_result() 走 type≠success 的業務錯誤分支，藉以驅動 provider 的 error-map 測試。
+	 *
+	 * 慣例鍵（對齊 PayNow 外層回應）：
+	 *   - type    外層型別（如 'validation_error' / 'rejected' / 'failed'）。
+	 *   - message 外層訊息。
+	 *   - result  選填；用於模擬「type=success 但 result 結構異常」的 decode 失敗（PROVIDER）路徑。
+	 *
+	 * ⚠️ 僅供測試注入，正式流程一律為 null。
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	public static ?array $mock_error_override = null;
+
 	/** @var PaynowInvoiceSettingsDTO 設定（含 jwt_token 與 API base URL） */
 	private readonly PaynowInvoiceSettingsDTO $settings;
+
+	/**
+	 * 最近一次失敗的「正規化錯誤明細」（供 provider 的 error-map 使用）
+	 *
+	 * 由業務方法入口（issue / cancel / allowance / invalid_allowance / query）reset 為 null；
+	 * post()/get() catch 到 \Throwable 時經 to_error_detail() 落地。固定 4 鍵字串結構（鍵恆存在）：
+	 *   raw_code（type）/ raw_message（message）/ raw（原始字串）/ kind。
+	 *
+	 * @var array{raw_code: string, raw_message: string, raw: string, kind: string}|null
+	 */
+	private ?array $last_error_detail = null;
 
 	/**
 	 * Constructor
@@ -71,6 +99,17 @@ final class InvoiceApiClient {
 	}
 
 	/**
+	 * 取得最近一次失敗的正規化錯誤明細（provider 的 error-map 入口）
+	 *
+	 * 由 post()/get() 在 catch \Throwable 時落地；成功路徑或尚未呼叫時回 null。
+	 *
+	 * @return array{raw_code: string, raw_message: string, raw: string, kind: string}|null 失敗明細；無則 null.
+	 */
+	public function get_last_error_detail(): ?array {
+		return $this->last_error_detail;
+	}
+
+	/**
 	 * 開立發票
 	 *
 	 * 從訂單 + 結帳發票資訊自組 IssueParams（B2C/B2B 金額分流 + 載具映射）→ POST 請求 → 解析 result →
@@ -81,6 +120,7 @@ final class InvoiceApiClient {
 	 * @return IssueResponse|null 成功回 IssueResponse；失敗回 null.
 	 */
 	public function issue( string $provider_id ): ?IssueResponse {
+		$this->last_error_detail = null;
 		try {
 			$params = IssueParams::from_order( $this->order );
 			$result = $this->post( self::ENDPOINT_ISSUE, $params->to_array() );
@@ -125,6 +165,7 @@ final class InvoiceApiClient {
 	 * @return IssueResponse|null 成功回 IssueResponse；失敗回 null.
 	 */
 	public function cancel(): ?IssueResponse {
+		$this->last_error_detail = null;
 		try {
 			$issued_data    = $this->get_issued_data();
 			$invoice_number = (string) ( $issued_data['invoice_number'] ?? '' );
@@ -159,6 +200,7 @@ final class InvoiceApiClient {
 	 * @return AllowanceResponse|null 成功回 AllowanceResponse；失敗回 null.
 	 */
 	public function allowance( AllowanceParams $params ): ?AllowanceResponse {
+		$this->last_error_detail = null;
 		try {
 			$result = $this->post( self::ENDPOINT_ALLOWANCE, $params->to_array() );
 			if ( null === $result ) {
@@ -186,6 +228,7 @@ final class InvoiceApiClient {
 	 * @return AllowanceResponse|null 成功回 AllowanceResponse；失敗回 null.
 	 */
 	public function invalid_allowance( array $allowance_data ): ?AllowanceResponse {
+		$this->last_error_detail = null;
 		try {
 			$allowance_number = (string) ( $allowance_data['allowance_number'] ?? '' );
 			if ( '' === $allowance_number ) {
@@ -221,6 +264,7 @@ final class InvoiceApiClient {
 	 * @return QueryResponse|null 成功回 QueryResponse；失敗回 null.
 	 */
 	public function query( QueryParams $params ): ?QueryResponse {
+		$this->last_error_detail = null;
 		try {
 			$result = $this->get( self::ENDPOINT_QUERY, $params->to_array() );
 			if ( null === $result ) {
@@ -277,6 +321,8 @@ final class InvoiceApiClient {
 
 			return $this->handle_response( $response );
 		} catch ( \Throwable $e ) {
+			// 落地正規化錯誤明細供 provider 的 error-map 使用（type / message / kind）.
+			$this->last_error_detail = $this->to_error_detail( $e );
 			Plugin::logger(
 				"❌ PayNow 發票 POST {$endpoint} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
 				'error',
@@ -326,6 +372,8 @@ final class InvoiceApiClient {
 
 			return $this->handle_response( $response );
 		} catch ( \Throwable $e ) {
+			// 落地正規化錯誤明細供 provider 的 error-map 使用（type / message / kind）.
+			$this->last_error_detail = $this->to_error_detail( $e );
 			Plugin::logger(
 				"❌ PayNow 發票 GET {$endpoint} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
 				'error',
@@ -334,6 +382,34 @@ final class InvoiceApiClient {
 			);
 			return null;
 		}
+	}
+
+	/**
+	 * 將攔截到的 \Throwable 轉為正規化錯誤明細（固定 4 鍵字串結構，鍵恆存在）
+	 *
+	 * PaynowInvoiceApiException 攜帶 raw_code（type）/ raw_message（message）/ kind；
+	 * 其餘非預期 \Throwable 一律標記為 decode（→ provider 映射 PROVIDER），raw_code 留空。
+	 *
+	 * @param \Throwable $e 攔截到的例外.
+	 *
+	 * @return array{raw_code: string, raw_message: string, raw: string, kind: string} 錯誤明細.
+	 */
+	private function to_error_detail( \Throwable $e ): array {
+		if ( $e instanceof PaynowInvoiceApiException ) {
+			return [
+				'raw_code'    => $e->get_raw_code(),
+				'raw_message' => $e->get_raw_message(),
+				'raw'         => $e->getMessage(),
+				'kind'        => $e->get_kind(),
+			];
+		}
+
+		return [
+			'raw_code'    => '',
+			'raw_message' => $e->getMessage(),
+			'raw'         => $e->getMessage(),
+			'kind'        => PaynowInvoiceApiException::KIND_DECODE,
+		];
 	}
 
 	/**
@@ -359,7 +435,13 @@ final class InvoiceApiClient {
 	 */
 	private function handle_response( $response ): array {
 		if ( \is_wp_error( $response ) ) {
-			throw new \RuntimeException( $response->get_error_message() );
+			// 對外連線失敗 / 逾時 → kind=network（provider 映射 NETWORK）.
+			throw new PaynowInvoiceApiException(
+				$response->get_error_message(),
+				'',
+				$response->get_error_message(),
+				PaynowInvoiceApiException::KIND_NETWORK
+			);
 		}
 
 		/** @var array<string, mixed> $body */
@@ -378,13 +460,19 @@ final class InvoiceApiClient {
 	 * @param array<string, mixed> $response 外層回應 { status, type, message, result, request_id }.
 	 *
 	 * @return array<string, mixed> 內層 result 陣列.
-	 * @throws \RuntimeException 當 type≠success.
+	 * @throws PaynowInvoiceApiException 當 type≠success（kind=business，raw_code=type、raw_message=message）.
 	 */
 	private function decode_result( array $response ): array {
 		$type = (string) ( $response['type'] ?? '' );
 		if ( 'success' !== $type ) {
 			$message = (string) ( $response['message'] ?? 'unknown' );
-			throw new \RuntimeException( "PayNow 發票回應失敗 type={$type}：{$message}" );
+			// 業務失敗：以「外層 type」為 raw_code（PayNow 發票無數字錯誤碼，type 為最穩定權威分類）.
+			throw new PaynowInvoiceApiException(
+				"PayNow 發票回應失敗 type={$type}：{$message}",
+				$type,
+				$message,
+				PaynowInvoiceApiException::KIND_BUSINESS
+			);
 		}
 
 		$result = $response['result'] ?? [];
@@ -443,6 +531,18 @@ final class InvoiceApiClient {
 	 * @return array<string, mixed> 模擬的外層回應.
 	 */
 	private function mock_response( string $endpoint ): array {
+		// 測試錯誤注入：優先回覆覆蓋值（type≠success 或 result 結構異常），驅動 provider error-map 測試.
+		if ( null !== self::$mock_error_override ) {
+			$override = self::$mock_error_override;
+			return [
+				'status'     => (int) ( $override['status'] ?? 400 ),
+				'type'       => (string) ( $override['type'] ?? 'failed' ),
+				'message'    => (string) ( $override['message'] ?? '' ),
+				'result'     => $override['result'] ?? null,
+				'request_id' => 'mock-error-request-id',
+			];
+		}
+
 		$result = match ( $endpoint ) {
 			self::ENDPOINT_ISSUE            => $this->mock_issue_result(),
 			self::ENDPOINT_CANCEL           => $this->mock_cancel_result(),

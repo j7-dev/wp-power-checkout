@@ -46,6 +46,8 @@ use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Enums\Mode;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 
 /** PayNow 付款閘道（Cycle 2：RestClient + create_payment_intent 串接） */
@@ -358,10 +360,19 @@ final class PaynowGateway extends AbstractPaymentGateway implements IPaymentProv
 			return false;
 		}
 
-		// 金額防禦：null / ≤0 / 超過訂單總額 → 不允許（不呼叫 API）
+		// 金額守衛：null / ≤0 → 維持回 false（既有 PaymentProviderContractTest 契約，不改）
 		$amount = (float) $amount;
-		if ( $amount <= 0 || $amount > (float) $order->get_total() ) {
+		if ( $amount <= 0 ) {
 			return false;
+		}
+
+		// 有金額但超出訂單總額 → 正規化 VALIDATION（不打 API；判定邊界不變，只換回傳值建構方式）
+		if ( $amount > (float) $order->get_total() ) {
+			return NormalizedError::from(
+				ErrorCode::VALIDATION,
+				\__( '退款金額不合法（超出可退餘額）', 'power_checkout' ),
+				[ 'provider' => $this->id ]
+			);
 		}
 
 		// 信用卡 / ATM 才允許 API 退款（依後端 PaymentType，非前端）；其餘擋下
@@ -369,9 +380,10 @@ final class PaynowGateway extends AbstractPaymentGateway implements IPaymentProv
 			return true;
 		}
 
-		return new \WP_Error(
-			'refund_unsupported',
-			\__( '此付款方式不支援 API 退款，請至 PayNow 商家後台人工處理', 'power_checkout' )
+		return NormalizedError::from(
+			ErrorCode::UNSUPPORTED,
+			\__( '此付款方式不支援 API 退款，請至 PayNow 商家後台人工處理', 'power_checkout' ),
+			[ 'provider' => $this->id ]
 		);
 	}
 

@@ -5,11 +5,26 @@ info:
     WooCommerce 結帳整合外掛 REST API，提供金流設定管理、退款操作、電子發票開立/作廢，以及 Shopline Payment Webhook 接收。
 
     ## 錯誤碼對應規則
-    - **400** = 前置（參數）Rules 驗證失敗
-    - **401** = 未登入或 Nonce 無效
+    - **400** = 前置（參數）Rules 驗證失敗；或正規化 SIGNATURE / UNSUPPORTED
+    - **401** = 未登入或 Nonce 無效；或正規化 AUTH
     - **403** = 前置（狀態）Rules 不符
-    - **404** = 資源找不到
-    - **500** = 伺服器內部錯誤（Exception）
+    - **404** = 資源找不到；或正規化 NOT_FOUND
+    - **409** = 正規化 CONFLICT / NUMBER_EXHAUSTED
+    - **422** = 正規化 VALIDATION
+    - **500** = 伺服器內部錯誤（面 A：找不到要呼叫的東西 → Exception）；或正規化 UNKNOWN
+    - **502** = 正規化 NETWORK / PROVIDER
+
+    ## 正規化錯誤模型（einvoice 導入）
+    Invoice provider（issue/cancel/allowance/allowance-cancel/query）與 Payment `process_refund` 的業務失敗
+    從「塌縮回 `[]` / `throw`」演進為回正規化 `\WP_Error`（$code = 10 個 ErrorCode 之一）。REST 層以
+    `is_wp_error()` 偵測（**面 B：呼叫了但失敗**），映射為 `NormalizedError` envelope（頂層
+    `code` / `error_code` / `raw_code` / `message` / `data`）+ 依 code 的 HTTP（見上表）。
+    `InvoiceApiService::respond()` 與 `PaymentApiService::error_response()` 兩處 envelope 完全一致。
+    區別**面 A：找不到要呼叫的東西**（訂單 / provider 不存在、型別不符）—— 維持既有 `throw \Exception`
+    → HTTP 500（schema = `Error`）。單一事實來源 `inc/classes/Shared/Errors/ErrorCode.php`，值域對應
+    `erm.dbml` 的 `normalized_error_code`。
+    ⚠️ Payment NotifyURL / Webhook callback 的 **always-200 行為完全不受影響**：驗簽失敗僅內部標記
+    SIGNATURE + 記 order note，HTTP 永遠 200，不走正規化 HTTP 映射。
 
     ## 認證
     所有管理端 API 需要 WordPress 登入 Cookie 加上 `X-WP-Nonce` Header（`wp_create_nonce('wp_rest')`）。
@@ -38,8 +53,12 @@ info:
     - 信用卡退款 / 請款 / 取消授權 / 查詢補單沿用既有 `power-checkout/v1` `/refund` 與後台 order action（呼叫 PAYUNi `/api/trade/close`、`/api/trade/cancel`、`/api/trade/query`）。
 
     ## 錯誤處理
-    所有端點的錯誤以 Exception 形式拋出，WordPress REST API 框架統一捕獲後回傳 HTTP 500 + 錯誤訊息。
-  version: "1.3.0"
+    兩種錯誤面並存：
+    - **面 A（找不到要呼叫的東西）**：訂單 / provider 不存在、型別不符 → callback `throw \Exception`，
+      WordPress REST API 框架統一捕獲後回傳 HTTP 500 + 錯誤訊息（schema = `Error`）。
+    - **面 B（呼叫了但失敗）**：provider 回正規化 `\WP_Error` → REST 映射為 `NormalizedError` envelope
+      + 依 error_code 的 HTTP（400/401/404/409/422/500/502）。詳見上方「正規化錯誤模型」。
+  version: "1.4.0"
 
 servers:
   - url: /wp-json/power-checkout/v1
@@ -111,6 +130,57 @@ components:
         data:
           type: object
           nullable: true
+
+    NormalizedError:
+      type: object
+      description: |
+        正規化錯誤回應（einvoice 導入「面 B：呼叫了但失敗」）。
+        provider 業務失敗從「塌縮回 []」演進為回正規化 `\WP_Error`，REST 層映射為此 envelope。
+
+        envelope 對齊實作（`InvoiceApiService::respond()` 與 `PaymentApiService::error_response()` 兩者完全一致）：
+        頂層帶 `code`（= error_code）/ `error_code`（正規化 code）/ `raw_code`（provider 原始碼，可 null）/
+        `message`（可讀訊息）/ `data`（恆為 null）。
+
+        HTTP 狀態碼由 error_code 決定（`ErrorCode::to_http_status()`）：
+        AUTH→401、VALIDATION→422、NOT_FOUND→404、CONFLICT/NUMBER_EXHAUSTED→409、
+        SIGNATURE/UNSUPPORTED→400、NETWORK/PROVIDER→502、UNKNOWN→500。
+
+        ⚠️ 單一事實來源 `inc/classes/Shared/Errors/ErrorCode.php`（10 值）。前端讀 `error.response.data.error_code` + `message`。
+        ⚠️ 區別「面 A：找不到要呼叫的東西」（訂單/provider 不存在、型別不符）—— 那條維持既有 `throw \Exception` → WP ApiBase 包成 HTTP 500（schema 為 `Error`），不走本 schema。
+      required: [code, error_code, message, data]
+      properties:
+        code:
+          type: string
+          description: 與 error_code 同值（正規化 code；裸 \WP_Error 時為其原始 error code）
+          example: "VALIDATION"
+        error_code:
+          type: string
+          enum:
+            - AUTH
+            - VALIDATION
+            - NOT_FOUND
+            - CONFLICT
+            - NUMBER_EXHAUSTED
+            - SIGNATURE
+            - UNSUPPORTED
+            - NETWORK
+            - PROVIDER
+            - UNKNOWN
+          description: 正規化錯誤碼（對應 ErrorCode enum；erm.dbml normalized_error_code）
+          example: "VALIDATION"
+        raw_code:
+          type: string
+          nullable: true
+          description: provider 原始錯誤碼（保留供 debug，如 ezPay KEY10002 / LIB10007；無則 null）
+          example: "LIB10007"
+        message:
+          type: string
+          description: 使用者可讀錯誤訊息（text domain：power_checkout）
+          example: "統一編號格式不正確"
+        data:
+          type: object
+          nullable: true
+          description: 恆為 null（錯誤詳情已攤平至頂層 error_code / raw_code）
 
     # ===== Settings =====
     ProviderSummary:
@@ -842,19 +912,48 @@ paths:
                         example: "訂單 #100 透過 Shopline Payment 線上付款 退款成功"
                       data:
                         nullable: true
+        "400":
+          description: |
+            正規化錯誤（面 B，`process_refund` 回 \WP_Error → `error_response()`）：
+            UNSUPPORTED（付款方式不支援 API 退款，如 ATM / CVS / LINE Pay → 提示手動退款）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "401":
+          description: 正規化錯誤（面 B）：AUTH（商店憑證 / 簽章金鑰錯）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "422":
+          description: 正規化錯誤（面 B）：VALIDATION（退款金額超出可退餘額 / 必填缺；不打第三方 API）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "502":
+          description: 正規化錯誤（面 B）：NETWORK（退款 API 逾時）/ PROVIDER（未分類退款錯誤碼，保留 raw_code）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
         "500":
           description: |
-            退款失敗，錯誤訊息依情境：
+            **面 A（找不到要呼叫的東西，schema = Error）**：`throw \Exception` → WP ApiBase 包成 500。錯誤訊息依情境：
             - "訂單編號必須是數字"（order_id 非數字）
             - "找不到訂單 #9999"（訂單不存在）
             - "訂單 #100 已經沒有餘額可退"（餘額為 0）
             - "Gateway 不是 AbstractPaymentGateway 的實例"（非 Power Checkout Gateway）
-            - "{付款方式} 不支援退款"（ATM 虛擬帳號）
-            - "{付款方式} 僅支援全額退款，不支援部分退款"（中租零卡、Apple Pay）
+
+            **面 B**：UNKNOWN（`process_refund` 未預期 `\Throwable`，never-throw 下歸 UNKNOWN，schema = NormalizedError）亦映射為 500。
+            ⚠️「{付款方式} 不支援退款」「僅支援全額退款」等付款方式限制，現已由 `process_refund` 回 UNSUPPORTED（面 B，HTTP 400），非此 500。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/NormalizedError"
 
   /refund/manual:
     post:
@@ -897,7 +996,9 @@ paths:
                         nullable: true
         "500":
           description: |
-            退款失敗，錯誤訊息依情境：
+            **僅面 A（schema = Error）**：手動退款不呼叫 Gateway `process_refund`（純改訂單狀態為 refunded），
+            故**無**正規化錯誤面 B（不回 NormalizedError）。失敗一律 `throw \Exception` → WP ApiBase 包成 500。
+            錯誤訊息依情境：
             - "order_id must be numeric"（order_id 非數字）
             - "#9999 order not found"（訂單不存在）
           content:
@@ -943,21 +1044,59 @@ paths:
             - _pc_issued_invoice_data: 發票開立回傳資料
             - _pc_invoice_provider_id: 使用的 provider（"amego" 或 "ecpay"）
             - _pc_issue_invoice_params: 結帳頁填寫的發票參數
+            成功 body 為 provider 原樣透傳的 array，**不含 error_code**。
           content:
             application/json:
               schema:
                 type: object
                 description: 發票開立回傳資料（結構依 provider 而異）
-        "500":
+        "400":
           description: |
-            開立失敗，錯誤訊息依情境：
-            - "找不到電子發票服務 id: {provider}，請檢查是否啟用"（provider 不存在）
-            - "{provider} 不是 Invoice Service"（provider 非 IInvoiceService）
-            - "找不到訂單 order_id:{id}"（訂單不存在）
+            正規化錯誤（面 B）：SIGNATURE（CheckCode 驗章失敗）/ UNSUPPORTED（不支援操作）。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/NormalizedError"
+        "401":
+          description: 正規化錯誤（面 B）：AUTH（金鑰 / JWT 錯，如 ezPay KEY10002）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "404":
+          description: 正規化錯誤（面 B）：NOT_FOUND（provider 回查無發票）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "409":
+          description: 正規化錯誤（面 B）：CONFLICT（重複開立）/ NUMBER_EXHAUSTED（字軌號碼用罄）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "422":
+          description: |
+            正規化錯誤（面 B）：VALIDATION（統一驗證層失敗 — UBN checksum / 載具捐贈互斥 / 金額守恆；
+            此情境 provider 於 issue 第一步攔截，**不打第三方 API**）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "500":
+          description: |
+            **面 A（找不到要呼叫的東西，schema = Error，非 NormalizedError）**：callback `throw \Exception` → WP ApiBase 包成 500。錯誤訊息依情境：
+            - "找不到電子發票服務 id: {provider}，請檢查是否啟用"（provider 不存在）
+            - "{provider} 不是 Invoice Service"（provider 非 IInvoiceService）
+            - "找不到訂單 order_id:{id}"（訂單不存在）
+
+            **面 B**：UNKNOWN（provider 未預期 `\Throwable`，never-throw 下歸 UNKNOWN，schema = NormalizedError）亦映射為 500。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/NormalizedError"
 
   /cancel/{order_id}:
     post:
@@ -981,21 +1120,277 @@ paths:
           description: WooCommerce 訂單 ID
       responses:
         "200":
-          description: 作廢成功（或已作廢過，回傳已有資料）
+          description: 作廢成功（或已作廢過，回傳已有資料）。成功 body 為 provider 原樣透傳 array，**不含 error_code**。
           content:
             application/json:
               schema:
                 type: object
                 description: 發票作廢回傳資料（結構依 provider 而異）
-        "500":
-          description: |
-            作廢失敗，錯誤訊息依情境：
-            - "找不到訂單 order_id:{id}"（訂單不存在）
-            - "{provider_id} 不是 Invoice Service"（provider 無效）
+        "400":
+          description: 正規化錯誤（面 B）：SIGNATURE（CheckCode 驗章失敗）/ UNSUPPORTED。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/NormalizedError"
+        "401":
+          description: 正規化錯誤（面 B）：AUTH（金鑰 / JWT 錯）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "404":
+          description: 正規化錯誤（面 B）：NOT_FOUND（provider 回查無發票）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "409":
+          description: |
+            正規化錯誤（面 B）：CONFLICT（已開折讓擋作廢，raw_code=LIB10007；issued_data 保留不清除）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "502":
+          description: 正規化錯誤（面 B）：NETWORK（連線逾時）/ PROVIDER（未涵蓋業務碼，保留 raw_code）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "500":
+          description: |
+            **面 A（schema = Error）**：callback `throw \Exception` → WP ApiBase 包成 500。錯誤訊息依情境：
+            - "找不到訂單 order_id:{id}"（訂單不存在）
+            - "{provider_id} 不是 Invoice Service"（provider 無效）
+
+            **面 B**：UNKNOWN（provider 未預期 `\Throwable`，schema = NormalizedError）亦映射為 500。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/NormalizedError"
+
+  /allowance/{order_id}:
+    post:
+      tags: [Invoice]
+      summary: 開立折讓（部分退款開折讓單）
+      description: |
+        ISupportsAllowance::issue_allowance()。為已開立發票的訂單開立折讓單（部分退款情境）。
+        依訂單記錄的 provider 路由；provider 須支援 ISupportsAllowance（目前 ezpay / ecpay 支援）。
+        亦由 `woocommerce_order_refunded` hook 經 provider-agnostic 層於部分退款時自動觸發。
+      operationId: issueAllowance
+      security:
+        - wpNonce: []
+      servers:
+        - url: /wp-json/power-checkout/v1/invoices
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: WooCommerce 訂單 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  description: 折讓金額（須 > 0 且不超過可折讓餘額；不合法回 VALIDATION）
+                  example: 50
+                notify_mail:
+                  type: string
+                  description: 折讓通知信箱（選填）
+      responses:
+        "200":
+          description: 折讓開立成功。成功 body 為 provider 原樣透傳 array（含 allowance_no 等），**不含 error_code**。
+          content:
+            application/json:
+              schema:
+                type: object
+                description: 折讓開立回傳資料（結構依 provider 而異）
+        "400":
+          description: 正規化錯誤（面 B）：SIGNATURE / UNSUPPORTED。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "401":
+          description: 正規化錯誤（面 B）：AUTH。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "404":
+          description: 正規化錯誤（面 B）：NOT_FOUND（無已開立發票可折讓）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "409":
+          description: 正規化錯誤（面 B）：CONFLICT（狀態衝突）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "422":
+          description: 正規化錯誤（面 B）：VALIDATION（折讓金額不合法，如 amount=0；不打 API）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "502":
+          description: 正規化錯誤（面 B）：NETWORK / PROVIDER。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "500":
+          description: |
+            **面 A（schema = Error）**：訂單不存在 / provider 不支援折讓（`{provider_id} 不支援發票折讓`）→ `throw \Exception` → 500。
+            **面 B**：UNKNOWN（schema = NormalizedError）亦映射為 500。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/NormalizedError"
+
+  /allowance-cancel/{order_id}:
+    post:
+      tags: [Invoice]
+      summary: 作廢折讓
+      description: |
+        ISupportsAllowance::invalid_allowance()。作廢訂單已開立的折讓單。
+        前置守衛：須存在折讓資料（_pc_allowance_data）；無折讓資料回 NOT_FOUND。
+      operationId: cancelAllowance
+      security:
+        - wpNonce: []
+      servers:
+        - url: /wp-json/power-checkout/v1/invoices
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: WooCommerce 訂單 ID
+      responses:
+        "200":
+          description: 折讓作廢成功。成功 body 為 provider 原樣透傳 array，**不含 error_code**。
+          content:
+            application/json:
+              schema:
+                type: object
+                description: 折讓作廢回傳資料（結構依 provider 而異）
+        "400":
+          description: 正規化錯誤（面 B）：SIGNATURE / UNSUPPORTED。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "401":
+          description: 正規化錯誤（面 B）：AUTH。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "404":
+          description: 正規化錯誤（面 B）：NOT_FOUND（無折讓資料可作廢）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "409":
+          description: 正規化錯誤（面 B）：CONFLICT。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "502":
+          description: 正規化錯誤（面 B）：NETWORK / PROVIDER。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "500":
+          description: |
+            **面 A（schema = Error）**：訂單不存在 / provider 不支援折讓 → `throw \Exception` → 500。
+            **面 B**：UNKNOWN（schema = NormalizedError）亦映射為 500。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/NormalizedError"
+
+  /query/{order_id}:
+    get:
+      tags: [Invoice]
+      summary: 發票查詢（唯讀）
+      description: |
+        ISupportsQuery::query_invoice()。查詢訂單發票即時狀態（唯讀，不變更 meta / 訂單狀態）。
+        依訂單記錄的 provider 路由；provider 須支援 ISupportsQuery（目前 ecpay / ezpay / amego 支援）。
+        前置守衛：未開立發票（無 issued_data）回 NOT_FOUND。
+      operationId: queryInvoice
+      security:
+        - wpNonce: []
+      servers:
+        - url: /wp-json/power-checkout/v1/invoices
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: WooCommerce 訂單 ID
+      responses:
+        "200":
+          description: 查詢成功。成功 body 為 provider 原樣透傳 array，**不含 error_code**。
+          content:
+            application/json:
+              schema:
+                type: object
+                description: 發票查詢回傳資料（結構依 provider 而異）
+        "400":
+          description: 正規化錯誤（面 B）：SIGNATURE / UNSUPPORTED。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "401":
+          description: 正規化錯誤（面 B）：AUTH。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "404":
+          description: 正規化錯誤（面 B）：NOT_FOUND（未開立發票 / 查無發票）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "502":
+          description: 正規化錯誤（面 B）：NETWORK / PROVIDER。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NormalizedError"
+        "500":
+          description: |
+            **面 A（schema = Error）**：訂單不存在 / provider 不支援查詢（`{provider_id} 不支援發票查詢`）→ `throw \Exception` → 500。
+            **面 B**：UNKNOWN（schema = NormalizedError）亦映射為 500。
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/NormalizedError"
 
   # ==================== Webhook ====================
   # 注意：此端點的 base URL 為 /wp-json/power-checkout/slp

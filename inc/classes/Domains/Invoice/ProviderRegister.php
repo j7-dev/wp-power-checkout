@@ -19,6 +19,7 @@ use J7\PowerCheckout\Domains\Settings\Services\SettingTabService;
 use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\DTOs\CheckoutFieldDTO;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\CheckoutFields;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
@@ -129,7 +130,12 @@ final class ProviderRegister {
 				return;
 			}
 
-			$provider->issue_allowance( $order, $refund_amount );
+			$result = $provider->issue_allowance( $order, $refund_amount );
+
+			// 折讓回正規化 \WP_Error 時記 order note，但不中斷退款主流程（never-throw）。
+			if (\is_wp_error( $result )) {
+				self::note_provider_error( $order, $result, '退款自動開折讓', $meta_keys->get_provider_id() );
+			}
 		} catch (\Throwable $e) {
 			Plugin::logger(
 				"退款自動開折讓失敗 #{$order_id}： {$e->getMessage()}",
@@ -180,12 +186,20 @@ final class ProviderRegister {
 		$provider          = ProviderUtils::$container[ $id ];
 		$provider_settings = $provider->get_settings();
 
-		// 註冊自動開立發票、自動取消方票的 hooks
+		// 註冊自動開立發票、自動取消發票的 hooks。
+		//
+		// FM-07：`woocommerce_order_status_{status}` action hook 不消費 callback 回傳值，
+		// 直掛 `[$provider, 'issue'|'cancel']` 會讓 provider 回的 \WP_Error 無人讀 → 失敗無痕。
+		// 故改掛 wrapper static method：wrapper 內呼叫 provider → is_wp_error() 為真時記 order note，
+		// 絕不向 hook 拋（never-throw 保留）。wrapper 為 provider-agnostic（依 current_action 反查狀態 +
+		// 遍歷啟用 provider），故每個狀態只需掛一次（以 has_action 去重，避免多 provider 共用狀態時重複觸發）。
 		if (isset($provider_settings['auto_issue_order_statuses']) && \is_array($provider_settings['auto_issue_order_statuses'])) {
 			$auto_issue_order_statuses = $provider_settings['auto_issue_order_statuses'];
 			foreach ($auto_issue_order_statuses as $status_with_prefix) {
 				$status = OrderUtils::strip_prefix( (string) $status_with_prefix);
-				\add_action( "woocommerce_order_status_{$status}", [ $provider, 'issue' ] );
+				if (false === \has_action( "woocommerce_order_status_{$status}", [ __CLASS__, 'auto_issue_wrapper' ] )) {
+					\add_action( "woocommerce_order_status_{$status}", [ __CLASS__, 'auto_issue_wrapper' ] );
+				}
 			}
 		}
 
@@ -193,9 +207,125 @@ final class ProviderRegister {
 			$auto_cancel_order_statuses = $provider_settings['auto_cancel_order_statuses'];
 			foreach ($auto_cancel_order_statuses as $status_with_prefix) {
 				$status = OrderUtils::strip_prefix( (string) $status_with_prefix);
-				\add_action( "woocommerce_order_status_{$status}", [ $provider, 'cancel' ] );
+				if (false === \has_action( "woocommerce_order_status_{$status}", [ __CLASS__, 'auto_cancel_wrapper' ] )) {
+					\add_action( "woocommerce_order_status_{$status}", [ __CLASS__, 'auto_cancel_wrapper' ] );
+				}
 			}
 		}
+	}
+
+	/**
+	 * 自動開立發票 wrapper（woocommerce_order_status_{status} 回呼）
+	 *
+	 * 採 never-throw：provider issue() 回 \WP_Error 時記 order note（含 error_code + message），
+	 * 絕不向 WC hook 拋例外（怕中斷訂單狀態變更流程）。成功路徑行為與直掛 issue() 完全一致。
+	 *
+	 * @param int $order_id 訂單 ID（WC 觸發 woocommerce_order_status_{status} 時帶入）
+	 *
+	 * @return void
+	 */
+	public static function auto_issue_wrapper( int $order_id ): void {
+		self::run_auto_action( 'issue', 'auto_issue_order_statuses', $order_id, '自動開立發票' );
+	}
+
+	/**
+	 * 自動作廢發票 wrapper（woocommerce_order_status_{status} 回呼）
+	 *
+	 * 採 never-throw：provider cancel() 回 \WP_Error 時記 order note，絕不向 WC hook 拋例外。
+	 *
+	 * @param int $order_id 訂單 ID（WC 觸發 woocommerce_order_status_{status} 時帶入）
+	 *
+	 * @return void
+	 */
+	public static function auto_cancel_wrapper( int $order_id ): void {
+		self::run_auto_action( 'cancel', 'auto_cancel_order_statuses', $order_id, '自動作廢發票' );
+	}
+
+	/**
+	 * 自動開立 / 作廢 wrapper 共用執行體（provider-agnostic）
+	 *
+	 * 依 current_action() 反查觸發狀態，遍歷已啟用且該狀態列於對應設定鍵
+	 * （auto_issue_order_statuses / auto_cancel_order_statuses）的 Invoice provider，
+	 * 逐一呼叫其 issue()/cancel()；回 \WP_Error 時記 order note。
+	 * 任何 \Throwable 一律攔截不外拋（never-throw 鐵律）。
+	 *
+	 * @param 'issue'|'cancel' $action       provider 方法名
+	 * @param string           $settings_key 對應的設定鍵
+	 * @param int              $order_id     訂單 ID
+	 * @param string           $action_label 動作中文標籤（order note / log 用）
+	 *
+	 * @return void
+	 */
+	private static function run_auto_action( string $action, string $settings_key, int $order_id, string $action_label ): void {
+		try {
+			$order = \wc_get_order( $order_id );
+			if (!$order instanceof \WC_Order) {
+				return;
+			}
+
+			// 反查觸發狀態（去 wc- 前綴）。
+			$current_action = (string) \current_action();
+			$status         = \str_replace( 'woocommerce_order_status_', '', $current_action );
+
+			foreach ( self::$invoice_providers as $id => $class_name ) {
+				$provider = ProviderUtils::get_provider( $id );
+				if (!$provider instanceof IInvoiceService) {
+					continue;
+				}
+
+				// 僅對「該狀態列於對應設定鍵」的 provider 執行（對齊既有 per-status 掛載語義）。
+				$settings            = $provider::get_settings();
+				$statuses            = isset($settings[ $settings_key ]) && \is_array($settings[ $settings_key ]) ? $settings[ $settings_key ] : [];
+				$normalized_statuses = \array_map( static fn( $s ): string => OrderUtils::strip_prefix( (string) $s ), $statuses );
+				if (!\in_array( $status, $normalized_statuses, true )) {
+					continue;
+				}
+
+				/** @var array<string, mixed>|\WP_Error $result */
+				$result = 'cancel' === $action ? $provider->cancel( $order ) : $provider->issue( $order );
+
+				if (\is_wp_error( $result )) {
+					self::note_provider_error( $order, $result, $action_label, $id );
+				}
+			}
+		} catch (\Throwable $e) {
+			Plugin::logger(
+				"{$action_label}失敗 #{$order_id}： {$e->getMessage()}",
+				'error',
+				[],
+				5
+			);
+		}
+	}
+
+	/**
+	 * 將 provider 回傳的正規化 \WP_Error 記入 order note（含 error_code + raw_code + message）
+	 *
+	 * @param \WC_Order $order        訂單
+	 * @param \WP_Error $error        provider 回傳的錯誤
+	 * @param string    $action_label 動作中文標籤
+	 * @param string    $provider_id  provider id
+	 *
+	 * @return void
+	 */
+	private static function note_provider_error( \WC_Order $order, \WP_Error $error, string $action_label, string $provider_id ): void {
+		$code     = NormalizedError::get_code( $error );
+		$raw_code = NormalizedError::get_raw_code( $error );
+
+		$error_code  = null === $code ? (string) $error->get_error_code() : $code->value;
+		$raw_segment = null === $raw_code ? '' : "（{$raw_code}）";
+
+		$note = \sprintf(
+			/* translators: 1: 動作, 2: provider id, 3: 正規化錯誤碼, 4: raw_code, 5: 錯誤訊息 */
+			\__( '%1$s失敗（%2$s）：%3$s%4$s %5$s', 'power_checkout' ),
+			$action_label,
+			$provider_id,
+			$error_code,
+			$raw_segment,
+			$error->get_error_message()
+		);
+
+		$order->add_order_note( $note );
 	}
 
 

@@ -19,6 +19,8 @@ use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Abstracts\PaymentGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\ResponseStatus;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\WP;
 
@@ -260,7 +262,16 @@ final class RedirectGateway extends PaymentGateway implements IGateway {
 			/** @var array<string, mixed> $trace */
 			$trace = $e->getTrace();
 			$this->logger("❌ #{$order_id} 退款失敗： {$e->getMessage()}", 'error', $trace, 5, false );
-			return new \WP_Error( 'refund_failed', '❌ 退款失敗，詳情請查閱 log 紀錄' );
+			// never-throw：未預期 \Throwable 一律正規化為 UNKNOWN，raw_message 保留原始例外訊息供 debug，
+			// 不向 WC 退款流程拋。取代舊散裝 WP_Error('refund_failed')。
+			return NormalizedError::from(
+				ErrorCode::UNKNOWN,
+				\__( '退款失敗，詳情請查閱 log 紀錄', 'power_checkout' ),
+				[
+					'provider'    => $this->id,
+					'raw_message' => $e->getMessage(),
+				]
+			);
 		}
 	}
 

@@ -1,0 +1,54 @@
+[ACTIVITY] 發票錯誤模型與統一驗證流程
+[ACTOR] 管理員 -> {specs/actors/管理員.md}
+[ACTOR] WooCommerce -> {specs/actors/WooCommerce.md}
+[ACTOR] ezPay -> {specs/actors/ezPay.md}
+
+%% 本流程描述 einvoice 導入後的橫切行為：開立前統一執行期驗證（UBN checksum / 載具捐贈互斥 / 金額守恆）→
+%% provider 呼叫第三方 → 把 provider 原始錯誤碼映射為正規化 code → 以 WP_Error 把錯誤當資料回（never-throw）→
+%% REST 層 is_wp_error() 偵測並映射為錯誤回應體（帶 error_code + raw_code）。
+%% 成功回 array（既有行為不變），失敗回 WP_Error（取代既有「回 []」資訊塌縮）。
+
+[STEP:1] @管理員 {specs/features/invoice/invoice-issue.feature}
+  %% 管理員（或自動 hook）觸發開立發票，帶入發票參數（invoiceType / 載具 / 統編 / 捐贈碼）
+
+[STEP:2] @WooCommerce {specs/features/invoice/invoice-validation.feature}
+  %% provider issue() 第一步：呼叫統一驗證層（Shared 領域中立），對所有 provider 一致
+[DECISION:2a] 統一執行期驗證結果（UBN checksum / 載具捐贈互斥 / 金額守恆 salesAmount+taxAmount===totalAmount）
+  [BRANCH:2a:驗證失敗] @WooCommerce {specs/features/invoice/invoice-validation.feature}
+    %% 任一驗證規則失敗 → 不打第三方 API → 回 WP_Error(code=VALIDATION, rawMessage=具體規則訊息)，never-throw
+  [BRANCH:2a:驗證通過] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+    %% 全部驗證通過 → 組業務參數 → 呼叫 provider 第三方 API
+[MERGE:2a]
+
+[STEP:3] @ezPay {specs/features/invoice/invoice-error-model.feature}
+  %% 第三方（ezPay / Amego / 綠界 / PayNow）回應；可能成功、可能帶錯誤碼、可能驗章失敗、可能連線失敗
+[DECISION:3a] provider 回應結果（成功 / 各類失敗）
+  [BRANCH:3a:成功] @WooCommerce {specs/features/invoice/invoice-issue.feature}
+    %% 開立成功 → 回 array（含 invoice_number 等），寫入 _pc_issued_invoice_data（既有行為不變）
+  [BRANCH:3a:驗章失敗] @WooCommerce {specs/features/invoice/invoice-error-model.feature}
+    %% CheckCode / CheckMacValue 不符 → 回 WP_Error(code=SIGNATURE, rawMessage=驗章失敗)，不寫開立資料
+  [BRANCH:3a:provider錯誤碼] @WooCommerce {specs/features/invoice/invoice-error-model.feature}
+    %% provider 回業務錯誤碼 → 經 provider 專屬 error-map 映射為正規化 code（AUTH / CONFLICT / NUMBER_EXHAUSTED / NOT_FOUND / PROVIDER）→ 回 WP_Error，$data 帶 rawCode / rawMessage / provider / raw
+  [BRANCH:3a:連線失敗] @WooCommerce {specs/features/invoice/invoice-error-model.feature}
+    %% API 連線失敗 / 逾時 → 回 WP_Error(code=NETWORK)
+  [BRANCH:3a:未預期例外] @WooCommerce {specs/features/invoice/invoice-error-model.feature}
+    %% catch \Throwable（含未分類）→ logger(error, 同步 order note) → 回 WP_Error(code=UNKNOWN)，絕不破壞 WooCommerce 主流程
+[MERGE:3a]
+
+[STEP:4] @管理員 {specs/features/invoice/invoice-error-model.feature}
+  %% REST /invoices/* 端點：is_wp_error($result) 偵測
+[DECISION:4a] 結果型別（array 成功 / WP_Error 失敗）
+  [BRANCH:4a:成功array] @管理員 {specs/features/invoice/invoice-error-model.feature}
+    %% array → WP_REST_Response($result, 200)（既有行為不變）
+  [BRANCH:4a:WP_Error失敗] @管理員 {specs/features/invoice/invoice-error-model.feature}
+    %% WP_Error → 映射為錯誤回應體：回應體帶 error_code（正規化 code）+ raw_code（provider 原始碼）+ message；HTTP 狀態碼依 code 分類（AUTH/VALIDATION → 4xx，NETWORK/PROVIDER/UNKNOWN → 5xx）
+[MERGE:4a]
+[END]
+
+%% 設計約束（einvoice 導入，尊重 PC 既有契約）：
+%% - never-throw 鐵律保留：provider 公開方法（issue/cancel/issue_allowance/invalid_allowance/query_invoice）catch \Throwable 一律回 WP_Error，絕不向 WC hook 拋例外（怕斷結帳 / 退款 / 狀態變更）。
+%% - 成功仍回 array：既有「拿到非空 array = 成功」呼叫端邏輯相容；呼叫端只需在前面加一道 is_wp_error()。
+%% - 正規化 code 為 backed enum（領域中立，放 inc/classes/Shared/）；WP_Error 的 $code 字串 = enum value，$data 帶 rawCode / rawMessage / provider / raw。
+%% - 統一驗證層擴充既有 Shared/Helpers/InvoiceParamsValidator（checkout 表單級），新增 dispatch 級的 UBN checksum / 互斥 / 金額守恆；驗證失敗即 VALIDATION，不打第三方 API。
+%% - 受影響既有呼叫端（須加 is_wp_error 判斷）：ProviderRegister auto-issue/auto-cancel hook、woocommerce_order_refunded 折讓 hook、REST InvoiceApiService 5 端點、Vue InvoiceApp / MetaBox 前端錯誤顯示。
+%% - 同一錯誤模型外溢 Payment 領域：見 payment/payment-error-model.feature（退款 unsupported→UNSUPPORTED、callback 驗簽失敗→SIGNATURE；Payment NotifyURL always-200 不變，WP_Error 僅用於 process_refund / REST 退款回應，不改 callback 行為）。

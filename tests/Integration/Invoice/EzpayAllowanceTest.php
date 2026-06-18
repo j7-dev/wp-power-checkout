@@ -19,9 +19,11 @@ declare( strict_types=1 );
 
 namespace Tests\Integration\Invoice;
 
-use J7\PowerCheckout\Domains\Invoice\Ezpay\DTOs\EzpaySettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ezpay\Services\EzpayInvoiceProvider;
+use J7\PowerCheckout\Domains\Invoice\Ezpay\DTOs\EzpaySettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -182,22 +184,28 @@ final class EzpayAllowanceTest extends TestCase {
 	// ========== 金額驗證 ==========
 
 	/**
+	 * 金額為零 → 正規化 VALIDATION（金額前置檢查，不打 API）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_issue_allowance_金額為零回傳空陣列(): void {
+	public function test_error_issue_allowance_金額為零回傳VALIDATION(): void {
 		$order    = $this->create_issued_order();
 		$provider = EzpayInvoiceProvider::instance();
 
 		$result = $provider->issue_allowance( $order, 0.0 );
-		$this->assertSame( [], $result );
+
+		$this->assertInstanceOf( \WP_Error::class, $result, '金額不合法應回 WP_Error 而非空陣列' );
+		$this->assertSame( ErrorCode::VALIDATION, NormalizedError::get_code( $result ) );
 	}
 
 	/**
+	 * 金額超過原發票 → 正規化 VALIDATION（金額前置檢查，不打 API）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_issue_allowance_金額超過原發票回傳空陣列(): void {
+	public function test_error_issue_allowance_金額超過原發票回傳VALIDATION(): void {
 		// Given: 原發票 100 元
 		$order    = $this->create_issued_order();
 		$provider = EzpayInvoiceProvider::instance();
@@ -205,15 +213,18 @@ final class EzpayAllowanceTest extends TestCase {
 		// When: 折讓 200 元（超過）
 		$result = $provider->issue_allowance( $order, 200.0 );
 
-		// Then: 拒絕
-		$this->assertSame( [], $result );
+		// Then: 拒絕（VALIDATION）
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::VALIDATION, NormalizedError::get_code( $result ) );
 	}
 
 	/**
+	 * 未開立發票 → 正規化 NOT_FOUND（前置缺發票）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_issue_allowance_未開立發票回傳空陣列(): void {
+	public function test_error_issue_allowance_未開立發票回傳NOT_FOUND(): void {
 		// Given: 一筆沒有開立發票的訂單
 		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
 		$order->set_total( 100 );
@@ -224,15 +235,18 @@ final class EzpayAllowanceTest extends TestCase {
 		// When
 		$result = $provider->issue_allowance( $order, 50.0 );
 
-		// Then
-		$this->assertSame( [], $result );
+		// Then: NOT_FOUND
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 
 	/**
+	 * CheckCode 驗證失敗 → 正規化 SIGNATURE，且 allowance_data 未寫入
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_issue_allowance_CheckCode驗證失敗時不寫allowance_data(): void {
+	public function test_error_issue_allowance_CheckCode驗證失敗回SIGNATURE且不寫allowance_data(): void {
 		// Given: 一筆已開立發票的訂單（MOCK 會回 CheckCode 失敗的 fixture）
 		// 透過設定錯誤的 hash_key / hash_iv 觸發 CheckCode 驗證失敗
 		\delete_option( ProviderUtils::get_option_name( EzpayInvoiceProvider::ID ) );
@@ -252,8 +266,9 @@ final class EzpayAllowanceTest extends TestCase {
 
 		$result = $provider->issue_allowance( $order, 50.0 );
 
-		// Then: 回空陣列，allowance_data 未寫入
-		$this->assertSame( [], $result );
+		// Then: 回 SIGNATURE，allowance_data 未寫入
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::SIGNATURE, NormalizedError::get_code( $result ) );
 		$meta_keys = new MetaKeys( $order );
 		$this->assertEmpty( $meta_keys->get_allowance_data() );
 	}
@@ -282,17 +297,20 @@ final class EzpayAllowanceTest extends TestCase {
 	}
 
 	/**
+	 * 無折讓資料 → 正規化 NOT_FOUND
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_invalid_allowance_無折讓資料回傳空陣列(): void {
+	public function test_error_invalid_allowance_無折讓資料回傳NOT_FOUND(): void {
 		$order    = $this->create_issued_order();
 		$provider = EzpayInvoiceProvider::instance();
 
 		// When: 沒有折讓資料就作廢
 		$result = $provider->invalid_allowance( $order );
 
-		// Then
-		$this->assertSame( [], $result );
+		// Then: NOT_FOUND
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 }

@@ -16,6 +16,8 @@ use J7\PowerCheckout\Domains\Payment\Shared\Helpers\BlocksIntegration;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGateway;
 use J7\PowerCheckout\Domains\Payment\Shared\Utils\GatewayUtils;
 use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\WP;
 
@@ -201,9 +203,10 @@ final class AioRedirectGateway extends AbstractPaymentGateway implements IGatewa
 
 		// 非信用卡一律擋下，不呼叫退款 API（D5：ATM/CVS/BARCODE/WebATM/ApplePay 須人工）
 		if ( ! EcpayPaymentType::order_is_credit( $order ) ) {
-			return new \WP_Error(
-				'refund_unsupported',
-				\__( '此付款方式不支援 API 退款，請至綠界商家後台人工處理', 'power_checkout' )
+			return NormalizedError::from(
+				ErrorCode::UNSUPPORTED,
+				\__( '此付款方式不支援 API 退款，請至綠界商家後台人工處理', 'power_checkout' ),
+				[ 'provider' => $this->id ]
 			);
 		}
 

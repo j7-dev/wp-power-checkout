@@ -152,13 +152,13 @@ final class EcpayInvoiceProviderTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_issue_B2B公司統編發票成功寫入issued_data(): void {
-		// Given: 一筆公司統編（B2B）發票訂單
+		// Given: 一筆公司統編（B2B）發票訂單（04595257 通過財政部 UBN checksum，避免 dispatch 驗證攔截）
 		$order    = $this->create_order_with_items(
 			[
 				'provider'    => 'ecpay',
 				'invoiceType' => 'company',
 				'companyName' => '測試公司',
-				'companyId'   => '87654321',
+				'companyId'   => '04595257',
 			]
 		);
 		$provider = EcpayInvoiceProvider::instance();

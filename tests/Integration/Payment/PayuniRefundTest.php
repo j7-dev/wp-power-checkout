@@ -41,6 +41,7 @@ use J7\PowerCheckout\Domains\Payment\Payuni\Http\DoActionClient;
 use J7\PowerCheckout\Domains\Payment\Payuni\Services\PayuniUppGateway;
 use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Helpers\PayuniMetaKeys;
 use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Helpers\PayuniTradeNo;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -332,9 +333,9 @@ final class PayuniRefundTest extends TestCase {
 		// When
 		$result = $gateway->process_refund( $order->get_id(), 1000, '測試退款' );
 
-		// Then: 回 WP_Error('refund_unsupported')
+		// Then: 回正規化 UNSUPPORTED \WP_Error（取代舊 refund_unsupported）
 		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 		$this->assertStringContainsString( '人工處理', $result->get_error_message() );
 	}
 
@@ -355,9 +356,9 @@ final class PayuniRefundTest extends TestCase {
 		// When
 		$result = $gateway->process_refund( $order->get_id(), 1000, '測試退款' );
 
-		// Then
+		// Then（正規化 UNSUPPORTED，取代舊 refund_unsupported）
 		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 	}
 
 	/**
@@ -380,9 +381,9 @@ final class PayuniRefundTest extends TestCase {
 		// When
 		$result = $gateway->process_refund( $order->get_id(), 1000, '測試退款' );
 
-		// Then
+		// Then（正規化 UNSUPPORTED，取代舊 refund_unsupported）
 		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 	}
 
 	/**

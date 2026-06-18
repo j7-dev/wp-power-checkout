@@ -18,6 +18,7 @@ use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\EcpayInvoiceSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Services\InvoiceApiService;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -175,7 +176,7 @@ final class InvoiceAllowanceApiServiceTest extends TestCase {
 	 * @test
 	 * @group error
 	 */
-	public function test_開立折讓端點金額不合法回空陣列(): void {
+	public function test_開立折讓端點金額不合法回VALIDATION錯誤(): void {
 		// Given
 		$order   = $this->create_issued_order();
 		$request = new \WP_REST_Request( 'POST', "/power-checkout/v1/invoices/allowance/{$order->get_id()}" );
@@ -185,8 +186,12 @@ final class InvoiceAllowanceApiServiceTest extends TestCase {
 		// When
 		$response = InvoiceApiService::instance()->post_allowance_with_id_callback( $request );
 
-		// Then: provider 拒絕，回空陣列（仍 200）
-		$this->assertSame( 200, $response->get_status() );
-		$this->assertSame( [], $response->get_data() );
+		// Then: 契約演進（einvoice 第五階段）——REST 層將 VALIDATION WP_Error 映射為 HTTP 422，
+		// body 帶 error_code（前端讀 error.response.data.error_code + message）。
+		$this->assertSame( 422, $response->get_status() );
+		$data = $response->get_data();
+		$this->assertIsArray( $data );
+		$this->assertSame( ErrorCode::VALIDATION->value, $data['error_code'] ?? null );
+		$this->assertNotEmpty( $data['message'] ?? '' );
 	}
 }

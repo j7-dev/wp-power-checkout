@@ -22,6 +22,8 @@ use J7\PowerCheckout\Domains\Invoice\Ezpay\DTOs\EzpaySettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ezpay\Services\EzpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsQuery;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -156,10 +158,12 @@ final class EzpayQueryTest extends TestCase {
 	// ========== 錯誤處理 ==========
 
 	/**
+	 * 未開立發票 → 正規化 NOT_FOUND 且不打 API（前置即攔截）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_query_invoice_未開發票不打API直接回空陣列(): void {
+	public function test_error_query_invoice_未開發票不打API直接回NOT_FOUND(): void {
 		// Given: 一筆沒有開立發票的訂單
 		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
 
@@ -176,15 +180,18 @@ final class EzpayQueryTest extends TestCase {
 
 		\remove_filter( 'pre_http_request', $interceptor, 10 );
 
-		$this->assertSame( [], $result, '未開立發票時應回空陣列' );
+		$this->assertInstanceOf( \WP_Error::class, $result, '未開立發票時應回 WP_Error 而非空陣列' );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ), '未開立應映射為 NOT_FOUND' );
 		$this->assertSame( [], $http_calls, '未開立時不應對外發任何 HTTP 請求' );
 	}
 
 	/**
+	 * CheckCode 驗證失敗 → 正規化 SIGNATURE
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_query_invoice_CheckCode驗證失敗回空陣列(): void {
+	public function test_error_query_invoice_CheckCode驗證失敗回SIGNATURE(): void {
 		// Given: 錯誤的 hash_key 觸發 CheckCode 驗證失敗
 		\delete_option( ProviderUtils::get_option_name( EzpayInvoiceProvider::ID ) );
 		$this->reset_settings_instance();
@@ -203,7 +210,8 @@ final class EzpayQueryTest extends TestCase {
 
 		$result = $provider->query_invoice( $order );
 
-		$this->assertSame( [], $result, 'CheckCode 驗證失敗時應回空陣列' );
+		$this->assertInstanceOf( \WP_Error::class, $result, 'CheckCode 驗證失敗時應回 WP_Error' );
+		$this->assertSame( ErrorCode::SIGNATURE, NormalizedError::get_code( $result ), 'CheckCode 不符應映射為 SIGNATURE' );
 	}
 
 	// ========== 唯讀保證 ==========

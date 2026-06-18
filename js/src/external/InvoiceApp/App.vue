@@ -1,22 +1,31 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useMutation } from '@tanstack/vue-query'
-import apiClient from '@/api'
-import { appData, isAdmin, MAPPER } from './index'
-import Steps from './Steps/index.vue'
 import { Tickets } from '@element-plus/icons-vue'
+import { useMutation } from '@tanstack/vue-query'
+import { ref } from 'vue'
+
+import apiClient from '@/api'
+import { resolveErrorMessage, getNormalizedError } from '@/utils/error-code'
+
+import Steps from './Steps/index.vue'
+
+import { appData, isAdmin, MAPPER } from './index'
 
 const dialogVisible = ref(false)
 
 const { mutate: cancelInvoice, isPending: isCanceling } = useMutation({
 	mutationFn: async (orderId: string) =>
 		await apiClient.post(`/invoices/cancel/${orderId}`),
-	onSuccess: () => {
-		// alert('電子發票作廢成功')
-		// window.location.reload()
-	},
 	onError: (err) => {
-		console.error('作廢電子發票失敗', err)
+		// interceptor 已用 error_code 對照彈出使用者通知；此處解析出同一則
+		// 精確訊息供 debug log（取代純粹的 console.error）。
+		const normalized = getNormalizedError(err)
+		// eslint-disable-next-line no-console
+		console.error(
+			'作廢電子發票失敗',
+			resolveErrorMessage(normalized),
+			normalized?.raw_code ?? '',
+			err
+		)
 	},
 })
 
@@ -28,8 +37,8 @@ const handleCancel = () => {
 
 <template>
 	<div
-		class="flex gap-2 items-center text-md font-bold text-gray-700 mb-4"
 		v-if="isAdmin && appData?.is_issued"
+		class="flex gap-2 items-center text-md font-bold text-gray-700 mb-4"
 	>
 		<el-icon><Tickets /></el-icon>
 		<span>發票號碼：{{ appData?.invoice_number }}</span>
@@ -38,8 +47,8 @@ const handleCancel = () => {
 		<el-button
 			v-if="isAdmin && appData?.is_issued"
 			type="danger"
-			@click="handleCancel"
 			:loading="isCanceling"
+			@click="handleCancel"
 			>作廢發票</el-button
 		>
 		<el-button
@@ -58,7 +67,7 @@ const handleCancel = () => {
 		:z-index="999999"
 		class="p-8"
 	>
-		<Steps @close="dialogVisible = false" :dialogVisible="dialogVisible" />
+		<Steps :dialog-visible="dialogVisible" @close="dialogVisible = false" />
 	</el-dialog>
 </template>
 

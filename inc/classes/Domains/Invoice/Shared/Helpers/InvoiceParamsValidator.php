@@ -25,9 +25,16 @@ namespace J7\PowerCheckout\Domains\Invoice\Shared\Helpers;
 
 use J7\PowerCheckout\Domains\Invoice\Shared\Enums\EIndividual;
 use J7\PowerCheckout\Domains\Invoice\Shared\Enums\EInvoiceType;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 
 /** 發票參數後端驗證 + sanitize */
 final class InvoiceParamsValidator {
+
+	/**
+	 * @var array<int, int> 財政部統一編號 checksum 邏輯乘數（對應 8 碼，由左至右）
+	 */
+	private const UBN_WEIGHTS = [ 1, 2, 1, 2, 1, 2, 4, 1 ];
 
 	/** @var string 手機條碼載具格式 /開頭 + 7 碼 [0-9A-Z+\-.] */
 	private const CARRIER_PATTERN = '/^\/[0-9A-Z+\-.]{7}$/';
@@ -66,6 +73,161 @@ final class InvoiceParamsValidator {
 			EInvoiceType::COMPANY    => self::validate_company( $provider, $raw ),
 			EInvoiceType::DONATE     => self::validate_donate( $provider, $raw ),
 		};
+	}
+
+	/**
+	 * Dispatch 級統一驗證（各 provider issue() 第一步呼叫）
+	 *
+	 * 第一性原理：表單級 {@see self::validate()} 只能擋住「結帳當下能驗的格式」，
+	 * 但發票真正派送（dispatch）到第三方前，仍須以跨 provider 一致的不變式再守一道：
+	 *   1. 財政部統一編號 checksum（表單級只驗 8 碼格式，不驗檢核碼；僅 B2B 有買方統編時驗）
+	 *   2. 載具 / 捐贈互斥（einvoice carrier∩donation mutex）
+	 *   3. 金額守恆 salesAmount + taxAmount === totalAmount（整數 TWD）
+	 *
+	 * 與表單級分工：表單級 throw \InvalidArgumentException（結帳流程攔截）；
+	 * dispatch 級回 \WP_Error（成功回 null），失敗即 NormalizedError(VALIDATION)，
+	 * 由呼叫端（provider issue()）直接 return，**不打第三方 API**。
+	 *
+	 * @param array<string, mixed> $params 待派送的發票參數，慣例鍵：
+	 *                                      provider / companyId / carrier / donateCode /
+	 *                                      salesAmount / taxAmount / totalAmount
+	 * @return \WP_Error|null 通過回 null；任一不變式失敗回正規化 VALIDATION 錯誤
+	 */
+	public static function validate_for_dispatch( array $params ): ?\WP_Error {
+		$provider = self::sanitize( $params['provider'] ?? '' );
+
+		$ubn_error = self::validate_ubn_checksum( $params, $provider );
+		if (null !== $ubn_error) {
+			return $ubn_error;
+		}
+
+		$mutex_error = self::validate_carrier_donate_mutex( $params, $provider );
+		if (null !== $mutex_error) {
+			return $mutex_error;
+		}
+
+		return self::validate_amount_conservation( $params, $provider );
+	}
+
+	/**
+	 * 不變式 1：財政部統一編號 checksum
+	 *
+	 * 演算法（財政部標準）：
+	 *   weights = [1,2,1,2,1,2,4,1]
+	 *   sum = Σ ( 各碼 × 對應乘數 後，乘積的「十位數 + 個位數」相加 )
+	 *   若第 7 碼（0-indexed 6）為 7：valid = (sum % 5 === 0) || ((sum + 1) % 5 === 0)
+	 *   否則：valid = (sum % 5 === 0)
+	 *
+	 * 僅在有買方統編（B2B）時驗；companyId 為空（B2C）直接放行。
+	 * 非 8 碼數字一律視為不合法（dispatch 級即使表單級漏放也須擋）。
+	 *
+	 * @param array<string, mixed> $params   發票參數
+	 * @param string               $provider 發票服務 id（供錯誤 context）
+	 * @return \WP_Error|null 通過 / B2C 回 null；不合法回 VALIDATION
+	 */
+	private static function validate_ubn_checksum( array $params, string $provider ): ?\WP_Error {
+		$company_id = self::sanitize( $params['companyId'] ?? '' );
+
+		// B2C（無買方統編）不驗 checksum
+		if ('' === $company_id) {
+			return null;
+		}
+
+		if (1 !== \preg_match( self::COMPANY_ID_PATTERN, $company_id )) {
+			return self::validation_error(
+				\__( '統一編號需為 8 碼數字', 'power_checkout' ),
+				$provider,
+				$company_id
+			);
+		}
+
+		$sum = 0;
+		for ($i = 0; $i < 8; $i++) {
+			$product = (int) $company_id[ $i ] * self::UBN_WEIGHTS[ $i ];
+			// 乘積各位數字相加（如 28 → 2 + 8 = 10、18 → 1 + 8 = 9）
+			$sum += \intdiv( $product, 10 ) + ( $product % 10 );
+		}
+
+		// 第 7 碼（0-indexed 6）為 7 的進位特例
+		$is_valid = '7' === $company_id[6]
+			? ( 0 === $sum % 5 || 0 === ( $sum + 1 ) % 5 )
+			: ( 0 === $sum % 5 );
+
+		if (!$is_valid) {
+			return self::validation_error(
+				\__( '統一編號檢核碼不正確', 'power_checkout' ),
+				$provider,
+				$company_id
+			);
+		}
+
+		return null;
+	}
+
+	/**
+	 * 不變式 2：載具 / 捐贈互斥
+	 *
+	 * 同時帶 carrier（載具）與 donation（捐贈碼）→ VALIDATION；兩者只能擇一。
+	 *
+	 * @param array<string, mixed> $params   發票參數
+	 * @param string               $provider 發票服務 id
+	 * @return \WP_Error|null 互斥成立回 null；同時指定回 VALIDATION
+	 */
+	private static function validate_carrier_donate_mutex( array $params, string $provider ): ?\WP_Error {
+		$carrier     = self::sanitize( $params['carrier'] ?? '' );
+		$donate_code = self::sanitize( $params['donateCode'] ?? '' );
+
+		if ('' !== $carrier && '' !== $donate_code) {
+			return self::validation_error(
+				\__( '載具與捐贈不可同時指定', 'power_checkout' ),
+				$provider,
+				null
+			);
+		}
+
+		return null;
+	}
+
+	/**
+	 * 不變式 3：金額守恆 salesAmount + taxAmount === totalAmount（整數 TWD）
+	 *
+	 * @param array<string, mixed> $params   發票參數
+	 * @param string               $provider 發票服務 id
+	 * @return \WP_Error|null 守恆回 null；不守恆回 VALIDATION
+	 */
+	private static function validate_amount_conservation( array $params, string $provider ): ?\WP_Error {
+		$sales = (int) ( $params['salesAmount'] ?? 0 );
+		$tax   = (int) ( $params['taxAmount'] ?? 0 );
+		$total = (int) ( $params['totalAmount'] ?? 0 );
+
+		if (( $sales + $tax ) !== $total) {
+			return self::validation_error(
+				\__( '金額不守恆（銷售額 + 稅額 ≠ 總額）', 'power_checkout' ),
+				$provider,
+				(string) $total
+			);
+		}
+
+		return null;
+	}
+
+	/**
+	 * 建立 dispatch 級正規化 VALIDATION 錯誤
+	 *
+	 * @param string      $message     使用者可讀訊息（text domain：power_checkout）
+	 * @param string      $provider    發票服務 id
+	 * @param string|null $raw_message 觸發錯誤的原始值（供 debug；可為 null）
+	 * @return \WP_Error 正規化錯誤（code = VALIDATION）
+	 */
+	private static function validation_error( string $message, string $provider, ?string $raw_message ): \WP_Error {
+		return NormalizedError::from(
+			ErrorCode::VALIDATION,
+			$message,
+			[
+				'provider'    => '' === $provider ? null : $provider,
+				'raw_message' => $raw_message,
+			]
+		);
 	}
 
 	/**

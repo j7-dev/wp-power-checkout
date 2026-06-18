@@ -1,0 +1,119 @@
+================================================================================
+PHPStan Work List — after 第二階段（Invoice 介面回傳型別演進 array → array|\WP_Error）
+產出：2026-06-18 / wordpress-master / einvoice 導入計劃 P2
+================================================================================
+
+## 摘要（供 P4 / P5 消化）
+
+Gate 1（PHPStan L9）EXIT_CODE = 1
+- 總錯誤數：1
+- baseline（既有，與本階段無關）：1 → `RedirectSettingsDTO.php:148`（isset.property，$mode 非 nullable）
+- 本階段「型別層」新增錯誤：**0**
+
+### 關鍵第一性原理結論（不是漏跑，是型別層本來就不會亮）
+
+把 IInvoiceService / ISupportsAllowance / ISupportsQuery 的 5 個方法回傳型別
+從 `array` 改成 `array|\WP_Error` 後，PHPStan L9 **沒有**新增任何 error。原因是
+PHPStan 只在「呼叫端把結果當 array 用」的型別邊界（subscript `$r['k']`、foreach、
+傳給要求嚴格 array 的參數）才會亮 error；而本專案目前所有呼叫這 5 個介面方法的
+地方，都不構成這種邊界：
+
+  1. `InvoiceApiService` 5 個 REST callback（行 74/93/114/130/153）：
+     `$result = $service->issue($order);` → `new \WP_REST_Response($result, 200);`
+     `\WP_REST_Response::__construct(mixed $data = null, ...)` 收 `mixed`，
+     `array|\WP_Error` 餵 `mixed` **不違型**。$result 從未被 subscript / iterate。
+  2. `ProviderRegister::maybe_issue_allowance_on_refund`（行 132）：
+     `$provider->issue_allowance($order, $refund_amount);` → 回傳值**直接丟棄**
+     （無 assign、無 consume）→ 無型別邊界。
+  3. auto-issue / auto-cancel（行 188/196）：
+     `\add_action("woocommerce_order_status_{$status}", [$provider, 'issue'|'cancel'])`
+     → provider 方法是 **WP hook callback 本體**，`do_action` 丟棄回傳值，
+     PHPStan 不把 WP hook dispatch 當 typed consumer → 無型別邊界。
+
+  ※ 各 provider 內 `$client->issue(...)` / `$client->cancel(...)` 等是呼叫
+    **HTTP ApiClient**（`InvoiceApiClient` / `ApiClient`，簽名 `?IssueResponse` 等
+    未變動），不是介面方法，與本次型別變更無關，不在 work list。
+
+  ※ provider 實作方法仍宣告 `: array`，是 `array|\WP_Error` 的合法協變窄化
+    （PHP 回傳型別協變），不 fatal、PHPStan 也不報 method.childReturnType。
+    → 符合 P2 設計：P4 才把 provider 簽名改成 `array|\WP_Error` 並實際回 WP_Error。
+
+### 結論：本階段 work list = 「語義型」呼叫端缺口（P4/P5 用），非「型別型」缺口
+
+因為 PHPStan 型別層此刻無新 error，P4（provider 改回 WP_Error）+ P5（呼叫端加
+is_wp_error）要消化的「work list」不是來自 PHPStan diff，而是來自下方人工盤點的
+**呼叫端語義缺口清單**。待 P4 讓 provider 真的 `return WP_Error` 後，這些呼叫端
+若仍把結果當成功 array 用、或直接把 WP_Error 塞進 200 回應，才是真正要補的洞
+（屆時部分會由 PHPStan 在「P4 之後」亮出，部分純屬契約語義需手動補）。
+
+--------------------------------------------------------------------------------
+## Work List 逐條（檔案:行號 + identifier + 一句話 + 分類）
+--------------------------------------------------------------------------------
+
+### [baseline / 非本階段 / 不處理] 既有錯誤
+- inc/classes/Domains/Payment/ShoplinePayment/DTOs/RedirectSettingsDTO.php:148
+  identifier: isset.property
+  說明：$mode (string) 在 isset() 內非 nullable。P2 之前就存在，與介面變更無關，
+        本計劃不處理（記憶事實已列為 pre-existing）。
+
+### [P4 provider 缺口]（provider 要把 `return []` / `?? []` 改成 NormalizedError::from(...) → WP_Error）
+> 以下為「介面已允許 WP_Error，但 provider 尚未產出 WP_Error」之處。
+> PHPStan 型別層目前不報（因 provider 仍 `: array`），P4 改簽名 + 回 WP_Error 才落地。
+- inc/classes/Domains/Invoice/Ezpay/Services/EzpayInvoiceProvider.php
+  方法 issue/cancel/issue_allowance/invalid_allowance/query_invoice（簽名行
+  82/137/200/278/325）；計 15 處 `return []` 待改 WP_Error + 簽名改 `: array|\WP_Error`。
+- inc/classes/Domains/Invoice/Ecpay/Services/EcpayInvoiceProvider.php
+  方法簽名行 70/112/168/245/294；`return []` 待改 WP_Error + 簽名窄化解除。
+- inc/classes/Domains/Invoice/Amego/Services/AmegoProvider.php
+  方法簽名行 58/81/109/180/226；`?? []` / `return []` 待改 WP_Error
+  （Amego 失敗處理最弱，須補顯式 try/catch，never-throw）+ 簽名窄化解除。
+- inc/classes/Domains/Invoice/Paynow/Services/PaynowInvoiceProvider.php
+  方法簽名行 104/161/225/306/354；`return []` 待改 WP_Error + 簽名窄化解除。
+
+### [P5 呼叫端缺口]（呼叫端要加 is_wp_error() 分支 / 把 WP_Error 映射成 error_code+HTTP / 記 order note）
+> 以下呼叫端目前把回傳值（可能 array|\WP_Error）直接當「成功」處理或丟棄，
+> P4 之後 provider 會真的回 WP_Error，這些點需補語義處理（部分屆時 PHPStan 才會亮）。
+- inc/classes/Domains/Invoice/Shared/Services/InvoiceApiService.php:74
+  callback post_issue_with_id：$result 直接進 WP_REST_Response(...,200)；
+  缺 is_wp_error() → 應映射 error_code + raw_code + HTTP 4xx/5xx（面 B）。
+- inc/classes/Domains/Invoice/Shared/Services/InvoiceApiService.php:93
+  callback post_cancel_with_id：同上（cancel）。
+- inc/classes/Domains/Invoice/Shared/Services/InvoiceApiService.php:114
+  callback post_allowance_with_id：同上（issue_allowance）。
+- inc/classes/Domains/Invoice/Shared/Services/InvoiceApiService.php:130
+  callback post_allowance_cancel_with_id：同上（invalid_allowance）。
+- inc/classes/Domains/Invoice/Shared/Services/InvoiceApiService.php:153
+  callback get_query_with_id：同上（query_invoice）。
+- inc/classes/Domains/Invoice/ProviderRegister.php:132
+  maybe_issue_allowance_on_refund：issue_allowance 回傳值直接丟棄；
+  P5 應補 is_wp_error() → 記 order note，不中斷退款（FM 失敗模式 FM-07 同類）。
+- inc/classes/Domains/Invoice/ProviderRegister.php:188
+  auto-issue：[$provider, 'issue'] 註冊為 woocommerce_order_status_{status} hook callback；
+  hook 不消費回傳值 → P5 應改 wrapper static method，內 is_wp_error() → 記 order note（FM-07）。
+- inc/classes/Domains/Invoice/ProviderRegister.php:196
+  auto-cancel：[$provider, 'cancel'] 同上（FM-07）。
+
+--------------------------------------------------------------------------------
+## 健全性確認
+--------------------------------------------------------------------------------
+- 下方原始 PHPStan 輸出中，唯一 error 為 baseline（RedirectSettingsDTO:148）。
+- 無任何「非預期」的語法 / 解析 / 自動載入錯誤（兩行 Warning 為既有 stub 噪音：
+  PluginTrait.php:369 與 class-activation.php:249，與本變更無關，歷次皆出現）。
+- 介面三檔語法正確（PHPStan 成功解析全 inc/，未對介面檔報任何 error）。
+
+================================================================================
+## 原始 PHPStan 輸出（evidence，php -d memory_limit=2G vendor/bin/phpstan analyse --no-progress）
+================================================================================
+
+Note: Using configuration file C:\Users\User\LocalSites\turbo\app\public\wp-content\plugins\power-checkout\phpstan.neon.
+Warning: Trying to access array offset on null in C:\Users\User\LocalSites\turbo\app\public\wp-content\plugins\powerhouse\vendor\j7-dev\wp-plugin-trait\src\traits\PluginTrait.php on line 369
+Warning: Undefined global variable $wp_version in C:\Users\User\LocalSites\turbo\app\public\wp-content\plugins\power-checkout\vendor\j7-dev\tgm-plugin-activation-forked\class-activation.php on line 249
+
+ ------ --------------------------------------------------------------------------------------------------------------------------------
+  Line   inc\classes\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO.php
+ ------ --------------------------------------------------------------------------------------------------------------------------------
+  :148   Property J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\RedirectSettingsDTO::$mode (string) in isset() is not nullable.
+         🪪  isset.property
+ ------ --------------------------------------------------------------------------------------------------------------------------------
+
+ [ERROR] Found 1 error

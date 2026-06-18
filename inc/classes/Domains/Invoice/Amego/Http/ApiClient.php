@@ -31,6 +31,18 @@ final class ApiClient {
 	) {
 	}
 
+	/**
+	 * 取得最後一次失敗的結構化錯誤明細（委派給注入的 Requester）
+	 *
+	 * 由 provider 在業務方法回 null / 空回應後呼叫，取得 raw_code / raw_message / raw / kind，
+	 * 交給自身的 map_error() 做正規化映射。null 代表「無錯誤明細」（成功或未呼叫）。
+	 *
+	 * @return array{raw_code: string, raw_message: string, raw: string, kind: string}|null 錯誤明細.
+	 */
+	public function get_last_error_detail(): ?array {
+		return $this->requester->get_last_error_detail();
+	}
+
 	/** 開立發票 */
 	public function issue( string $provider_id ): IssueInvoiceResponseDTO|null {
 		$response_dto = $this->requester->post( EApi::ISSUE );

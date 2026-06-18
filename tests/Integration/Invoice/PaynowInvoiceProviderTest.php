@@ -32,6 +32,8 @@ use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsQuery;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -219,13 +221,13 @@ final class PaynowInvoiceProviderTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_happy_issue_B2B公司統編發票成功寫入issued_data(): void {
-		// Given: 公司統編訂單
+		// Given: 公司統編訂單（04595257 通過財政部 UBN checksum；dispatch 驗證層才不會擋）
 		$order    = $this->create_order_with_items(
 			[
 				'provider'    => 'paynow_invoice',
 				'invoiceType' => 'company',
 				'companyName' => '測試公司',
-				'companyId'   => '87654321',
+				'companyId'   => '04595257',
 			]
 		);
 		$provider = PaynowInvoiceProvider::instance();
@@ -368,31 +370,41 @@ final class PaynowInvoiceProviderTest extends TestCase {
 	// ========== 錯誤處理（Error Flow） — issue ==========
 
 	/**
-	 * feature: paynow-invoice-issue 「訂單不存在時回傳空陣列」
+	 * feature: paynow-invoice-issue 「訂單不存在時回正規化 UNKNOWN 錯誤（契約演進：[] → WP_Error）」
+	 *
+	 * 第一性原理：OrderUtils::get_order 對不存在訂單 throw，provider 須在 try 內 catch → UNKNOWN，
+	 * 絕不向外拋例外（never-throw 鐵律）。
 	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_issue_訂單不存在回空陣列(): void {
+	public function test_error_issue_訂單不存在回UNKNOWN錯誤且不拋(): void {
 		$provider = PaynowInvoiceProvider::instance();
 
 		// When: 傳入不存在的訂單 ID
-		$result = $provider->issue( 9999999 );
+		$thrown = null;
+		try {
+			$result = $provider->issue( 9999999 );
+		} catch ( \Throwable $e ) {
+			$thrown = $e;
+			$result = null;
+		}
 
-		// Then: 回空陣列（catch \Throwable → log + 回 []）
-		$this->assertSame( [], $result );
+		// Then: 不拋例外，回正規化 UNKNOWN 錯誤
+		$this->assertNull( $thrown, 'provider 公開方法絕不可向外拋例外（never-throw 鐵律）' );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::UNKNOWN, NormalizedError::get_code( $result ) );
 	}
 
 	/**
-	 * feature: paynow-invoice-issue 「同時帶載具與捐贈碼時開立失敗」
+	 * feature: paynow-invoice-issue 「同時帶載具與捐贈碼時開立失敗（契約演進：[] → VALIDATION）」
 	 *
-	 * IssueParams::create() 驗證：carrier_type 非 None 且 npoban 有值 → throw（訊息含「載具與捐贈不可同時指定」）。
-	 * provider 的 issue() 必須 catch \Throwable → 回 []，不向上拋出。
+	 * dispatch 級統一驗證層（issue 第一步）攔截載具/捐贈互斥 → VALIDATION，且第三方未被呼叫。
 	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_issue_載具與捐贈同時帶時回空陣列(): void {
+	public function test_error_issue_載具與捐贈同時帶時回VALIDATION(): void {
 		// Given: 同時帶手機條碼 + 捐贈碼（違反互斥規則）
 		$order    = $this->create_order_with_items(
 			[
@@ -408,22 +420,25 @@ final class PaynowInvoiceProviderTest extends TestCase {
 		// When
 		$result = $provider->issue( $order );
 
-		// Then: IssueParams 驗證失敗 → catch → 回 []，不拋出
-		$this->assertSame( [], $result );
+		// Then: dispatch 驗證互斥 → VALIDATION，不拋出
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::VALIDATION, NormalizedError::get_code( $result ) );
 		// issued_data 未被寫入
 		$this->assertEmpty( ( new MetaKeys( $order ) )->get_issued_data() );
 	}
 
 	/**
-	 * feature: paynow-invoice-issue 「零稅率缺 zero_tax_rate_reason 時開立失敗」
+	 * feature: paynow-invoice-issue 「零稅率缺 zero_tax_rate_reason 時開立失敗（契約演進：[] → WP_Error）」
 	 *
-	 * IssueParams::create() 驗證：tax_type=ZeroTax 且 zero_tax_rate_reason 空 → throw。
-	 * provider 的 issue() catch \Throwable → 回 []。
+	 * dispatch 驗證三項（UBN/互斥/守恆）不涵蓋零稅率原因，故通過 dispatch 進 client；
+	 * IssueParams::create()（client from_order 內）對 ZeroTax 缺原因 throw \InvalidArgumentException →
+	 * client catch（kind=decode）→ provider error_from_client → PROVIDER（非業務碼之解析失敗）。
+	 * 重點：不向外拋例外，且不寫 issued_data。
 	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_error_issue_零稅率缺reason時回空陣列(): void {
+	public function test_error_issue_零稅率缺reason時回WP_Error(): void {
 		// Given: 零稅率發票，未帶 zero_tax_rate_reason
 		$order = $this->create_order_with_items(
 			[
@@ -437,10 +452,18 @@ final class PaynowInvoiceProviderTest extends TestCase {
 		$provider = PaynowInvoiceProvider::instance();
 
 		// When
-		$result = $provider->issue( $order );
+		$thrown = null;
+		try {
+			$result = $provider->issue( $order );
+		} catch ( \Throwable $e ) {
+			$thrown = $e;
+			$result = null;
+		}
 
-		// Then: 驗證失敗 → catch → 回 []
-		$this->assertSame( [], $result );
+		// Then: 不拋例外，回正規化錯誤（PROVIDER：解析失敗 fallthrough），不寫 issued_data
+		$this->assertNull( $thrown, 'provider 公開方法絕不可向外拋例外（never-throw 鐵律）' );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::PROVIDER, NormalizedError::get_code( $result ) );
 		$this->assertEmpty( ( new MetaKeys( $order ) )->get_issued_data() );
 	}
 
@@ -578,7 +601,9 @@ final class PaynowInvoiceProviderTest extends TestCase {
 
 		\remove_filter( 'pre_http_request', $interceptor, 10 );
 
-		$this->assertSame( [], $result, '未開立發票時 issue_allowance 應回空陣列' );
+		// 契約演進：未開立 → NOT_FOUND（非空陣列）.
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ), '未開立發票時 issue_allowance 應回 NOT_FOUND' );
 		$this->assertSame( [], $http_calls, '未開立時不應對外發任何 HTTP 請求' );
 	}
 
@@ -628,13 +653,15 @@ final class PaynowInvoiceProviderTest extends TestCase {
 	 * @test
 	 * @group edge
 	 */
-	public function test_edge_invalid_allowance_無折讓資料回空陣列(): void {
+	public function test_edge_invalid_allowance_無折讓資料回NOT_FOUND(): void {
 		$order    = $this->create_issued_order();
 		$provider = PaynowInvoiceProvider::instance();
 
 		$result = $provider->invalid_allowance( $order );
 
-		$this->assertSame( [], $result, '無折讓資料時 invalid_allowance 應回空陣列' );
+		// 契約演進：無折讓資料 → NOT_FOUND（非空陣列）.
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ), '無折讓資料時 invalid_allowance 應回 NOT_FOUND' );
 	}
 
 	// ========== 查詢（Query） — Happy ==========
@@ -704,27 +731,34 @@ final class PaynowInvoiceProviderTest extends TestCase {
 
 		\remove_filter( 'pre_http_request', $interceptor, 10 );
 
-		$this->assertSame( [], $result, '未開立時 query_invoice 應回空陣列' );
+		// 契約演進：未開立 → NOT_FOUND（非空陣列）.
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ), '未開立時 query_invoice 應回 NOT_FOUND' );
 		$this->assertSame( [], $http_calls, '未開立時不應對外發任何 HTTP 請求' );
 	}
 
 	/**
-	 * feature: paynow-invoice-query 「查詢失敗（type≠success）回空陣列」
+	 * feature: paynow-invoice-query 「查詢失敗回正規化錯誤（契約演進：[] → WP_Error）」
 	 *
-	 * 模擬 API 回傳 type≠success → InvoiceApiClient 拋 \RuntimeException → provider catch → 回 []。
+	 * 訂單不存在 → OrderUtils::get_order throw → provider catch（try 內）→ UNKNOWN，不向外拋。
 	 *
 	 * @test
 	 * @group edge
 	 */
-	public function test_edge_query_invoice_API失敗回空陣列(): void {
-		// 注入 HTTP 失敗回應（在非 mock 模式下觸發）；mock 模式下此分支由訂單不存在場景覆蓋。
-		// 在 API_MODE=mock 時 client 不觸發 wp_remote_*，此場景補充驗證：
-		// 若 query_invoice 傳入無效訂單 ID，catch 後應回 []。
+	public function test_edge_query_invoice_訂單不存在回UNKNOWN錯誤(): void {
 		$provider = PaynowInvoiceProvider::instance();
 
-		$result = $provider->query_invoice( 9999999 );
+		$thrown = null;
+		try {
+			$result = $provider->query_invoice( 9999999 );
+		} catch ( \Throwable $e ) {
+			$thrown = $e;
+			$result = null;
+		}
 
-		$this->assertSame( [], $result, 'query_invoice 失敗時必須回空陣列' );
+		$this->assertNull( $thrown, 'query_invoice 絕不可向外拋例外（never-throw 鐵律）' );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::UNKNOWN, NormalizedError::get_code( $result ), 'query_invoice 失敗時應回 UNKNOWN' );
 	}
 
 	/**

@@ -8,6 +8,8 @@ use J7\PowerCheckout\Domains\Payment\Shared\Enums\GatewaySupport;
 use J7\PowerCheckout\Domains\Payment\Shared\Enums\ProcessResult;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IPaymentProvider;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\WpUtils\Classes\DTO;
 use J7\WpUtils\Classes\WP;
 
@@ -212,19 +214,30 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway implements IPa
 	}
 
 	/**
-	 * 處理退款
-	 * 這不是訂單狀態轉換時觸發，而是 admin 點按部分退款時觸發
+	 * 處理退款（安全預設）
+	 * 這不是訂單狀態轉換時觸發，而是 admin 點按部分退款時觸發。
+	 *
+	 * 預設行為：不支援 API 退款的金流回正規化 `\WP_Error`（{@see ErrorCode::UNSUPPORTED}），
+	 * 提示改至金流後台手動處理；支援退款的金流自行覆寫此方法。
+	 *
+	 * 設計：失敗一律經 {@see NormalizedError::from()} 建構（$data 帶 provider），
+	 * 取代舊有回裸 `false`，使呼叫端（REST /refund + 前端 RefundDialog）能讀
+	 * `error_code` 精確顯示「不支援 API 退款」並導引手動退款流程。
 	 *
 	 * @param int        $order_id 訂單 ID
 	 * @param float|null $amount   退款金額
 	 * @param string     $reason   退款原因
 	 *
-	 * @return bool|\WP_Error True or false based on success, or a WP_Error object.
+	 * @return bool|\WP_Error 成功為 true，失敗為正規化 \WP_Error（預設 UNSUPPORTED）。
 	 * @noinspection PhpMissingReturnTypeInspection
 	 * @see          WC_Payment_Gateway::process_refund
 	 */
 	public function process_refund( $order_id, $amount = null, $reason = '' ) {
-		return false;
+		return NormalizedError::from(
+			ErrorCode::UNSUPPORTED,
+			\__( '此付款方式不支援 API 退款，請至金流後台手動處理', 'power_checkout' ),
+			[ 'provider' => $this->id ]
+		);
 	}
 
 	/**

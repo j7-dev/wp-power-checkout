@@ -9,9 +9,13 @@ declare( strict_types=1 );
 namespace Tests\Integration\Payment;
 
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\DTOs\Webhooks\Body;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Http\WebHook;
+use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Services\RedirectGateway;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Shared\Enums\EventType;
 use J7\PowerCheckout\Domains\Payment\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Payment\ShoplinePayment\Managers\StatusManager;
+use J7\PowerCheckout\Plugin;
+use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
 /**
@@ -325,5 +329,133 @@ final class WebhookSignatureTest extends TestCase {
 
 		// Then: meta 正確儲存，不造成異常
 		$this->assertSame( $xss_trade_id, $meta_keys->get_payment_identity() );
+	}
+
+	// ========== FM-06 護欄：偽造驗簽的 SLP webhook 不得變更訂單狀態 ==========
+	// einvoice 第六階段-b 改動 B：補強 callback 防重送風暴護欄。
+	// ⚠️ 硬約束：本輪「不改 WebHook.php 任何一行」。SLP webhook 的既有設計與其他 5 金流不同
+	//    （成功回 200；mapping 失敗回 500；env=production 下驗簽失敗於 try 區塊外 throw → 由 WP
+	//    包成 HTTP 500），故此處不主張「一律 HTTP 200」，而是鎖定真正關鍵的不變式（FM-06）：
+	//    偽造驗簽的請求「絕不」推進訂單狀態（不 payment_complete、不轉 processing）。
+
+	/**
+	 * 偽造簽章的 SLP webhook（env=production）不得將 pending 訂單推進為 processing
+	 *
+	 * 以 production 環境強制觸發 is_valid 的簽章驗證（local 環境會跳過驗章）；
+	 * 帶正確時間戳但錯誤 sign → verify_hmac_sha256_signature 於 try 區塊外 throw，
+	 * 處理流程（StatusManager::update_order_status）永遠不會執行，故訂單維持 pending。
+	 *
+	 * @test
+	 * @group security
+	 * @group edge
+	 */
+	public function test_FM06_偽造簽章SLPwebhook不推進訂單狀態(): void {
+		// Given: 設定 signKey + 一筆 pending 的 SLP 訂單
+		$original_env = Plugin::$env;
+		Plugin::$env  = 'production'; // 強制啟用簽章驗證（local 會跳過）
+		ProviderUtils::update_option(
+			RedirectGateway::ID,
+			[
+				'enabled' => 'yes',
+				'mode'    => 'test',
+				'signKey' => 'correct_sign_key_for_fm06',
+			]
+		);
+
+		$trade_order_id = 'TRADE_FM06_FORGED_001';
+		$order          = $this->create_order_with_payment_identity( $trade_order_id, 'pending' );
+
+		$timestamp = (string) ( \time() * 1000 ); // 有效時間戳（避免先卡在時間容差）
+		$body      = (string) \wp_json_encode(
+			[
+				'id'      => 'EVT_FM06_001',
+				'type'    => 'trade.succeeded',
+				'created' => \time(),
+				'data'    => [
+					'referenceOrderId' => 'REF_FM06',
+					'tradeOrderId'     => $trade_order_id,
+					'status'           => 'SUCCEEDED',
+				],
+			]
+		);
+
+		$request = new \WP_REST_Request( 'POST', '/power-checkout/slp/webhook' );
+		$request->set_header( 'timestamp', $timestamp );
+		$request->set_header( 'sign', 'forged_signature_value' ); // 偽造簽章
+		$request->set_body( $body );
+
+		// When: 偽造簽章請求進 callback（依既有設計：驗簽失敗於 try 外 throw → 不更新訂單）
+		$threw = false;
+		try {
+			WebHook::instance()->post_webhook_callback( $request );
+		} catch ( \Throwable ) {
+			$threw = true; // SLP 既有設計：env=production 驗簽失敗會 throw（不改）
+		} finally {
+			Plugin::$env = $original_env; // 還原環境，避免污染其他測試
+		}
+
+		// Then: 關鍵不變式（FM-06）——偽造驗簽絕不推進訂單狀態，維持 pending
+		$this->assert_order_status( $order, 'pending' );
+		$this->assertTrue(
+			$threw,
+			'SLP webhook 在 env=production 下偽造簽章應於 try 區塊外 throw（既有設計，本輪不改）'
+		);
+	}
+
+	/**
+	 * 偽造簽章的 SLP webhook（env=production）不寫入付款明細（FM-06 補強）
+	 *
+	 * 補充斷言：除狀態未變外，偽造驗簽亦不得寫入 _pc_payment_detail（StatusManager 從未執行）。
+	 *
+	 * @test
+	 * @group security
+	 * @group edge
+	 */
+	public function test_FM06_偽造簽章SLPwebhook不寫入付款明細(): void {
+		$original_env = Plugin::$env;
+		Plugin::$env  = 'production';
+		ProviderUtils::update_option(
+			RedirectGateway::ID,
+			[
+				'enabled' => 'yes',
+				'mode'    => 'test',
+				'signKey' => 'correct_sign_key_for_fm06_detail',
+			]
+		);
+
+		$trade_order_id = 'TRADE_FM06_FORGED_002';
+		$order          = $this->create_order_with_payment_identity( $trade_order_id, 'pending' );
+
+		$timestamp = (string) ( \time() * 1000 );
+		$body      = (string) \wp_json_encode(
+			[
+				'id'      => 'EVT_FM06_003',
+				'type'    => 'trade.succeeded',
+				'created' => \time(),
+				'data'    => [
+					'referenceOrderId' => 'REF_FM06_2',
+					'tradeOrderId'     => $trade_order_id,
+					'status'           => 'SUCCEEDED',
+				],
+			]
+		);
+
+		$request = new \WP_REST_Request( 'POST', '/power-checkout/slp/webhook' );
+		$request->set_header( 'timestamp', $timestamp );
+		$request->set_header( 'sign', 'forged_signature_value_2' );
+		$request->set_body( $body );
+
+		try {
+			WebHook::instance()->post_webhook_callback( $request );
+		} catch ( \Throwable ) {
+			// 既有設計：env=production 驗簽失敗於 try 外 throw（本輪不改 WebHook.php）
+			$this->assertTrue( true );
+		} finally {
+			Plugin::$env = $original_env;
+		}
+
+		// Then: 不寫入付款明細（驗簽失敗 → StatusManager 從未執行）
+		$detail = $this->get_payment_detail( \wc_get_order( $order->get_id() ) );
+		$this->assertEmpty( $detail, '偽造驗簽不得寫入付款明細' );
 	}
 }

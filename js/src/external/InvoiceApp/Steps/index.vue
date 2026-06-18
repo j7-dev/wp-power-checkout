@@ -1,17 +1,18 @@
 <script setup lang="ts">
+import { useMutation } from '@tanstack/vue-query'
+import type { FormRules } from 'element-plus'
 import { reactive, ref, toRaw, watch } from 'vue'
-import { TFormData } from '@/external/InvoiceApp/Shared/types'
+
+import apiClient from '@/api'
+import { appData, MAPPER, isAdmin } from '@/external/InvoiceApp'
 import {
 	EIndividual,
 	EInvoiceType,
 	individuals,
 	invoiceTypes,
 } from '@/external/InvoiceApp/Shared/constants'
-import { useMutation } from '@tanstack/vue-query'
-import apiClient from '@/api'
-import { appData, MAPPER, isAdmin } from '@/external/InvoiceApp'
-import type { FormRules } from 'element-plus'
-import { InfoFilled } from '@element-plus/icons-vue'
+import { TFormData } from '@/external/InvoiceApp/Shared/types'
+import { resolveErrorMessage, getNormalizedError } from '@/utils/error-code'
 
 const emit = defineEmits<{
 	close: []
@@ -50,12 +51,17 @@ const next = () => {
 const { mutate: issueInvoice, isPending } = useMutation({
 	mutationFn: async ({ orderId, data }: { orderId: string; data: TFormData }) =>
 		await apiClient.post(`/invoices/issue/${orderId}`, data),
-	onSuccess(data) {
-		// alert('電子發票開立成功')
-		// window.location.reload()
-	},
 	onError: (err) => {
-		console.error('發行電子發票失敗', err)
+		// interceptor 已用 error_code 對照彈出使用者通知；此處解析出同一則
+		// 精確訊息供 debug log（取代純粹的 console.error）。
+		const normalized = getNormalizedError(err)
+		// eslint-disable-next-line no-console
+		console.error(
+			'發行電子發票失敗',
+			resolveErrorMessage(normalized),
+			normalized?.raw_code ?? '',
+			err
+		)
 	},
 })
 
@@ -122,6 +128,7 @@ const handleIssue = async () => {
 			if (!input) {
 				return
 			}
+
 			// 確認 input html tag name 為 input
 			if ('INPUT' !== (input?.tagName || '').toUpperCase()) {
 				return
@@ -143,7 +150,7 @@ watch(
 		formRef.value?.resetFields()
 		Object.assign(form, DEFAULT_FORM)
 		active.value = 0
-	},
+	}
 )
 
 const CARRIER_PATTERN = /^\/[0-9A-Z+\-.]{7}$/
@@ -185,9 +192,9 @@ const rules = reactive<FormRules<TFormData>>({
 	</el-steps>
 
 	<el-form
+		ref="formRef"
 		element-loading-background="rgba(255, 255, 255, 0)"
 		:model="form"
-		ref="formRef"
 		label-position="top"
 		label-width="auto"
 		class="mb-8"
@@ -204,9 +211,13 @@ const rules = reactive<FormRules<TFormData>>({
 				v-model="form.provider"
 				class="grid grid-cols-3 gap-4 [&_label]:w-full w-full"
 			>
-				<el-radio v-for="provider in providers" :value="provider.id" border>{{
-					provider.title
-				}}</el-radio>
+				<el-radio
+					v-for="provider in providers"
+					:key="provider.id"
+					:value="provider.id"
+					border
+					>{{ provider.title }}</el-radio
+				>
 			</el-radio-group>
 		</el-form-item>
 
@@ -221,9 +232,13 @@ const rules = reactive<FormRules<TFormData>>({
 				v-model="form.invoiceType"
 				class="grid grid-cols-3 gap-4 [&_label]:w-full w-full"
 			>
-				<el-radio v-for="item in invoiceTypes" :value="item.value" border>{{
-					item.label
-				}}</el-radio>
+				<el-radio
+					v-for="item in invoiceTypes"
+					:key="item.value"
+					:value="item.value"
+					border
+					>{{ item.label }}</el-radio
+				>
 			</el-radio-group>
 		</el-form-item>
 
@@ -242,9 +257,13 @@ const rules = reactive<FormRules<TFormData>>({
 					v-model="form.individual"
 					class="grid grid-cols-3 gap-4 [&_label]:w-full w-full"
 				>
-					<el-radio v-for="item in individuals" :value="item.value" border>{{
-						item.label
-					}}</el-radio>
+					<el-radio
+						v-for="item in individuals"
+						:key="item.value"
+						:value="item.value"
+						border
+						>{{ item.label }}</el-radio
+					>
 				</el-radio-group>
 			</el-form-item>
 
@@ -313,29 +332,29 @@ const rules = reactive<FormRules<TFormData>>({
 
 	<div class="flex justify-between items-center">
 		<el-button
-			@click="prev"
 			:class="{
 				'opacity-0': active === 0,
 			}"
+			@click="prev"
 			>上一步</el-button
 		>
 		<el-button
-			@click="next"
 			:class="{
 				'tw-hidden': active === 2,
 			}"
 			:disabled="
 				(active === 0 && !form.provider) || (active === 1 && !form.invoiceType)
 			"
+			@click="next"
 			>下一步</el-button
 		>
 		<el-button
-			@click="handleIssue"
 			:class="{
 				'tw-hidden': active !== 2,
 			}"
 			type="primary"
 			:loading="isPending"
+			@click="handleIssue"
 			>{{ MAPPER.ISSUE_INVOICE }}</el-button
 		>
 	</div>

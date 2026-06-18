@@ -24,6 +24,7 @@ use J7\PowerCheckout\Domains\Payment\EcpayAIO\Http\DoActionClient;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\AioRedirectGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayMetaKeys;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayPaymentType;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -388,9 +389,9 @@ final class EcpayRefundTest extends TestCase {
 		// When
 		$result = $gateway->process_refund( $order->get_id(), 1000, '測試退款' );
 
-		// Then: 回 WP_Error('refund_unsupported')，錯誤訊息提示人工處理
+		// Then: 回正規化 UNSUPPORTED \WP_Error（取代舊 refund_unsupported），錯誤訊息提示人工處理
 		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 		$this->assertStringContainsString( '人工處理', $result->get_error_message() );
 	}
 

@@ -25,6 +25,8 @@ use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\EcpayInvoiceSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsQuery;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -165,21 +167,23 @@ final class InvoiceQueryTest extends TestCase {
 	 * @test
 	 * @group error
 	 */
-	public function test_amego_query_invoice_未開發票回傳空陣列(): void {
+	public function test_amego_query_invoice_未開發票回傳NOT_FOUND錯誤(): void {
 		$this->enable_provider( AmegoProvider::ID, [ 'mode' => 'test' ] );
 		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
 
 		$provider = AmegoProvider::instance();
 		$result   = $provider->query_invoice( $order );
 
-		$this->assertSame( [], $result );
+		// 契約演進：未開立發票查詢不再塌縮回 []，改回正規化 NOT_FOUND WP_Error.
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 
 	/**
 	 * @test
 	 * @group error
 	 */
-	public function test_ecpay_query_invoice_未開發票回傳空陣列(): void {
+	public function test_ecpay_query_invoice_未開發票回傳NOT_FOUND錯誤(): void {
 		$this->enable_provider(
 			EcpayInvoiceProvider::ID,
 			[
@@ -194,6 +198,8 @@ final class InvoiceQueryTest extends TestCase {
 		$provider = EcpayInvoiceProvider::instance();
 		$result   = $provider->query_invoice( $order );
 
-		$this->assertSame( [], $result );
+		// 契約演進：未開立發票查詢不再塌縮回 []，改回正規化 NOT_FOUND WP_Error.
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 }

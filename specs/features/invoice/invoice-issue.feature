@@ -257,3 +257,41 @@
       當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，provider 為 "ezpay"
       那麼 開立失敗
       而且 訂單 #100 的 _pc_issued_invoice_data 未被寫入
+
+  # ──────────────────────────────────────────────────────────────
+  # einvoice 導入 #1：開立失敗的回傳契約演進（原失敗一律塌縮回 [] → 改回 WP_Error 帶正規化 code）
+  # 完整錯誤模型契約見 invoice/invoice-error-model.feature；此處僅補開立端的正規化斷言。
+  # ──────────────────────────────────────────────────────────────
+
+  規則: 後置（回應）- 開立失敗回傳帶正規化 code 的 WP_Error（取代回傳空陣列）
+
+    場景: 開立第三方錯誤時 issue 回傳 WP_Error 而非空陣列
+      假設 "ezpay" 已啟用
+      而且 訂單 #100 尚未開立發票
+      而且 ezPay API 開立發票回傳錯誤
+      當 ezPay Provider 的 issue 方法被呼叫
+      那麼 回傳值是 WP_Error
+      而且 WP_Error 的 code 屬於正規化 code 值域
+      而且 WP_Error 的 error_data 包含 "raw_code"
+      而且 WP_Error 的 error_data 包含 "provider" 為 "ezpay"
+      而且 訂單 #100 的 _pc_issued_invoice_data 未被寫入
+
+    場景: CheckCode 驗章失敗時回傳 SIGNATURE 錯誤
+      假設 "ezpay" 已啟用
+      而且 訂單 #100 尚未開立發票
+      而且 ezPay API 回傳的 CheckCode 與本地計算不符
+      當 ezPay Provider 的 issue 方法被呼叫
+      那麼 回傳值是 WP_Error
+      而且 WP_Error 的 code 為 "SIGNATURE"
+
+  規則: 後置（回應）- issue 端點將開立失敗的 WP_Error 映射為帶 error_code 的回應
+
+    場景: issue 端點對驗證失敗回應帶 error_code
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 尚未開立發票
+      而且 訂單 #100 的發票參數同時帶載具與捐贈碼
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/issue/100，provider 為 "ezpay"
+      那麼 回應為錯誤狀態碼
+      而且 回應體包含 "error_code" 為 "VALIDATION"
+      而且 回應體包含使用者可讀的 "message"

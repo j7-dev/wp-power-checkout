@@ -28,6 +28,8 @@ use J7\PowerCheckout\Domains\Invoice\Amego\Services\AmegoProvider;
 use J7\PowerCheckout\Domains\Invoice\Amego\Shared\Enums\EApi;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -199,22 +201,27 @@ final class AmegoAllowanceTest extends TestCase {
 	// ========== 金額驗證 ==========
 
 	/**
+	 * 折讓金額為零 → 正規化 VALIDATION（契約演進：原 return [] → WP_Error）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_issue_allowance_金額為零回傳空陣列(): void {
+	public function test_issue_allowance_金額為零回傳VALIDATION(): void {
 		$order    = $this->create_issued_order();
 		$provider = AmegoProvider::instance();
 
 		$result = $provider->issue_allowance( $order, 0.0 );
-		$this->assertSame( [], $result );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::VALIDATION, NormalizedError::get_code( $result ) );
 	}
 
 	/**
+	 * 折讓金額超過原發票 → 正規化 VALIDATION（契約演進：原 return [] → WP_Error）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_issue_allowance_金額超過原發票回傳空陣列(): void {
+	public function test_issue_allowance_金額超過原發票回傳VALIDATION(): void {
 		// Given: 原發票 100 元
 		$order    = $this->create_issued_order();
 		$provider = AmegoProvider::instance();
@@ -222,15 +229,18 @@ final class AmegoAllowanceTest extends TestCase {
 		// When: 折讓 200 元（超過）
 		$result = $provider->issue_allowance( $order, 200.0 );
 
-		// Then: 拒絕
-		$this->assertSame( [], $result );
+		// Then: 拒絕（VALIDATION）
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::VALIDATION, NormalizedError::get_code( $result ) );
 	}
 
 	/**
+	 * 未開立發票就開折讓 → 正規化 NOT_FOUND（契約演進：原 return [] → WP_Error）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_issue_allowance_未開立發票回傳空陣列(): void {
+	public function test_issue_allowance_未開立發票回傳NOT_FOUND(): void {
 		// Given: 一筆沒有開立發票的訂單
 		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
 		$order->set_total( 100 );
@@ -242,7 +252,8 @@ final class AmegoAllowanceTest extends TestCase {
 		$result = $provider->issue_allowance( $order, 50.0 );
 
 		// Then
-		$this->assertSame( [], $result );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 
 	// ========== 作廢折讓 ==========
@@ -269,10 +280,12 @@ final class AmegoAllowanceTest extends TestCase {
 	}
 
 	/**
+	 * 無折讓資料就作廢折讓 → 正規化 NOT_FOUND（契約演進：原 return [] → WP_Error）
+	 *
 	 * @test
 	 * @group error
 	 */
-	public function test_invalid_allowance_無折讓資料回傳空陣列(): void {
+	public function test_invalid_allowance_無折讓資料回傳NOT_FOUND(): void {
 		$order    = $this->create_issued_order();
 		$provider = AmegoProvider::instance();
 
@@ -280,7 +293,8 @@ final class AmegoAllowanceTest extends TestCase {
 		$result = $provider->invalid_allowance( $order );
 
 		// Then
-		$this->assertSame( [], $result );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 
 	// ========== 邊緣案例 ==========

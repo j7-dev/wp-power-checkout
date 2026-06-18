@@ -25,6 +25,8 @@ use J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs\EcpayInvoiceSettingsDTO;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Shared\Enums\EApi;
 use J7\PowerCheckout\Domains\Invoice\Shared\Helpers\MetaKeys;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -189,13 +191,13 @@ final class EcpayAllowanceTest extends TestCase {
 	 * @group happy
 	 */
 	public function test_issue_allowance_B2B公司統編折讓成功(): void {
-		// Given: 一筆已開立 B2B 發票的訂單
+		// Given: 一筆已開立 B2B 發票的訂單（04595257 通過財政部 UBN checksum）
 		$order    = $this->create_issued_order(
 			[
 				'provider'    => 'ecpay',
 				'invoiceType' => 'company',
 				'companyName' => '測試公司',
-				'companyId'   => '87654321',
+				'companyId'   => '04595257',
 			]
 		);
 		$provider = EcpayInvoiceProvider::instance();
@@ -240,12 +242,14 @@ final class EcpayAllowanceTest extends TestCase {
 	 * @test
 	 * @group error
 	 */
-	public function test_issue_allowance_金額為零回傳空陣列(): void {
+	public function test_issue_allowance_金額為零回傳VALIDATION錯誤(): void {
 		$order    = $this->create_issued_order( [ 'provider' => 'ecpay' ] );
 		$provider = EcpayInvoiceProvider::instance();
 
+		// 契約演進：金額不合法不再塌縮回 []，改回正規化 VALIDATION WP_Error.
 		$result = $provider->issue_allowance( $order, 0.0 );
-		$this->assertSame( [], $result );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::VALIDATION, NormalizedError::get_code( $result ) );
 	}
 
 	/**
@@ -260,15 +264,16 @@ final class EcpayAllowanceTest extends TestCase {
 		// When: 折讓 200 元（超過）
 		$result = $provider->issue_allowance( $order, 200.0 );
 
-		// Then: 拒絕
-		$this->assertSame( [], $result );
+		// Then: 拒絕（契約演進：超額回正規化 VALIDATION WP_Error，非 []）
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::VALIDATION, NormalizedError::get_code( $result ) );
 	}
 
 	/**
 	 * @test
 	 * @group error
 	 */
-	public function test_issue_allowance_未開立發票回傳空陣列(): void {
+	public function test_issue_allowance_未開立發票回傳NOT_FOUND錯誤(): void {
 		// Given: 一筆沒有開立發票的訂單
 		$order = $this->create_wc_order( [ 'status' => 'processing' ] );
 		$order->set_total( 100 );
@@ -279,8 +284,9 @@ final class EcpayAllowanceTest extends TestCase {
 		// When
 		$result = $provider->issue_allowance( $order, 50.0 );
 
-		// Then
-		$this->assertSame( [], $result );
+		// Then: 契約演進：前置未開立發票回正規化 NOT_FOUND WP_Error，非 []
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 
 	// ========== 作廢折讓 ==========
@@ -310,14 +316,15 @@ final class EcpayAllowanceTest extends TestCase {
 	 * @test
 	 * @group error
 	 */
-	public function test_invalid_allowance_無折讓資料回傳空陣列(): void {
+	public function test_invalid_allowance_無折讓資料回傳NOT_FOUND錯誤(): void {
 		$order    = $this->create_issued_order( [ 'provider' => 'ecpay' ] );
 		$provider = EcpayInvoiceProvider::instance();
 
 		// When: 沒有折讓資料就作廢
 		$result = $provider->invalid_allowance( $order );
 
-		// Then
-		$this->assertSame( [], $result );
+		// Then: 契約演進：無折讓資料回正規化 NOT_FOUND WP_Error，非 []
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( ErrorCode::NOT_FOUND, NormalizedError::get_code( $result ) );
 	}
 }

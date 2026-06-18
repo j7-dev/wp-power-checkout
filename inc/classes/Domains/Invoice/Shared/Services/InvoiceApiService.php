@@ -15,6 +15,8 @@ use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\IInvoiceService;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsAllowance;
 use J7\PowerCheckout\Domains\Invoice\Shared\Interfaces\ISupportsQuery;
 use J7\PowerCheckout\Domains\Invoice\Shared\Utils\InvoiceUtils;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
+use J7\PowerCheckout\Shared\Errors\NormalizedError;
 use J7\PowerCheckout\Shared\Utils\OrderUtils;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use J7\WpUtils\Classes\ApiBase;
@@ -72,7 +74,7 @@ final class InvoiceApiService extends ApiBase {
 		[$service, $order] = self::get_service( $order_id, $args );
 		( new MetaKeys($order) )->update_issue_params( $args );
 		$result = $service->issue( $order  );
-		return new \WP_REST_Response($result, 200 );
+		return self::respond( $result );
 	}
 
 	/**
@@ -91,7 +93,7 @@ final class InvoiceApiService extends ApiBase {
 			throw new \Exception("{$provider_id} 不是 Invoice Service");
 		}
 		$result = $provider->cancel( $order );
-		return new \WP_REST_Response( $result, 200 );
+		return self::respond( $result );
 	}
 
 
@@ -112,7 +114,7 @@ final class InvoiceApiService extends ApiBase {
 		$notify_mail = (string) ( $request['notify_mail'] ?? '' );
 
 		$result = $provider->issue_allowance( $order, $amount, $notify_mail );
-		return new \WP_REST_Response( $result, 200 );
+		return self::respond( $result );
 	}
 
 	/**
@@ -128,7 +130,7 @@ final class InvoiceApiService extends ApiBase {
 		$provider = self::get_allowance_provider( $order );
 
 		$result = $provider->invalid_allowance( $order );
-		return new \WP_REST_Response( $result, 200 );
+		return self::respond( $result );
 	}
 
 	/**
@@ -151,7 +153,7 @@ final class InvoiceApiService extends ApiBase {
 		}
 
 		$result = $provider->query_invoice( $order );
-		return new \WP_REST_Response( $result, 200 );
+		return self::respond( $result );
 	}
 
 	/**
@@ -173,6 +175,46 @@ final class InvoiceApiService extends ApiBase {
 		}
 
 		return $provider;
+	}
+
+	/**
+	 * 統一將 provider 回傳值映射為 REST 回應
+	 *
+	 * 第五階段（面 B）導入：provider 失敗從「塌縮回 []」演進為回正規化 \WP_Error。
+	 * 本方法負責呼叫端映射：
+	 *   - 成功（array）→ 維持既有 200 回應、原樣透傳（不變）。
+	 *   - 失敗（\WP_Error）→ HTTP = {@see ErrorCode::to_http_status()}（非正規化 code 預設 500）；
+	 *     body 對齊本專案 REST envelope（code / message / data）並額外於頂層帶 error_code / raw_code，
+	 *     確保前端能讀 `error.response.data.error_code` + `message`。
+	 *
+	 * 注意：本方法**不**處理「找不到要呼叫的東西」（面 A：訂單 / provider 不存在 / 型別不符）——
+	 * 那條既有 `throw \Exception` → WP ApiBase 包成 HTTP 500 的路徑完全不動。
+	 *
+	 * @param array<string, mixed>|\WP_Error $result provider 回傳值
+	 *
+	 * @return \WP_REST_Response
+	 */
+	private static function respond( array|\WP_Error $result ): \WP_REST_Response {
+		if ( ! \is_wp_error( $result ) ) {
+			return new \WP_REST_Response( $result, 200 );
+		}
+
+		$code        = NormalizedError::get_code( $result );
+		$error_code  = null === $code ? (string) $result->get_error_code() : $code->value;
+		$http_status = null === $code ? 500 : $code->to_http_status();
+		$raw_code    = NormalizedError::get_raw_code( $result );
+		$message     = $result->get_error_message();
+
+		return new \WP_REST_Response(
+			[
+				'code'       => $error_code,
+				'error_code' => $error_code,
+				'raw_code'   => $raw_code,
+				'message'    => $message,
+				'data'       => null,
+			],
+			$http_status
+		);
 	}
 
 	/**

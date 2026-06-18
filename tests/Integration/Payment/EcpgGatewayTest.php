@@ -18,6 +18,7 @@ use J7\PowerCheckout\Domains\Payment\Ecpg\Http\EcpgApiClient;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Services\EcpgGateway;
 use J7\PowerCheckout\Domains\Payment\Ecpg\Shared\Helpers\AesCrypto;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Helpers\EcpayMetaKeys;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -410,8 +411,8 @@ final class EcpgGatewayTest extends TestCase {
 		// When
 		$result = $gateway->process_refund( $order->get_id(), 500, '測試退款' );
 
-		// Then: 非信用卡一律擋下，不呼叫退款 API
+		// Then: 非信用卡一律擋下，不呼叫退款 API（正規化 UNSUPPORTED，取代舊 refund_unsupported）
 		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 	}
 }

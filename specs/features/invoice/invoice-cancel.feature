@@ -119,3 +119,34 @@
       那麼 作廢失敗
       而且 訂單 #100 的 _pc_issued_invoice_data 未被清除
       而且 訂單 #100 留下作廢失敗的 order note
+
+  # ──────────────────────────────────────────────────────────────
+  # einvoice 導入 #1：作廢失敗的回傳契約演進（原失敗塌縮回 [] → 改回 WP_Error 帶正規化 code）
+  # 完整錯誤模型契約見 invoice/invoice-error-model.feature；此處僅補作廢端的正規化斷言。
+  # ──────────────────────────────────────────────────────────────
+
+  規則: 後置（回應）- 作廢失敗回傳帶正規化 code 的 WP_Error（取代回傳空陣列）
+
+    場景: 作廢已開折讓發票時 cancel 回傳 CONFLICT 並保留 raw_code
+      假設 "ezpay" 已啟用
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ezpay"
+      而且 訂單 #100 已開立 ezPay 發票且已開過折讓
+      而且 ezPay API 作廢發票回傳錯誤代碼 "LIB10007"
+      當 ezPay Provider 的 cancel 方法被呼叫
+      那麼 回傳值是 WP_Error
+      而且 WP_Error 的 code 為 "CONFLICT"
+      而且 WP_Error 的 error_data 的 raw_code 為 "LIB10007"
+      而且 訂單 #100 的 _pc_issued_invoice_data 未被清除
+
+  規則: 後置（回應）- cancel 端點將作廢失敗的 WP_Error 映射為帶 error_code 的回應
+
+    場景: cancel 端點對狀態衝突回應帶 error_code
+      假設 "ezpay" 已啟用
+      而且 管理員已登入並取得 Nonce
+      而且 訂單 #100 的 _pc_invoice_provider_id 為 "ezpay"
+      而且 訂單 #100 已開立 ezPay 發票且已開過折讓
+      而且 ezPay Provider cancel 回傳 WP_Error（code 為 "CONFLICT"）
+      當 管理員發送 POST /wp-json/power-checkout/v1/invoices/cancel/100
+      那麼 回應為錯誤狀態碼
+      而且 回應體包含 "error_code" 為 "CONFLICT"
+      而且 回應體包含 "raw_code" 為 "LIB10007"

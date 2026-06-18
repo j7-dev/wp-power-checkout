@@ -44,6 +44,7 @@ use J7\PowerCheckout\Domains\Payment\Paynow\DTOs\PaynowSettingsDTO;
 use J7\PowerCheckout\Domains\Payment\Paynow\Services\PaynowGateway;
 use J7\PowerCheckout\Domains\Payment\Paynow\Shared\Helpers\PaynowMetaKeys;
 use J7\PowerCheckout\Domains\Payment\Paynow\Shared\Helpers\PaynowTradeNo;
+use J7\PowerCheckout\Shared\Errors\ErrorCode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
 use Tests\Integration\TestCase;
 
@@ -335,13 +336,13 @@ final class PaynowRefundTest extends TestCase {
 		// When: 嘗試發起 API 退款
 		$result = $gateway->process_refund( $order->get_id(), 800.0, '超商代碼退款測試' );
 
-		// Then: 回傳 WP_Error('refund_unsupported')
+		// Then: 回傳正規化 UNSUPPORTED \WP_Error（取代舊 refund_unsupported）
 		$this->assertTrue( \is_wp_error( $result ), '超商代碼訂單退款應回 WP_Error，實際回：' . \gettype( $result ) );
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertSame(
-			'refund_unsupported',
+			ErrorCode::UNSUPPORTED->value,
 			$result->get_error_code(),
-			'超商代碼退款 WP_Error 代碼應為 refund_unsupported'
+			'超商代碼退款 WP_Error 代碼應為正規化 UNSUPPORTED'
 		);
 	}
 
@@ -369,7 +370,7 @@ final class PaynowRefundTest extends TestCase {
 
 		// Then
 		$this->assertTrue( \is_wp_error( $result ), 'LINE Pay 訂單退款應回 WP_Error' );
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 	}
 
 	/**
@@ -394,7 +395,7 @@ final class PaynowRefundTest extends TestCase {
 
 		// Then
 		$this->assertTrue( \is_wp_error( $result ), 'Apple Pay 訂單退款應回 WP_Error' );
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 	}
 
 	/**
@@ -656,7 +657,7 @@ final class PaynowRefundTest extends TestCase {
 			\is_wp_error( $result ),
 			'後端 PaymentType=ConvenienceStore 應回 WP_Error，不因前端金額傳入而走信用卡退款路徑'
 		);
-		$this->assertSame( 'refund_unsupported', $result->get_error_code() );
+		$this->assertSame( ErrorCode::UNSUPPORTED->value, $result->get_error_code() );
 	}
 
 	/**

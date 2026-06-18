@@ -77,6 +77,27 @@ final class InvoiceApiClient {
 	private readonly UrlEncoder $url_encoder;
 
 	/**
+	 * 最後一次失敗的結構化錯誤明細（供 provider 的 map_error 做正規化映射）
+	 *
+	 * 既有對外回傳契約不變（業務方法成功回 DTO、失敗仍回 null）；本欄為「附加的」錯誤明細管道。
+	 * 每次業務方法進入時重置為 null，失敗時於 catch 落地（raw_code / raw_message / raw / kind）。
+	 *
+	 * @var array{raw_code: string, raw_message: string, raw: string, kind: string}|null
+	 */
+	private ?array $last_error_detail = null;
+
+	/**
+	 * MOCK 錯誤注入（測試用）：非 null 時 mock_response() 回此外層回應，覆寫成功 fixture
+	 *
+	 * 讓錯誤路徑測試（LIB10007 / KEY10002 / NUMBER_EXHAUSTED / 未涵蓋碼…）能在 API_MODE=mock 下
+	 * 注入「Status 非 SUCCESS」的外層回應，觸發 business 錯誤路徑。測試 tearDown 必須 reset 為 null。
+	 * 形狀：{ Status: string, Message?: string, Result?: array }。
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	public static ?array $mock_error_override = null;
+
+	/**
 	 * Constructor
 	 *
 	 * @param \WC_Order $order 訂單（log / order note 與業務方法所需）.
@@ -88,6 +109,18 @@ final class InvoiceApiClient {
 		$this->crypto      = new AesCrypto( $this->settings->hash_key, $this->settings->hash_iv );
 		$this->check_code  = new CheckCodeService( $this->settings->hash_key, $this->settings->hash_iv );
 		$this->url_encoder = new UrlEncoder();
+	}
+
+	/**
+	 * 取得最後一次失敗的結構化錯誤明細
+	 *
+	 * 由 provider 在 client 業務方法回 null 後呼叫，取得 raw_code / raw_message / raw / kind，
+	 * 交給自身的 map_error() 做正規化映射。null 代表「無錯誤明細」（成功或未呼叫）。
+	 *
+	 * @return array{raw_code: string, raw_message: string, raw: string, kind: string}|null 錯誤明細.
+	 */
+	public function get_last_error_detail(): ?array {
+		return $this->last_error_detail;
 	}
 
 	/**
@@ -304,8 +337,11 @@ final class InvoiceApiClient {
 	 * @return array<string, mixed>|null 成功回 Result 陣列；失敗回 null.
 	 */
 	public function request( EApi $api, array $data, array $check_code_keys = self::ISSUE_CHECK_KEYS ): ?array {
+		// 每次請求重置錯誤明細（成功路徑保持 null）.
+		$this->last_error_detail = null;
+
 		try {
-			// MOCK 模式：不打真 API，回固定 fixture（已含官方金鑰算出的 CheckCode）.
+			// MOCK 模式：不打真 API，回固定 fixture（已含官方金鑰算出的 CheckCode）；可經 $mock_error_override 注入錯誤回應.
 			if ( self::is_mock() ) {
 				return $this->decode_result( $this->mock_response( $api ), $check_code_keys );
 			}
@@ -334,7 +370,13 @@ final class InvoiceApiClient {
 			);
 
 			if ( \is_wp_error( $response ) ) {
-				throw new \RuntimeException( $response->get_error_message() );
+				// 對外連線失敗 / 逾時 → kind=network，provider 映射 NETWORK.
+				throw new EzpayApiException(
+					$response->get_error_message(),
+					'',
+					$response->get_error_message(),
+					EzpayApiException::KIND_NETWORK
+				);
 			}
 
 			/** @var array<string, mixed> $body */
@@ -342,6 +384,9 @@ final class InvoiceApiClient {
 
 			return $this->decode_result( $body, $check_code_keys );
 		} catch ( \Throwable $e ) {
+			// 落地結構化錯誤明細供 provider map_error；既有 null 回傳契約不變.
+			$this->last_error_detail = self::to_error_detail( $e );
+
 			Plugin::logger(
 				"❌ ezPay {$api->label()} {$api->value} 失敗 #{$this->order->get_id()}： {$e->getMessage()}",
 				'error',
@@ -350,6 +395,34 @@ final class InvoiceApiClient {
 			);
 			return null;
 		}
+	}
+
+	/**
+	 * 將攔截到的例外正規化為「錯誤明細」（raw_code / raw_message / raw / kind）
+	 *
+	 * EzpayApiException 攜帶 ezPay 原始碼與種類，原樣映射；其餘 \Throwable（JSON decode 等）
+	 * 一律歸 decode 種類（無 raw_code），交由 provider 映射 PROVIDER。
+	 *
+	 * @param \Throwable $e 攔截到的例外.
+	 *
+	 * @return array{raw_code: string, raw_message: string, raw: string, kind: string} 錯誤明細.
+	 */
+	private static function to_error_detail( \Throwable $e ): array {
+		if ( $e instanceof EzpayApiException ) {
+			return [
+				'raw_code'    => $e->get_raw_code(),
+				'raw_message' => $e->get_raw_message(),
+				'raw'         => $e->getMessage(),
+				'kind'        => $e->get_kind(),
+			];
+		}
+
+		return [
+			'raw_code'    => '',
+			'raw_message' => $e->getMessage(),
+			'raw'         => $e->getMessage(),
+			'kind'        => EzpayApiException::KIND_DECODE,
+		];
 	}
 
 	/**
@@ -365,13 +438,19 @@ final class InvoiceApiClient {
 	 * @param array<int, string>   $check_code_keys CheckCode 驗證欄位集（空陣列代表略過驗證）.
 	 *
 	 * @return array<string, mixed> 解密後的 Result 陣列.
-	 * @throws \RuntimeException 當 Status≠SUCCESS 或 CheckCode 不符.
+	 * @throws EzpayApiException 當 Status≠SUCCESS（business，攜帶 raw_code）或 CheckCode 不符（signature）.
 	 */
 	public function decode_result( array $response, array $check_code_keys = self::ISSUE_CHECK_KEYS ): array {
 		$status = (string) ( $response['Status'] ?? '' );
 		if ( 'SUCCESS' !== $status ) {
 			$message = (string) ( $response['Message'] ?? 'unknown' );
-			throw new \RuntimeException( "ezPay 回應失敗 Status={$status}：{$message}" );
+			// Status 即 ezPay 原始錯誤碼（如 LIB10007 / KEY10002）→ 攜帶 raw_code 供 provider map_error.
+			throw new EzpayApiException(
+				"ezPay 回應失敗 Status={$status}：{$message}",
+				$status,
+				$message,
+				EzpayApiException::KIND_BUSINESS
+			);
 		}
 
 		$result_raw = $response['Result'] ?? '';
@@ -388,7 +467,13 @@ final class InvoiceApiClient {
 				$fields[ $key ] = $result[ $key ];
 			}
 			if ( ! $this->check_code->verify( $fields, $check_code ) ) {
-				throw new \RuntimeException( 'ezPay 回應 CheckCode 驗證失敗（回應可能非來自 ezPay 或金鑰不符）' );
+				// 驗章失敗（回應可能非來自 ezPay 或金鑰不符）→ kind=signature，provider 映射 SIGNATURE.
+				throw new EzpayApiException(
+					'ezPay 回應 CheckCode 驗證失敗（回應可能非來自 ezPay 或金鑰不符）',
+					'',
+					'',
+					EzpayApiException::KIND_SIGNATURE
+				);
 			}
 		}
 
@@ -436,9 +521,14 @@ final class InvoiceApiClient {
 	 *
 	 * @param EApi $api 端點.
 	 *
-	 * @return array{Status: string, Message: string, Result: array<string, mixed>} 模擬的外層回應.
+	 * @return array<string, mixed> 模擬的外層回應 { Status, Message, Result? }.
 	 */
 	private function mock_response( EApi $api ): array {
+		// 測試注入：非 null 時回覆寫的外層回應（觸發 business / signature 錯誤路徑）.
+		if ( null !== self::$mock_error_override ) {
+			return self::$mock_error_override;
+		}
+
 		$result = match ( $api ) {
 			EApi::INVOICE_ISSUE     => $this->mock_issue_result(),
 			EApi::ALLOWANCE_ISSUE   => $this->mock_allowance_result(),
