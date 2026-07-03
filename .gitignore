@@ -40,4 +40,4 @@ phpunit.xml
 
 # Runtime artifacts
 .claude/scheduled_tasks.lock
-.playwright-cli/
+.playwright-cli/.wp-env.override.json

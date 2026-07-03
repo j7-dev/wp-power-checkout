@@ -169,9 +169,12 @@ final class QueryTradeClient {
 		$response = \wp_remote_post(
 			$this->get_endpoint(),
 			[
-				'body'     => $params,
-				'blocking' => true,
-				'timeout'  => self::TIMEOUT,
+				'body'       => $params,
+				'blocking'   => true,
+				'timeout'    => self::TIMEOUT,
+				// 藍新 ccore/core API 前的 Akamai WAF 會擋 WordPress/* 與 curl/* UA
+				//（回 403 Access Denied HTML），送產品識別 UA 通過（sandbox 實測）
+				'user-agent' => 'PowerCheckout/1.0',
 			]
 		);
 

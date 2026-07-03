@@ -74,6 +74,13 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 	 * @return void
 	 */
 	protected function before_order_received( \WC_Order $order ): void {
+		// 冪等：已付款（processing / completed）不得再導往藍新——重複導轉會被藍新
+		// 以重複 MerchantOrderNo 拒單，買家會被甩出完成頁（sandbox 端到端實測）。
+		// 僅 pending / failed（needs_payment）渲染付款表單。
+		if ( ! $order->needs_payment() ) {
+			return;
+		}
+
 		try {
 			$meta_keys = new MpgMetaKeys( $order );
 
@@ -279,6 +286,26 @@ final class MpgRedirectGateway extends AbstractPaymentGateway implements IGatewa
 			$wpdb->query( 'ROLLBACK' ); // phpcs:ignore
 			$order->add_order_note( "❌ 藍新金流退款失敗：{$e->getMessage()}" );
 			$refund->delete( true );
+
+			// 全額退款時 wc_create_refund 先把訂單推到 refunded 才觸發本 hook；
+			// API 失敗 + refund 已刪 → 若不回滾，訂單會殘留 refunded 卻無任何退款記錄。
+			if ( $order->has_status( 'refunded' ) ) {
+				$order->update_status( 'processing', \__( '藍新金流退款 API 失敗，訂單狀態回滾', 'power_checkout' ) );
+			}
+
+			// 失敗透出（REST 層 consume_refund_error 讀取）：訊息含藍新 Status 碼時抽出作 raw_code
+			$raw_code = \preg_match( '/Status=([A-Z0-9]+)/', $e->getMessage(), $m ) ? $m[1] : null;
+			self::record_refund_error(
+				$order,
+				NormalizedError::from(
+					ErrorCode::PROVIDER,
+					$e->getMessage(),
+					[
+						'raw_code' => $raw_code,
+						'provider' => $this->id,
+					]
+				)
+			);
 		}
 	}
 

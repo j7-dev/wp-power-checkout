@@ -455,6 +455,67 @@ abstract class AbstractPaymentGateway extends \WC_Payment_Gateway implements IPa
 	public function process_gateway_refund( int $order_id, int $refund_id ): void {
 	}
 
+	// region 退款 API 失敗透出（process_gateway_refund 於 hook 內吞例外，REST 層透過此 meta 取回失敗結果）
+
+	/** @var string 退款 API 失敗記錄 meta key（read-once，由 consume_refund_error 讀取後即刪） */
+	protected const REFUND_ERROR_META = '_pc_refund_error';
+
+	/**
+	 * 記錄退款 API 失敗（供 gateway 的 process_gateway_refund catch 區塊呼叫）
+	 *
+	 * process_gateway_refund 由 woocommerce_order_refunded hook 觸發、失敗時吞例外
+	 * （order note + 刪 refund），呼叫端（REST / WC admin）無從得知結果。
+	 * 此方法把正規化錯誤存到訂單 meta，REST 層以 consume_refund_error() 取回並回應。
+	 *
+	 * @param \WC_Order $order 訂單
+	 * @param \WP_Error $error 正規化錯誤（NormalizedError::from 建構）
+	 * @return void
+	 */
+	protected static function record_refund_error( \WC_Order $order, \WP_Error $error ): void {
+		$order->update_meta_data(
+			static::REFUND_ERROR_META,
+			[
+				'error_code' => (string) $error->get_error_code(),
+				'raw_code'   => NormalizedError::get_raw_code( $error ),
+				'message'    => $error->get_error_message(),
+				'time'       => \time(),
+			]
+		);
+		$order->save();
+	}
+
+	/**
+	 * 取出並清除退款 API 失敗記錄（read-once）
+	 *
+	 * @param int $order_id 訂單 id
+	 * @return \WP_Error|null 正規化 \WP_Error；無失敗記錄回 null
+	 */
+	public function consume_refund_error( int $order_id ): ?\WP_Error {
+		$order = \wc_get_order( $order_id );
+		if ( ! $order instanceof \WC_Order ) {
+			return null;
+		}
+
+		$data = $order->get_meta( static::REFUND_ERROR_META );
+		if ( ! \is_array( $data ) || empty( $data['message'] ) ) {
+			return null;
+		}
+
+		$order->delete_meta_data( static::REFUND_ERROR_META );
+		$order->save();
+
+		return NormalizedError::from(
+			ErrorCode::tryFrom( (string) ( $data['error_code'] ?? '' ) ) ?? ErrorCode::PROVIDER,
+			(string) $data['message'],
+			[
+				'raw_code' => $data['raw_code'] ?? null,
+				'provider' => $this->id,
+			]
+		);
+	}
+
+	// endregion
+
 	/** 初始化 */
 	public static function init(): void {}
 }

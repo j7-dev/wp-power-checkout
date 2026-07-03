@@ -63,24 +63,34 @@ class PaymentApiService extends ApiBase {
 		}
 
 		$int_order_id = (int) $order_id;
-		$refund       = \wc_create_refund(
+		// refund_payment=true：WC 核心先以 process_refund() 做能力檢查，通過才
+		// set_refunded_payment(true)，woocommerce_order_refunded hook 內的
+		// process_gateway_refund 依 get_refunded_payment() 判定後發送真實退款 API。
+		// 缺此旗標時 refund 會被判為「手動退款」而完全不發 API（卻回報成功）。
+		// hook 已於 wc_create_refund 內觸發，不得再顯式呼叫 handle_payment_gateway_refund（會重複發送 API）。
+		$refund = \wc_create_refund(
 			[
-				'amount'   => (float) $remaining_refund_amount,
-				'reason'   => '',
-				'order_id' => $int_order_id,
+				'amount'         => (float) $remaining_refund_amount,
+				'reason'         => '',
+				'order_id'       => $int_order_id,
+				'refund_payment' => true,
 			]
 			);
-		if ($refund instanceof \WC_Order_Refund) {
-			$gateway->handle_payment_gateway_refund( $int_order_id, $refund->get_id() );
+
+		if (\is_wp_error($refund)) {
+			// wc_refund_payment() 會把 gateway 的正規化 \WP_Error 壓平成 WP_Error('error', msg)，
+			// error_code / raw_code 丟失 → 重呼叫 process_refund（純能力檢查，無副作用）取回正規化錯誤。
+			$recheck = $gateway->process_refund( $int_order_id, (float) $remaining_refund_amount );
+			return self::error_response( \is_wp_error( $recheck ) ? $recheck : $refund );
 		}
 
-		$result = $gateway->process_refund( $int_order_id, (float) $remaining_refund_amount );
-		if (\is_wp_error($result)) {
-			// 面 B（豐富化）：process_refund 回正規化 \WP_Error → 映射為 error_code + raw_code + message
-			// + 依 code 的 HTTP 狀態碼（對齊 InvoiceApiService::respond()）。
-			// 不再只 throw get_error_message（會丟失 error_code），改回應體讓前端 RefundDialog
-			// 能讀 error.response.data.error_code（UNSUPPORTED → 提示手動退款）。never-throw。
-			return self::error_response( $result );
+		// 面 B（豐富化）：process_gateway_refund 於 hook 內失敗時吞例外（note + 刪 refund + 狀態回滾），
+		// 呼叫端無從得知 → 由 gateway 記錄的失敗 meta 取回（read-once），映射為
+		// error_code + raw_code + message + 依 code 的 HTTP 狀態碼（對齊 InvoiceApiService::respond()）。
+		// 讓前端 RefundDialog 能讀 error.response.data.error_code（UNSUPPORTED → 提示手動退款）。never-throw。
+		$gateway_error = $gateway->consume_refund_error( $int_order_id );
+		if ($gateway_error instanceof \WP_Error) {
+			return self::error_response( $gateway_error );
 		}
 
 		return new \WP_REST_Response(

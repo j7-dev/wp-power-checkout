@@ -104,11 +104,13 @@ final class DoActionClient {
 	public function cancel_auth( string $trade_no, float $amount ): array {
 		$this->assert_trade_no( $trade_no, '取消授權' );
 
+		// TimeStamp 為藍新必填——缺少時回 MEM40013「資料不齊全: TimeStamp」（sandbox 實測）
 		$post_data = \sprintf(
-			'RespondType=JSON&Version=1.0&Amt=%d&TradeNo=%s&IndexType=%d',
+			'RespondType=JSON&Version=1.0&Amt=%d&TradeNo=%s&IndexType=%d&TimeStamp=%d',
 			(int) \ceil( $amount ),
 			$trade_no,
-			self::INDEX_TYPE_TRADE_NO
+			self::INDEX_TYPE_TRADE_NO,
+			\time()
 		);
 
 		return $this->send( $this->get_cancel_endpoint(), $post_data, '取消授權' );
@@ -128,13 +130,15 @@ final class DoActionClient {
 	private function do_close( int $close_type, string $trade_no, float $amount, string $action_zh ): array {
 		$this->assert_trade_no( $trade_no, $action_zh );
 
-		// 藍新僅收新台幣整數，無條件進位（避免少收 / 少退）
+		// 藍新僅收新台幣整數，無條件進位（避免少收 / 少退）。
+		// TimeStamp 為藍新必填——缺少時回 MEM40013「資料不齊全: TimeStamp」（sandbox 實測）。
 		$post_data = \sprintf(
-			'RespondType=JSON&Version=1.1&Amt=%d&TradeNo=%s&IndexType=%d&CloseType=%d',
+			'RespondType=JSON&Version=1.1&Amt=%d&TradeNo=%s&IndexType=%d&CloseType=%d&TimeStamp=%d',
 			(int) \ceil( $amount ),
 			$trade_no,
 			self::INDEX_TYPE_TRADE_NO,
-			$close_type
+			$close_type,
+			\time()
 		);
 
 		return $this->send( $this->get_close_endpoint(), $post_data, $action_zh );
@@ -195,9 +199,12 @@ final class DoActionClient {
 		$response = \wp_remote_post(
 			$endpoint,
 			[
-				'body'     => $body,
-				'blocking' => true,
-				'timeout'  => self::TIMEOUT,
+				'body'       => $body,
+				'blocking'   => true,
+				'timeout'    => self::TIMEOUT,
+				// 藍新 ccore/core API 前的 Akamai WAF 會擋 WordPress/* 與 curl/* UA
+				//（回 403 Access Denied HTML），送產品識別 UA 通過（sandbox 實測）
+				'user-agent' => 'PowerCheckout/1.0',
 			]
 		);
 
@@ -225,6 +232,8 @@ final class DoActionClient {
 		$decoded = \json_decode( \trim( $body ), true );
 		if ( ! \is_array( $decoded ) ) {
 			$msg = "藍新 MPG DoAction {$action_zh}回應解析失敗";
+			// 原始回應片段入 log，否則無從診斷藍新回了什麼（sandbox 端到端踩雷）
+			Plugin::logger( $msg, 'error', [ 'body' => \mb_substr( $body, 0, 500 ) ] );
 			$this->order->add_order_note( "❌ {$msg}" );
 			throw new \Exception( $msg );
 		}

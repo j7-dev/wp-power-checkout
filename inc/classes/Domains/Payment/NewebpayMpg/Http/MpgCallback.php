@@ -85,17 +85,28 @@ final class MpgCallback extends ApiBase {
 	 * 與 NotifyURL 共用 handle_notify（冪等保護），但即使這裡先到也只是提早更新狀態；
 	 * 真正可靠的來源仍是 NotifyURL。
 	 *
+	 * 此端點承接「買家瀏覽器」的 form POST 導回——必須 302 回訂單完成頁，
+	 * 停留在純文字 1|OK 會讓買家付款後卡在白頁（sandbox 端到端實測發現）。
+	 *
 	 * @param \WP_REST_Request $request 請求
-	 * @return \WP_REST_Response 回應（HTTP 200 純文字）
+	 * @return \WP_REST_Response 302 導向訂單完成頁（查無訂單時導向結帳頁）
 	 */
 	public function post_mpg_return_callback( \WP_REST_Request $request ): \WP_REST_Response {
 		$params = $request->get_params();
+		$order  = null;
 		try {
-			$this->handle_notify( $params );
+			$order = $this->handle_notify( $params );
 		} catch ( \Throwable $e ) {
 			Plugin::logger( '藍新 MPG ReturnURL 處理失敗', 'error', [ 'error' => $e->getMessage() ] );
 		}
-		return self::ok_response();
+
+		$redirect = $order instanceof \WC_Order
+			? $order->get_checkout_order_received_url()
+			: \wc_get_checkout_url();
+
+		$response = new \WP_REST_Response( null, 302 );
+		$response->header( 'Location', $redirect );
+		return $response;
 	}
 
 	// endregion
@@ -115,22 +126,22 @@ final class MpgCallback extends ApiBase {
 	 *  7. StatusManager::update_order_status()。
 	 *
 	 * @param array<string, mixed> $params NotifyURL/ReturnURL 通知參數（含 TradeInfo / TradeSha）
-	 * @return void
+	 * @return \WC_Order|null 解析出的訂單（ReturnURL 302 導向用）；驗章 / 解密失敗回 null
 	 * @throws \Exception 查無訂單
 	 */
-	public function handle_notify( array $params ): void {
+	public function handle_notify( array $params ): ?\WC_Order {
 		$trade_info = (string) ( $params['TradeInfo'] ?? '' );
 		$trade_sha  = (string) ( $params['TradeSha'] ?? '' );
 
 		if ( '' === $trade_info || '' === $trade_sha ) {
 			Plugin::logger( '藍新 MPG 通知缺少 TradeInfo / TradeSha', 'warning', [ 'params' => $params ] );
-			return;
+			return null;
 		}
 
 		$settings = MpgSettingsDTO::instance();
 		if ( '' === $settings->hashKey || '' === $settings->hashIv ) {
 			Plugin::logger( '藍新 MPG 通知處理失敗：缺少憑證', 'warning' );
-			return;
+			return null;
 		}
 
 		$crypto = new TradeInfoCrypto( $settings->hashKey, $settings->hashIv );
@@ -139,14 +150,14 @@ final class MpgCallback extends ApiBase {
 		$expected_sha = $crypto->generate_trade_sha( $trade_info );
 		if ( ! \hash_equals( $expected_sha, \strtoupper( $trade_sha ) ) ) {
 			Plugin::logger( '藍新 MPG 通知 TradeSha 驗章失敗', 'warning', [ 'trade_sha' => $trade_sha ] );
-			return;
+			return null;
 		}
 
 		// 2. 解密 TradeInfo
 		$decoded = $this->decode_trade_info( $crypto, $trade_info );
 		if ( null === $decoded ) {
 			Plugin::logger( '藍新 MPG 通知 TradeInfo 解密 / 解析失敗', 'warning' );
-			return;
+			return null;
 		}
 
 		$status = (string) ( $decoded['Status'] ?? '' );
@@ -163,23 +174,25 @@ final class MpgCallback extends ApiBase {
 		// 3. 頂層 Status 非 SUCCESS → 記錄失敗（StatusManager 維持 pending）
 		if ( ! MpgStatus::is_status_success( $status ) ) {
 			( new StatusManager( $decoded, $order ) )->update_order_status();
-			return;
+			return $order;
 		}
 
 		// 4. CheckCode 驗交易結果（Status=SUCCESS 才有意義）
 		$received_check_code = (string) ( $result['CheckCode'] ?? '' );
 		if ( '' !== $received_check_code && ! $crypto->verify_check_code( $result, $received_check_code ) ) {
 			Plugin::logger( '藍新 MPG 通知 CheckCode 驗章失敗', 'warning', [ 'order_no' => $order_no ] );
-			return;
+			return null;
 		}
 
 		// 6. 冪等：已 processing 則 skip
 		if ( $order->has_status( OrderStatus::PROCESSING->value ) ) {
-			return;
+			return $order;
 		}
 
 		// 7. 更新訂單狀態
 		( new StatusManager( $decoded, $order ) )->update_order_status();
+
+		return $order;
 	}
 
 	/**
