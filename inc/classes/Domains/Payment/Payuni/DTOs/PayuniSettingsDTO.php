@@ -23,6 +23,7 @@ namespace J7\PowerCheckout\Domains\Payment\Payuni\DTOs;
 
 use J7\PowerCheckout\Domains\Payment\Payuni\Shared\Enums\PayuniPaymentMethod;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGatewaySettings;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Traits\EnableTrait;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -173,6 +174,8 @@ final class PayuniSettingsDTO extends DTO implements IGatewaySettings {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/payuni.png';
+
 		if ( Mode::TEST->value === $this->mode ) {
 			$this->api_url = self::SANDBOX_HOST . self::UPP_PATH;
 

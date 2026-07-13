@@ -7,6 +7,7 @@ namespace J7\PowerCheckout\Domains\Payment\NewebpayMpg\DTOs;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Services\MpgRedirectGateway;
 use J7\PowerCheckout\Domains\Payment\NewebpayMpg\Shared\Enums\MpgPaymentMethod;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGatewaySettings;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Traits\EnableTrait;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -152,6 +153,8 @@ final class MpgSettingsDTO extends DTO implements IGatewaySettings {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/newebpay.png';
+
 		if ( Mode::TEST->value === $this->mode ) {
 			$this->endpoint = 'https://ccore.newebpay.com/MPG/mpg_gateway';
 			// 藍新 MPG 公開測試帳號（Source: newebpay-mpg skill §Sandbox Detection / Test Environment）

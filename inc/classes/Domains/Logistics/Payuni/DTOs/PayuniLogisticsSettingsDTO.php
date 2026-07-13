@@ -20,6 +20,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Logistics\Payuni\DTOs;
 
 use J7\PowerCheckout\Domains\Logistics\Payuni\Services\PayuniLogisticsProvider;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -33,7 +34,7 @@ final class PayuniLogisticsSettingsDTO extends BaseSettingsDTO {
 	public string $id = PayuniLogisticsProvider::ID;
 
 	/** @var string 物流方式 icon */
-	public string $icon = 'https://www.payuni.com.tw/images/logo.svg';
+	public string $icon = '';
 
 	/** @var string 前台顯示標題 */
 	public string $title = 'PAYUNi 7-11 超商取貨 / 黑貓宅配';
@@ -120,6 +121,8 @@ final class PayuniLogisticsSettingsDTO extends BaseSettingsDTO {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/payuni.png';
+
 		if (Mode::TEST === $this->mode) {
 			$this->api_url = 'https://sandbox-api.payuni.com.tw';
 

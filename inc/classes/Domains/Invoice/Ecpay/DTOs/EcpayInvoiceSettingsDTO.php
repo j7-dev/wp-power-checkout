@@ -11,6 +11,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Invoice\Ecpay\DTOs;
 
 use J7\PowerCheckout\Domains\Invoice\Ecpay\Services\EcpayInvoiceProvider;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -23,7 +24,7 @@ final class EcpayInvoiceSettingsDTO extends BaseSettingsDTO {
 	public string $id = EcpayInvoiceProvider::ID;
 
 	/** @var string 付款方式 icon */
-	public string $icon = 'https://www.ecpay.com.tw/Content/Images/logo.png';
+	public string $icon = '';
 
 	/** @var string 前台顯示付款方式標題 */
 	public string $title = '綠界電子發票';
@@ -82,6 +83,8 @@ final class EcpayInvoiceSettingsDTO extends BaseSettingsDTO {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/ecpay.png';
+
 		if (Mode::TEST === $this->mode) {
 			$this->merchant_id = $this->merchant_id ?: '2000132';
 			$this->hash_key    = $this->hash_key ?: 'ejCk326UnaZWKisg';

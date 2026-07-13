@@ -21,6 +21,7 @@ namespace J7\PowerCheckout\Domains\Payment\Ecpg\DTOs;
 
 use J7\PowerCheckout\Domains\Payment\Ecpg\Services\EcpgGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Enums\EcpayPaymentMethod;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -146,6 +147,8 @@ final class EcpgSettingsDTO extends BaseSettingsDTO {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/ecpay.png';
+
 		if (Mode::TEST === $this->mode) {
 			// 站內付 2.0 雙 Domain（測試環境）
 			$this->tokenEndpoint   = 'https://ecpg-stage.ecpay.com.tw';

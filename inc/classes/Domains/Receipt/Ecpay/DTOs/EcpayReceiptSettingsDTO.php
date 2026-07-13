@@ -20,6 +20,7 @@ namespace J7\PowerCheckout\Domains\Receipt\Ecpay\DTOs;
 
 use J7\PowerCheckout\Domains\Receipt\Ecpay\Services\EcpayReceiptProvider;
 use J7\PowerCheckout\Domains\Receipt\Ecpay\Shared\Enums\EReceiptType;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -32,7 +33,7 @@ final class EcpayReceiptSettingsDTO extends BaseSettingsDTO {
 	public string $id = EcpayReceiptProvider::ID;
 
 	/** @var string 付款方式 icon */
-	public string $icon = 'https://www.ecpay.com.tw/Content/Images/logo.png';
+	public string $icon = '';
 
 	/** @var string 前台顯示標題 */
 	public string $title = '綠界電子收據';
@@ -114,6 +115,8 @@ final class EcpayReceiptSettingsDTO extends BaseSettingsDTO {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/ecpay.png';
+
 		if (Mode::TEST !== $this->mode) {
 			return;
 		}

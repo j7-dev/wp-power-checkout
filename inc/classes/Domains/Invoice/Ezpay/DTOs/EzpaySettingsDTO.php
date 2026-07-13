@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Invoice\Ezpay\DTOs;
 
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -40,7 +41,7 @@ final class EzpaySettingsDTO extends BaseSettingsDTO {
 	public string $id = self::ID;
 
 	/** @var string 付款方式 icon */
-	public string $icon = 'https://www.ezpay.com.tw/images/logo.png';
+	public string $icon = '';
 
 	/** @var string 前台顯示付款方式標題 */
 	public string $title = '藍新 ezPay 電子發票';
@@ -107,6 +108,8 @@ final class EzpaySettingsDTO extends BaseSettingsDTO {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/ezpay.png';
+
 		if ( Mode::TEST === $this->mode ) {
 			$this->merchant_id = $this->merchant_id ?: 'MS12345678';
 			$this->hash_key    = $this->hash_key ?: 'abcdefghijklmnopqrstuvwxyzabcdef';

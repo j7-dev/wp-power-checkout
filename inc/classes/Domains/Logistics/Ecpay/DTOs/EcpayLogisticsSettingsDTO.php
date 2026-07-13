@@ -19,6 +19,7 @@ namespace J7\PowerCheckout\Domains\Logistics\Ecpay\DTOs;
 
 use J7\PowerCheckout\Domains\Logistics\Ecpay\Services\EcpayLogisticsProvider;
 use J7\PowerCheckout\Domains\Logistics\Shared\Enums\LogisticsAccountType;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -32,7 +33,7 @@ final class EcpayLogisticsSettingsDTO extends BaseSettingsDTO {
 	public string $id = EcpayLogisticsProvider::ID;
 
 	/** @var string 物流方式 icon */
-	public string $icon = 'https://www.ecpay.com.tw/Content/Images/logo.png';
+	public string $icon = '';
 
 	/** @var string 前台顯示標題 */
 	public string $title = '綠界超商取貨 / 宅配';
@@ -167,6 +168,8 @@ final class EcpayLogisticsSettingsDTO extends BaseSettingsDTO {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/ecpay.png';
+
 		if (Mode::TEST === $this->mode) {
 			$this->api_url = 'https://logistics-stage.ecpay.com.tw';
 

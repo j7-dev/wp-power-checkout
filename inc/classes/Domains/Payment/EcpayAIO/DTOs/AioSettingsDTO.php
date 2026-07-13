@@ -7,6 +7,7 @@ namespace J7\PowerCheckout\Domains\Payment\EcpayAIO\DTOs;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Services\AioRedirectGateway;
 use J7\PowerCheckout\Domains\Payment\EcpayAIO\Shared\Enums\EcpayPaymentMethod;
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGatewaySettings;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Traits\EnableTrait;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -168,6 +169,8 @@ final class AioSettingsDTO extends DTO implements IGatewaySettings {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/ecpay.png';
+
 		if ( Mode::TEST->value === $this->mode ) {
 			$this->endpoint = 'https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5';
 			// 綠界 AIO 公開測試帳號（Source: ECPay-API-Skill SKILL.md §測試帳號 金流 AIO）

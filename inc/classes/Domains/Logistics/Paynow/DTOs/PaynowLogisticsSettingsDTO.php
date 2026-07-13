@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Logistics\Paynow\DTOs;
 
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -119,5 +120,11 @@ final class PaynowLogisticsSettingsDTO extends BaseSettingsDTO {
 	 */
 	public function api_url(): string {
 		return Mode::PROD === $this->mode ? self::PROD_API_URL : self::TEST_API_URL;
+	}
+
+	/** @return void 實例化後：帶入本地 icon 網址 */
+	protected function after_init(): void {
+		parent::after_init();
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/paynow.png';
 	}
 }

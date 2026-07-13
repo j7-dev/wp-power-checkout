@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 namespace J7\PowerCheckout\Domains\Invoice\Paynow\DTOs;
 
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\DTOs\BaseSettingsDTO;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -43,7 +44,7 @@ final class PaynowInvoiceSettingsDTO extends BaseSettingsDTO {
 	public string $id = self::ID;
 
 	/** @var string 付款方式 icon */
-	public string $icon = 'https://www.paynow.com.tw/images/logo.png';
+	public string $icon = '';
 
 	/** @var string 前台顯示付款方式標題 */
 	public string $title = 'PayNow 立吉富電子發票';
@@ -154,5 +155,11 @@ final class PaynowInvoiceSettingsDTO extends BaseSettingsDTO {
 		}
 
 		parent::before_init();
+	}
+
+	/** @return void 實例化後：帶入本地 icon 網址 */
+	protected function after_init(): void {
+		parent::after_init();
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/paynow.png';
 	}
 }

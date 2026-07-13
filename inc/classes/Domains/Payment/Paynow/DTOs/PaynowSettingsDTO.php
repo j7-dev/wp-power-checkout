@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace J7\PowerCheckout\Domains\Payment\Paynow\DTOs;
 
 use J7\PowerCheckout\Domains\Payment\Shared\Interfaces\IGatewaySettings;
+use J7\PowerCheckout\Plugin;
 use J7\PowerCheckout\Shared\Enums\Mode;
 use J7\PowerCheckout\Shared\Traits\EnableTrait;
 use J7\PowerCheckout\Shared\Utils\ProviderUtils;
@@ -169,6 +170,8 @@ final class PaynowSettingsDTO extends DTO implements IGatewaySettings {
 	 * @return void
 	 */
 	protected function after_init(): void {
+		$this->icon = Plugin::$url . '/inc/assets/images/icons/paynow.png';
+
 		$this->base_url = Mode::PROD->value === $this->mode
 		? self::PROD_HOST
 		: self::SANDBOX_HOST;
