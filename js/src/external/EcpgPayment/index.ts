@@ -123,6 +123,15 @@ const loadEcpaySdk = async (
 	if (typeof window.jQuery === 'undefined') {
 		await loadScript(JQUERY_URL)
 	}
+
+	// ⚠️ 綠界 SDK 內部以全域 `$`（如 `$.ajax`）操作；WordPress 的 jQuery 為 noConflict 模式，
+	// `window.$` 為 undefined，會導致 ECPay.initialize 讀 `$.ajax` 時 throw
+	//「Cannot read properties of undefined (reading 'ajax')」→ 收單 UI 無法渲染。
+	// 故載入 SDK 前先將 window.$ 別名為 jQuery。
+	if (typeof window.jQuery !== 'undefined') {
+		;(window as unknown as { $: unknown }).$ = window.jQuery
+	}
+
 	await loadScript(NODE_FORGE_URL)
 	await loadScript(sdkUrl)
 
