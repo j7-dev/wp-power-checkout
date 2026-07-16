@@ -89,6 +89,44 @@ final class ReceiptIssueParams extends DTO {
 	];
 
 	/**
+	 * 序列化為綠界請求陣列（移除空的條件式欄位）
+	 *
+	 * ⚠️ 綠界電子收據 AES-JSON **不接受空陣列**的條件式欄位——一般收據（ReceiptType=1，非公益/政治）
+	 * 若夾帶 `DonationInfo: []`，綠界回 `TransCode=110「The parameter [Data] decrypt fail」`
+	 * （此為 Data 結構驗證失敗，**非**加解密問題——AES 本身正確）。僅捐贈型收據（公益 2 / 政治 4）
+	 * 帶 DonationInfo，其餘空陣列必須移除。修法同 Ecpg\DTOs\GetTokenParams::to_array()。
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function to_array(): array {
+		$body = parent::to_array();
+
+		// 綠界電子收據 AES-JSON 僅接受「該收據類型適用」的欄位——一般收據（ReceiptType=1）夾帶
+		// 空陣列 DonationInfo、無效值 DonorType=0 / PaymentMethod=0（有效值分別 1-5 / 1-3）、或
+		// 空字串選填欄位，綠界一律回 TransCode=110「The parameter [Data] decrypt fail」（實為 Data
+		// 結構驗證失敗）。僅送非空 / 有效值，比照官方 guides/25 一般收據範例。
+		// 捐贈型（公益 2 / 政治 4）收據的 DonorType / PaymentMethod / DonationInfo / Identifier 皆為
+		// 非零非空，會被保留；故此清理對各收據類型皆安全。
+		foreach ( [ 'DonationInfo' ] as $field ) {
+			if ( isset( $body[ $field ] ) && [] === $body[ $field ] ) {
+				unset( $body[ $field ] );
+			}
+		}
+		foreach ( [ 'DonorType', 'PaymentMethod' ] as $field ) {
+			if ( isset( $body[ $field ] ) && 0 === $body[ $field ] ) {
+				unset( $body[ $field ] );
+			}
+		}
+		foreach ( [ 'Identifier', 'Phone', 'CellPhone', 'DeliveryAddress', 'Note' ] as $field ) {
+			if ( isset( $body[ $field ] ) && '' === $body[ $field ] ) {
+				unset( $body[ $field ] );
+			}
+		}
+
+		return $body;
+	}
+
+	/**
 	 * 從訂單 + 設定建立開立參數
 	 *
 	 * @param \WC_Order               $order    訂單

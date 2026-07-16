@@ -121,4 +121,27 @@ final class GetTokenParams extends DTO {
 			throw new \Exception( 'GetTokenParams: OrderInfo.MerchantTradeNo 必填' );
 		}
 	}
+
+	/**
+	 * 序列化為綠界請求陣列（移除空的付款方式 Info 欄位）
+	 *
+	 * ⚠️ 綠界站內付 2.0 **不接受空陣列**的付款方式 Info 欄位——信用卡請求若夾帶
+	 * `ATMInfo: []` / `CVSInfo: []` / `BarcodeInfo: []`（或 ATM 請求夾帶空 `CardInfo: []`），
+	 * 綠界會回 `TransCode=110「The parameter [Data] decrypt fail」`（此為 Data 結構驗證失敗，
+	 * **非**加解密問題——AES 對官方向量 byte-for-byte 吻合、內容可正常自解）。
+	 * 各付款方式僅送對應的 Info（信用卡→CardInfo、ATM→ATMInfo…），其餘空陣列必須移除。
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function to_array(): array {
+		$body = parent::to_array();
+
+		foreach ( [ 'CardInfo', 'ATMInfo', 'CVSInfo', 'BarcodeInfo' ] as $field ) {
+			if ( isset( $body[ $field ] ) && [] === $body[ $field ] ) {
+				unset( $body[ $field ] );
+			}
+		}
+
+		return $body;
+	}
 }

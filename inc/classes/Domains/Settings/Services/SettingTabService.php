@@ -173,6 +173,32 @@ class SettingTabService {
 
 	/** @return void 載入 Vue App */
 	public static function enqueue_vue_app(): void {
+		// before_order_received 於 `wp` 階段呼叫本方法時，enqueue_scripts（掛在較晚的 wp_enqueue_scripts）
+		// 尚未執行到 wp_register_script，handle 未註冊會導致後續 wp_localize_script 靜默丟棄資料
+		// （例如 power_checkout_payuni_uni_data / power_checkout_ecpg_data 無法送達前端）。
+		// 此處補上冪等註冊，確保呼叫端 localize 前 handle 必定已註冊。
+		if (!\wp_script_is( self::$handle, 'registered' )) {
+			\wp_register_script(
+				self::$handle,
+				Plugin::$url . '/js/dist/index.js',
+				[ 'jquery' ],
+				Plugin::$version,
+				[
+					'strategy'  => 'async',
+					'in_footer' => true,
+				]
+			);
+		}
+
+		if (!\wp_style_is( self::$handle, 'registered' )) {
+			\wp_register_style(
+				self::$handle,
+				Plugin::$url . '/js/dist/index.css',
+				[],
+				Plugin::$version,
+			);
+		}
+
 		\wp_enqueue_script(self::$handle);
 		\wp_enqueue_style(self::$handle);
 	}
