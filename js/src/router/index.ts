@@ -88,7 +88,6 @@ const routes = [
 		path: '/receipts/ecpay_receipt',
 		component: () => import('@/pages/Receipts/Ecpay/index.vue'),
 	},
-	{ path: '/settings', component: () => import('@/pages/Settings.vue') },
 ]
 
 const router = createRouter({

@@ -8,7 +8,6 @@
 				<el-menu-item index="/logistics"> 物流 </el-menu-item>
 				<el-menu-item index="/invoices"> 電子發票 </el-menu-item>
 				<el-menu-item index="/receipts"> 電子收據 </el-menu-item>
-				<el-menu-item index="/settings" disabled> 設定🚧 </el-menu-item>
 			</el-menu>
 		</div>
 		<div class="flex-1 px-6">

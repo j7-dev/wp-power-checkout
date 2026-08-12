@@ -120,7 +120,6 @@ Memory mode router (`createMemoryHistory`):
 /invoices/ecpay                         → ECPay Invoice settings
 /invoices/ezpay                         → ezPay Invoice settings (js/src/pages/Invoices/Ezpay/index.vue)
 /invoices/paynow_invoice                → PayNow Invoice settings (js/src/pages/Invoices/Paynow/index.vue)
-/settings                               → Global settings (placeholder)
 ```
 
 `ROUTER_MAPPER` in `router/index.ts` maps provider IDs to routes.
