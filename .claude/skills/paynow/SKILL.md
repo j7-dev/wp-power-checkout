@@ -17,12 +17,20 @@ description: >
   折讓 /api/invoices/allowance、折讓作廢 /api/invoices/cancel-allowance、
   查詢 GET /api/invoices、POS 取號 + POS 開立）；載具 carrier_type、捐贈碼 npoban、
   課稅別 tax_type、零稅率原因 zero_tax_rate_reason。
+  (4) 物流 API — user_account + apicode 認證 + partner_token header；
+  TripleDES ECB/Zeros 加密 + SHA-1 PassCode；端點 logistic.paynow.com.tw /
+  testlogistic.paynow.com.tw（選店 /Member/Order/Choselogistics、建單 /api/Orderapi/Add_Order、
+  查詢 Get_Order_Info、取消 CancelOrder、關轉 Put、重新取號 ReNewOrder、各服務列印標籤）；
+  17 種物流服務代碼（7-11/全家/萊爾富/OK 超商 C2C 與大宗 B2C、常溫/冷凍、黑貓宅配/到店、
+  7-11 海外配送）+ 完整貨態代碼表。
   Use this skill whenever code or tasks involve PayNow、立吉富、paynow.com.tw、
-  docs.paynow.com.tw、台灣金流、台灣電子發票、付款通知 webhook、payment_result、
-  PaymentIntent、付款意圖、Component SDK、js.paynow.com.tw、PrivateKey/PublicKey、
-  etopm.aspx、PayNowAPI_JS.aspx、PassCode、BuysafeNo、WebNo、檢核碼、CheckNum、
-  EncryptionKey/EncryptionIV、退款 refund、交易查詢、/api/invoices/issue、carrier_type、
-  npoban、tax_type、X-Payment-Center-Hmac-Sha256、超商代碼 ibon/FamiPort、虛擬帳號、
+  docs.paynow.com.tw、台灣金流、台灣電子發票、台灣物流、超商取貨、黑貓宅配、
+  付款通知 webhook、payment_result、PaymentIntent、付款意圖、Component SDK、
+  js.paynow.com.tw、PrivateKey/PublicKey、etopm.aspx、PayNowAPI_JS.aspx、PassCode、
+  BuysafeNo、WebNo、檢核碼、CheckNum、EncryptionKey/EncryptionIV、退款 refund、交易查詢、
+  /api/invoices/issue、carrier_type、npoban、tax_type、X-Payment-Center-Hmac-Sha256、
+  超商代碼 ibon/FamiPort、虛擬帳號、logistic.paynow.com.tw、Add_Order、JsonOrder、
+  Logistic_service、LogisticNumber、PayNowLogisticCode、貨態回傳、TripleDES、
   e-invoice / 台灣金流串接，或在 Power Checkout 等 WooCommerce 外掛新增 PayNow provider。
   本 SKILL 為唯一官方 API reference 來源——不要再去翻 docs.paynow.com.tw 官網。
 ---
@@ -39,9 +47,9 @@ PayNow 立吉富由**立吉富股份有限公司**提供，是台灣第三方支
 
 ---
 
-## 最關鍵認知：PayNow 有「三套」獨立 API，不要混用
+## 最關鍵認知：PayNow 有「四套」獨立 API，不要混用
 
-PayNow 的文件同時存在三個彼此獨立的串接體系，**認證方式、端點網域、加密簽章完全不同**。
+PayNow 的文件同時存在四個彼此獨立的串接體系，**認證方式、端點網域、加密簽章完全不同**。
 動手前先確認你要串的是哪一套：
 
 | # | 體系 | 認證 | 端點網域（正式 / 測試） | 加密簽章 | 適用 |
@@ -49,16 +57,19 @@ PayNow 的文件同時存在三個彼此獨立的串接體系，**認證方式�
 | **1** | **新版 REST + Component SDK** | Bearer Token（PrivateKey） | `api.paynow.com.tw` / `sandboxapi.paynow.com.tw` | 無對稱加密；Webhook 用 **HMAC-SHA256**（key=PrivateKey） | 新案優先；iframe 內嵌付款（類似站內付）、API 退款、綁卡 Token |
 | **2** | **舊版 CashFlow（導轉 + 背景）** | merchant 帳號 + 交易密碼 + 多層檢核碼 | `www.paynow.com.tw` / `test.paynow.com.tw` | **SHA-1 PassCode**、**AES256**（GP/GK 換鑰）、**HMAC-SHA256**、**TripleDES** | 既有導轉式金流（`etopm.aspx`）、背景請款/退款/查詢（`PayNowAPI_JS.aspx`） |
 | **3** | **電子發票** | Bearer Token（商家 JWT-Token） | `invoiceapi-prod.paynow.com.tw` / `invoiceapi-dev.paynow.com.tw` | 無對稱加密（純 Bearer） | 開立 / 作廢 / 折讓 / 折讓作廢 / 查詢 / POS |
+| **4** | **物流** | `user_account` + `apicode`（+ `partner_token` header） | `logistic.paynow.com.tw` / `testlogistic.paynow.com.tw` | **TripleDES ECB/Zeros** + **SHA-1 PassCode** | 超商 C2C / 大宗 B2C（7-11 / 全家 / 萊爾富 / OK）、常溫 / 冷凍、黑貓宅配 / 到店、7-11 海外配送 |
 
 > **判斷捷徑**：看到 `Authorization: Bearer {token}` → 體系 1 或 3（REST）；看到
-> `etopm.aspx` / `PayNowAPI_JS.aspx` / `PassCode` / `BuysafeNo` / `WebNo` → 體系 2（舊版）。
-> 新版 WooCommerce 整合**建議走體系 1（PaymentIntent）+ 體系 3（發票）**。
+> `etopm.aspx` / `PayNowAPI_JS.aspx` / `PassCode` / `BuysafeNo` / `WebNo` → 體系 2（舊版）；
+> 看到 `logistic.paynow.com.tw` / `JsonOrder` / `Logistic_service` / `LogisticNumber` → 體系 4（物流）。
+> 新版 WooCommerce 整合**建議走體系 1（PaymentIntent）+ 體系 3（發票）+ 體系 4（物流）**。
 
 各體系完整端點與參數表見：
 - 體系 1 → `references/payment-rest-api.md`
 - 體系 2 → `references/cashflow-legacy-api.md`
 - 體系 3 → `references/invoice-api.md`
-- 加密簽章（三套全部）→ `references/encryption.md`
+- 體系 4 → `references/logistics-api.md`
+- 加密簽章（金流三套）→ `references/encryption.md`；物流 TripleDES 見 `references/logistics-api.md`
 - 錯誤碼 → `references/error-codes.md`
 - 課稅別 / 載具 / 捐贈 / 付款方式對照 → `references/concepts.md`
 
@@ -257,6 +268,63 @@ PayNow 以 POST 推送付款結果到建立付款意圖時填的 `webhookUrl`：
 
 ---
 
+## 體系 4：物流 API
+
+### 環境與認證
+
+```
+正式：https://logistic.paynow.com.tw
+測試：https://testlogistic.paynow.com.tw
+認證：JSON 內帶 user_account + apicode（無 Token）
+Header：partner_token（合作夥伴識別碼，用於建單回傭計算，依介面而定）
+```
+
+- **加密**：`JsonOrder` = `urlencode(base64(TripleDES(JSON)))`；
+  TripleDES 為 **ECB + PaddingMode.Zeros**，Key `123456789070828783123456`、IV `12345678`，
+  base64 後 `.Replace(' ', '+')`。**這是官方文件公布的固定值，正式與測試共用，不需另外索取。**
+- **簽章**：`PassCode = strtoupper(sha1(user_account + OrderNo + TotalAmount + apicode))`
+  （直接相接，**不含 `+` 號**，輸出十六進位大寫）。
+
+### 通用端點速查（完整參數見 `references/logistics-api.md`）
+
+| 功能 | Method | 路徑 |
+|------|--------|------|
+| 選擇物流服務（電子地圖） | POST | `/Member/Order/Choselogistics` |
+| 建立物流訂單 | POST | `/api/Orderapi/Add_Order` |
+| 查詢物流單（物流單號） | GET | `/api/Orderapi/Get_Order_Info` |
+| 查詢物流單（商家訂單編號） | GET | `/api/Orderapi/Get_Order_Info_orderno` |
+| 取消物流單 | **DELETE** | `/api/Orderapi/CancelOrder` |
+| 門市更新（關轉） | **PUT** | `/api/Orderapi/Put` |
+| 重新取號 | POST | `/api/Orderapi/ReNewOrder` |
+| 列印標籤（7-11 / 全家 / 萊爾富 / OK） | GET | `/api/Order711`、`/api/OrderFamiC2C`、`/api/OrderHiLife`、`/api/OKC2C` |
+| 列印標籤（黑貓） | POST | `/Member/Order/PrintBlackCatLabel` |
+
+### 物流服務代碼（17 種）
+
+`01` 7-11 交貨便 C2C／`02` 7-11 大宗 B2C／`03` 全家店到店 C2C／`04` 全家大宗 B2C／
+`05` 萊爾富店到店／`06` 黑貓宅急便／`07` 7-11 海外配送(店配)／`08` 7-11 海外配送(宅配)／
+`10` OK 店到店／`12` 7-11 大宗退貨便／`14` 全家大宗退貨便／`21` 7-11 交貨便(冷凍)／
+`22` 7-11 大宗(冷凍)／`23` 全家店到店(冷凍)／`24` 全家大宗(冷凍)／
+`36` 黑貓宅急便(PayNow 契客)／`46` 黑貓到店(PayNow 契客)。
+
+### 金額與規格限制
+
+| 服務 | 金額上限 | 其他限制 |
+|---|---|---|
+| 超商 C2C（01/03/05/10） | **20000** | 收件人姓名長度依超商不同（7-11 10／全家 30／萊爾富 20／OK 10）；7-11 全欄位不可含 Ibon 禁用字元 |
+| 黑貓宅配（06/36） | **100000** | 長+寬+高 ≤ 150cm、重量 ≤ 20kg、`ExpectDeliverDate` 最大建單日 +6 天 |
+
+### 貨態回傳（PayNow → 商家 HTTP POST）
+
+欄位：`orderno`、`OriginOrderno`、`PayNowLogisticCode`、`Detail_Status_Description`、
+`paymentno`、`StoreDate` / `StoreTime`（代碼 5000/5001 時的實際到店時間）。
+
+關鍵貨態：`0000` 已成立等待出貨／`0101` 到寄件門市／`4000` 進驗成功／`5000` 取件門市配達／
+`8000` 買家已取件／`7101`・`7104` 取件門市關轉（**須 D+7 前呼叫關轉 API**）。
+完整代碼表（7-11 / 全家 / 萊爾富 / OK 各自專屬代碼）與貨態流程見 `references/logistics-api.md`。
+
+---
+
 ## 程式碼範例（references/php-examples.md）
 
 `references/php-examples.md` 提供可直接套用的 **PHP 8.1+** 範例（皆為依官方規格撰寫的整合範例）：
@@ -292,6 +360,14 @@ PayNow 以 POST 推送付款結果到建立付款意圖時填的 `webhookUrl`：
 - ❌ 退款（ATM）必填 `bankCode` / `bankBranchCode` / `bankAccount`；信用卡退款不需要。
 - ❌ 別把文件站 URL `https://docs.paynow.com.tw/api/...`（curl 範例的 host）當成真實 API host——
   真實 host 是 `api.paynow.com.tw` / `invoiceapi-prod.paynow.com.tw` 等（見上方環境段）。
+- ❌ 物流 TripleDES 是 **ECB + Zeros padding**，不是 CBC、不是 PKCS#7；
+  base64 後還要 `str_replace(' ', '+', ...)`。誤用 `DES-EDE3-CBC` 會產生完全不同的密文。
+- ❌ 物流金額上限依服務不同：**超商 C2C ≤ 20000、黑貓宅配 ≤ 100000**。
+- ❌ 物流 7-11 訂單全欄位不可含 **Ibon 禁用字元**（含 `.` `-` `_` `,` 等常見符號）；
+  `OrderNo` 限英文與數字。
+- ❌ 物流取消用 **DELETE**、關轉用 **PUT**，不是全部 POST。
+- ❌ 物流重新取號跨過規定天數會拿到新的 `paynoworderno`，後續列印 / 查詢必須改用新編號。
+- ❌ 物流回應欄位 `Logistic_Serviece` 是官方拼錯的欄位名（少一個 c），程式須照抄不可自行更正。
 
 ---
 
@@ -302,6 +378,7 @@ PayNow 以 POST 推送付款結果到建立付款意圖時填的 `webhookUrl`：
 | `references/payment-rest-api.md` | 體系 1 全部端點逐欄位 request / response、PaymentIntent / Checkout / Refund / Customer / ApplePay / Session / Partner 參數表、Webhook payload 完整欄位 |
 | `references/cashflow-legacy-api.md` | 體系 2 導轉式（etopm.aspx）各付款方式 request / 回傳參數、背景交易（請款 / 退款 / 取消授權 / 查詢 / 票券核銷）、PassCode 組成、PayType / CodeType 對照 |
 | `references/invoice-api.md` | 體系 3 開立 / 作廢 / 折讓 / 折讓作廢 / 查詢 / POS 取號 / POS 開立逐欄位參數、載具 / 課稅別 / 零稅率原因全表、各情境 request 範例 |
+| `references/logistics-api.md` | 體系 4 全部端點逐欄位參數（選店 / 建單 / 查詢 ×2 / 取消 / 關轉 / 重新取號 / 各服務列印與專屬 API）、TripleDES ECB + SHA-1 PassCode 官方 C# 原文與 PHP 對照、17 種服務代碼、超商與黑貓欄位差異、完整貨態代碼表與貨態流程 |
 | `references/encryption.md` | 三套加密簽章全集：REST HMAC-SHA256、舊版 SHA-1 PassCode、AES256(CBC/Zeros)、GP/GK 加權檢核碼、TimeStr、HMACSHA256、TripleDES、ApplePay Signature；含官方 C# 原文與 PHP 對照 |
 | `references/error-codes.md` | 完整錯誤碼表（M 會員 / A 商務 / C 請款 / B 銀行 / R 退款 / N 修改 / P 查詢 / Q 會員查詢 / T 票券系列）+ 交易查詢回應格式 |
 | `references/concepts.md` | 三代 API 架構對照、金鑰體系、付款方式 / 課稅別 / 載具 / 捐贈 / 狀態機、SFTP 對帳檔格式、台灣電子發票背景 |

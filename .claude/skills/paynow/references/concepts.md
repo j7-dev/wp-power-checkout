@@ -143,10 +143,10 @@ draft ──checkout──> processing ──3DS──> pending_review ──> s
 | 檔案 | 檔名 | 內容 |
 |------|------|------|
 | 會員可請款資料 | `YYYYMMDD_Sno.xml` | `WEBNO` / `BUYSAFENO` / `CAPTUREPRICE`（可請款訂單） |
-| 會員銀行帳號變更 | `memYYYYMMDD_Sno.xml` | 會員銀行帳戶資料 |
+| 會員銀行帳號變更 | `memYYYYMMDD_Sno.xml` | `MEM_BANKACCOUNT`（撥款銀行分行名稱）/ `MEM_BANKACCNO`（銀行帳號）/ `MEM_BANKANAME`（銀行戶名） |
 | 銀行代碼 | `BANKYYYYMMDD.xml` | `BANKTYPE`(1 銀行/2 信合社/3 漁農會/4 郵局) `BANKCODE` `BANKNAME` |
 | 分行代碼 | `BRANCHYYYYMMDD.xml` | `BANKCODE` `BRANCHCODE` `BRANCHNAME` |
-| INS 已撥款交易 | `INSYYYYMMDD_Sno.xml` | `BUYSAFENO` `INSTRUCTDATE` 受款帳號 / 銀行代碼 |
+| INS 已撥款交易 | `INSYYYYMMDD_Sno.xml` | `BUYSAFENO` / `ORDERNO` / `INSTRUCTDATE`（銀行撥款日 YYYYMMDD）/ `mem_BankName`（受款戶名）/ `mem_Bankaccno`（受款帳號）/ `accountbankno`（受款銀行代碼）/ `Trans_ID`（受款戶 EC 統編） |
 | MCC 代碼表 | `NCCC_MCCCODEYYYYMMDD.xml` | `MCC_TYPE` `MCC_CODE`（百貨 01 / 餐飲 05 / 線上遊戲 34 / 拍賣 99 等） |
 
 每個檔案結構：`<DOCHEAD><DOCDATE><TOTALRECORDS></DOCHEAD>` + 多筆 `<CONTENT>`。

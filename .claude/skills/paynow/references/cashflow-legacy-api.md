@@ -300,3 +300,26 @@ JSON Content：`mem_cid`、`mem_checkpw`、`OrderNo`、`OrderInfo`、`ECPlatform
 
 > ApplePay 商家驗證（`mpay.paynow.com.tw/api/ApplePay/GetTransactionSession`）與其 Signature 演算法
 > 見 `references/encryption.md`「ApplePay Signature」段。
+
+### 舊版 ApplePay 前端 `ApplePaySession` 參數
+
+官方範例的付款請求物件（**PayNow 限定值，非 Apple 全集**）：
+
+```js
+{
+  countryCode: 'TW',                          // 僅 TW
+  currencyCode: 'TWD',                        // 僅 TWD
+  supportedNetworks: ['visa','masterCard','jcb'],  // 僅這三種卡別
+  merchantCapabilities: ['supports3DS'],      // 僅 supports3DS
+  lineItems: [{ label: '測試商品', amount: '100' }]
+}
+```
+
+- **卡別限制**：只支援 `visa` / `masterCard` / `jcb`——不支援 AmEx、銀聯。
+- **付款能力**：只支援 `supports3DS`，不可帶 `supportsCredit` / `supportsDebit` / `supportsEMV`。
+- 商家驗證回傳欄位：`MemCid`（PayNow 商家帳號）、`MerchantIdentifier`（Apple Pay MerchantID）、
+  `TradeStatus`（`S` 成功 / `F` 失敗）、`ErrMsg`。
+
+前置設定為 Apple Developer 端四步驟（註冊 Merchant ID → 建立交易憑證 → 建立商家憑證 →
+設定 Merchant Domain 並放置 `.well-known/apple-developer-merchantid-domain-association.txt`），
+其中兩張憑證的 CSR 檔由 PayNow 提供、簽出後回傳 PayNow。
